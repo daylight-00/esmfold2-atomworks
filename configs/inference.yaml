@@ -1,11 +1,12 @@
 # @package _global_
-# Mirrors models/rfd3/configs/inference.yaml. `pkg://configs` is vestigial in
-# Foundry (there is no top-level configs package) but is kept so that this file
-# is identical in shape to the ones beside it once dropped into the repo.
+# The searchpath lets an installed package find its own configs. Foundry's
+# models also list `pkg://configs`; that package does not exist in this
+# repository, and Hydra warns on every compose for a searchpath it cannot
+# resolve, so it is omitted here. Add it back when moving into foundry/models/,
+# where the rest of the files carry it.
 hydra:
   searchpath:
     - pkg://esmfold2_foundry.configs
-    - pkg://configs
 
 defaults:
   - inference_engine: esmfold2

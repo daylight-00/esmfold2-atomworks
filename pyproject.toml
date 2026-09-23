@@ -150,6 +150,15 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/esmfold2_foundry"]
 
+# The Hydra configs live at the repo root (mirroring foundry/models/<name>/configs)
+# but must be importable as `esmfold2_foundry.configs` once installed, because
+# that is what the `pkg://esmfold2_foundry.configs` searchpath in configs/*.yaml
+# resolves against. Without this the configs simply are not in the wheel, and a
+# standalone install fails to compose -- which a source checkout does not reveal.
+# Foundry does the same thing for its own models.
+[tool.hatch.build.targets.wheel.force-include]
+"configs" = "esmfold2_foundry/configs"
+
 # ---------------------------------------------------------------------------
 # Lint and test settings mirror the Foundry repo so that this package can be
 # dropped into foundry/models/esmfold2/ without a reformat diff.

@@ -103,6 +103,35 @@ def pythonpath_entries() -> list[Path]:
     return [*SOURCE_TREES.values(), REPO_ROOT / "src"]
 
 
+def config_dir() -> Path:
+    """The Hydra config directory, in whichever layout is present.
+
+    The configs live at the repo root in a source checkout (mirroring
+    ``foundry/models/<name>/configs``) and inside the package once installed,
+    because ``pkg://esmfold2_foundry.configs`` has to resolve there. Callers
+    that compose configs should ask here rather than assuming one of the two::
+
+        with initialize_config_dir(config_dir=str(config_dir()), version_base="1.3"):
+            cfg = compose(config_name="inference", overrides=[...])
+
+    Raises:
+        FileNotFoundError: when neither layout is present, which means the
+            wheel was built without the configs -- the failure this function
+            exists to make loud rather than mysterious.
+    """
+    packaged = Path(__file__).resolve().parent / "configs"
+    if packaged.is_dir():
+        return packaged
+    source = REPO_ROOT / "configs"
+    if source.is_dir():
+        return source
+    raise FileNotFoundError(
+        f"no Hydra configs at {packaged} or {source}. In an installed package "
+        "this means the wheel was built without the force-include that maps "
+        "configs/ to esmfold2_foundry/configs; see pyproject.toml."
+    )
+
+
 #: Trees whose revision is recorded in ``UPSTREAM.lock``. ``mpnn`` lives inside
 #: the foundry tree, so it is covered by foundry's entry.
 LOCKED_TREES = ("esm", "atomworks", "foundry")

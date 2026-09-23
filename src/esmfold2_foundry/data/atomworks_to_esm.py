@@ -115,6 +115,7 @@ class ChainRecord:
     n_residues: int
     sequence: str | None = None
     residue_names: tuple[str, ...] = ()
+    residue_ids: tuple[int, ...] = ()
     chain_type: int | None = None
 
     @property
@@ -141,6 +142,12 @@ class AdapterReport:
     #: to the folded sequence. Folding proceeds with the parent residues, so
     #: this is the one case where chemistry is knowingly approximated.
     unplaceable_modifications: list[str] = field(default_factory=list)
+    #: Covalent bonds carried across from the source structure.
+    covalent_bonds: list[Any] = field(default_factory=list)
+    #: Bonds detected but not placeable in the model's indexing, with the
+    #: reason. Skipped rather than guessed -- a wrong index bonds the wrong
+    #: pair of atoms, which upstream cannot detect.
+    unresolved_covalent_bonds: list[str] = field(default_factory=list)
 
     def dropped_summary(self) -> str:
         if not self.dropped:
@@ -372,6 +379,7 @@ def chain_records(
                 n_residues=len(starts),
                 sequence=sequence,
                 residue_names=tuple(str(n) for n in chain.res_name[starts]),
+                residue_ids=tuple(int(r) for r in chain.res_id[starts]),
                 chain_type=ctype,
             )
         )
@@ -392,6 +400,7 @@ def atom_array_to_structure_prediction_input(
     sequences: dict[str, str] | None = None,
     allow_undeclared_ccd_ligands: bool = True,
     emit_modifications: bool = True,
+    declare_covalent_bonds: bool = True,
     drop_water: bool = True,
     chain_key: str = "chain_id",
     report: AdapterReport | None = None,
@@ -526,7 +535,88 @@ def atom_array_to_structure_prediction_input(
             f"({rep.dropped_summary()})"
         )
 
-    return StructurePredictionInput(sequences=inputs)
+    spi = StructurePredictionInput(sequences=inputs)
+    if declare_covalent_bonds:
+        spi = _attach_covalent_bonds(
+            spi,
+            atoms,
+            records=records,
+            chain_key=chain_key,
+            chain_info=chain_info,
+            report=rep,
+        )
+    return spi
+
+
+def _attach_covalent_bonds(
+    spi: Any,
+    atoms: AtomArray,
+    *,
+    records: list[ChainRecord],
+    chain_key: str,
+    chain_info: dict | None,
+    report: AdapterReport,
+) -> Any:
+    """Return *spi* with any non-inferable covalent bonds declared.
+
+    Short-circuits before doing any work when the structure has no such bond,
+    which is the common case: resolving them costs one extra featurization,
+    because the atom indices ESM wants are positions in the tokenizer's own
+    per-residue ordering (see :mod:`esmfold2_foundry.data.bonds`).
+    """
+    from esm.models.esmfold2.types import StructurePredictionInput
+
+    from esmfold2_foundry.data.bonds import (
+        covalent_bond_candidates,
+        resolve_covalent_bonds,
+    )
+
+    keep = frozenset(
+        record.chain_id for record in records if record.kind != "water"
+    ) & frozenset(str(entry.id) for entry in spi.sequences)
+
+    candidates = covalent_bond_candidates(atoms, chain_key=chain_key, keep_chains=keep)
+    if not candidates:
+        return spi
+
+    from esm.models.esmfold2.prepare_input import prepare_esmfold2_input
+    from esm.models.esmfold2.processor import clean_esmfold2_input
+
+    features, chain_infos = prepare_esmfold2_input(clean_esmfold2_input(spi), seed=0)
+    bonds, skipped = resolve_covalent_bonds(
+        candidates,
+        features,
+        chain_infos,
+        _residue_index_map(records, chain_info),
+    )
+    report.covalent_bonds = list(candidates)
+    report.unresolved_covalent_bonds = skipped
+    if not bonds:
+        return spi
+    return StructurePredictionInput(
+        sequences=list(spi.sequences),
+        distogram_conditioning=spi.distogram_conditioning,
+        covalent_bonds=bonds,
+    )
+
+
+def _residue_index_map(
+    records: list[ChainRecord], chain_info: dict | None
+) -> dict[tuple[str, int], int]:
+    """``(chain_id, source res_id) -> tokenizer residue index``.
+
+    The deposited numbering need not start at one or be contiguous, so the two
+    are related only through the residue list the sequence was built from.
+    """
+    mapping: dict[tuple[str, int], int] = {}
+    for record in records:
+        entry = _chain_info_entry(chain_info, record.chain_id)
+        res_ids = entry.get("res_id") if entry else None
+        if res_ids is None:
+            res_ids = record.residue_ids
+        for index, res_id in enumerate(res_ids or []):
+            mapping[(record.chain_id, int(res_id))] = index
+    return mapping
 
 
 def _modifications_for(

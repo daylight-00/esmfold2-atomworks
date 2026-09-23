@@ -27,7 +27,12 @@ registry:
 
 ```toml
 [project.optional-dependencies]
-esmfold2 = ["transformers @ git+https://github.com/Biohub/transformers.git@main"]
+# esm >= 3.4 ships the ESMFold2 module itself and uses stock transformers.
+# For esm <= 3.3 the module lives in the Biohub fork instead:
+#   "transformers @ git+https://github.com/Biohub/transformers.git@main"
+# The two conflict, so pick one; load_native_model_class() resolves whichever
+# is installed. See docs/04_ENVIRONMENT.md.
+esmfold2 = ["esm>=3.4", "transformers>=4.57.6"]
 all = [..., "rc-foundry[esmfold2]"]        # optional: mpnn skips both of these
 
 [project.scripts]
@@ -105,19 +110,25 @@ architecture comes from the checkpoint's `config.json`. **Read dimensions off
 `num_loops = 3` (says 20), `structure_head.distogram_bins = 64` (says 128).
 `FoundryESMFold2.representation_dims()` reads the live config.
 
-## Gradients: the release model cannot be trained
+## Gradients depend on the inputs, not only the checkpoint
 
-`ESMFold2Model.forward` is decorated `@torch.inference_mode()`. Its outputs are
-inference tensors — they carry no autograd history and cannot be given any. A
-loss computed from them has nothing to differentiate.
+The release `forward` is decorated `@torch.inference_mode()`. Its outputs are
+inference tensors — they carry no autograd history and cannot be given any, so
+a loss computed from them has nothing to differentiate.
 
-`ESMFold2ExperimentalModel.forward` carries no such decorator, and additionally
-accepts `res_type_soft` for soft-sequence design. It is the starting point for
-Phase 3.
+The experimental model can produce gradients, but gates them on an **input**:
 
-`ESMFold2Trainer.construct_model` raises `GradientsUnavailableError` on a release
-model rather than letting a training run produce a flat loss curve whose cause
-has to be guessed at.
+```python
+torch.set_grad_enabled(res_type_soft is not None)   # experimental.py
+```
+
+Loading the experimental checkpoint is therefore **necessary and not
+sufficient** — fed an ordinary integer `res_type` it still runs with autograd
+off. `FoundryESMFold2.supports_soft_sequence_design` reports the first half,
+`will_produce_gradients(inputs)` reports both, and
+`explain_gradient_status(inputs)` names whichever is missing.
+`ESMFold2Trainer` checks the real condition against the assembled inputs on
+every step, not just the checkpoint flavour once at construction.
 
 ## Sampler knobs that do nothing
 

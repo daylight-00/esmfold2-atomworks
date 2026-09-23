@@ -29,7 +29,7 @@ structure:
 [ok ] 1qfe.pdb                            all 29 tensors identical
 [ok ] 7ubd_from_af3.cif                   all 29 tensors identical
 [ok ] UniRef50_..._AF2_predicted.pdb      all 29 tensors identical
-[FAIL] 9cox_with_unknown_ccd.cif          ValueError: CCD component UNKNOWN_CCD not found
+[FAIL] 9cox_with_unknown_ccd.cif          LigandIdentityError: chain 'C' is labelled ['UNKNOWN_CCD']
 [FAIL] example_distillation_output.cif    LigandIdentityError: chain 'B' is labelled ['UNL']
 
 feature parity: 9/11 structures reproduce
@@ -38,8 +38,12 @@ feature parity: 9/11 structures reproduce
 Both failures are **correct refusals**, not gaps:
 
 - `9cox_with_unknown_ccd` carries a residue named `UNKNOWN_CCD`, which is not in
-  the component dictionary. ESMFold2's own conformer lookup raises; there is no
-  chemistry to fold.
+  the component dictionary, so it cannot be used as a CCD code and there is no
+  chemistry to fold. The adapter checks the name against the CCD and refuses it
+  by name; previously it was passed through and failed inside the featurizer
+  with `CCD component UNKNOWN_CCD not found`, which named neither the chain nor
+  the remedy. The same check catches AtomWorks' placeholder names for ligands
+  built from SMILES or an SDF (`L:0`, `C:0`).
 - `example_distillation_output` carries a `UNL` ligand, which D-004 refuses.
   Declaring it with a `LigandSpec` makes it fold — `tests/` asserts exactly that
   round trip.
@@ -76,15 +80,21 @@ rather than known-good.
 | covalent bond | carried and placed; verified to change `token_bonds` and nothing else |
 | MSA, single chain | exact feature parity against a hand-written input |
 | MSA, paired heteromer | pairing verified by row content, not just shape |
-| DNA | **implemented, untested** |
-| RNA | **implemented, untested** |
-| protein–nucleic complex | **implemented, untested** |
-| SMILES ligand | **implemented, untested** (needs a seeded-conformer tolerance) |
+| DNA | branch covered (`mol_type` 1, duplex) |
+| RNA | branch covered (`mol_type` 2) |
+| protein–nucleic complex | branch covered (`mol_type` {0, 1}) |
+| SMILES ligand | branch covered, declared; reproducible at a fixed seed |
 | generic `UNL` / unknown CCD | **refused**, with a test asserting the refusal |
+| SMILES placeholder name (`L:0`) | **refused**, with the remedy in the message |
 
 The rule the repo follows: *what is supported is tested, what is not supported
-is refused explicitly.* The untested rows are the remaining gap between those
-two.
+is refused explicitly.*
+
+The nucleic-acid and SMILES rows are branch coverage rather than parity against
+a frozen reference: their fixtures are built with AtomWorks' component
+assembler rather than deposited, so there is no independent description to
+compare against. They assert that the right input class, sequence and
+`mol_type` come out, which is what the adapter decides.
 
 ## What the adapter is compared *against*
 

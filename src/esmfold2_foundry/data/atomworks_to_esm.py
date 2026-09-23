@@ -688,4 +688,39 @@ def _spec_from_ccd_annotation(
             f"non-polymer chain {chain_id!r} has no LigandSpec and "
             "allow_undeclared_ccd_ligands=False"
         )
+
+    # A residue name is only usable as a CCD code if it *is* one. Names that
+    # are not include AtomWorks' placeholders for a ligand built from SMILES or
+    # an SDF (`L:0`, `C:0`) and anything the depositor invented. Left
+    # unchecked, those reach the featurizer and fail there with
+    # "CCD component L:0 not found", which points at neither the chain nor the
+    # fix. Checking here turns "trust the label" into "verify the label",
+    # which is what D-004 asks for.
+    unknown = sorted(name for name in set(names) if not _is_ccd_code(name))
+    if unknown:
+        raise LigandIdentityError(
+            f"non-polymer chain {chain_id!r} is labelled {unknown}, which is not in "
+            "the chemical component dictionary -- so it cannot be used as a CCD "
+            "code. A ligand built from SMILES or an SDF carries a placeholder name "
+            "of this kind. Declare it with LigandSpec(chain_id=..., smiles=...)."
+        )
     return LigandSpec(chain_id=chain_id, ccd=tuple(names))
+
+
+def _is_ccd_code(name: str) -> bool:
+    """Whether *name* names a component in the CCD.
+
+    Returns ``True`` when the dictionary cannot be consulted at all: refusing
+    every ligand because an optional asset is missing would be worse than the
+    late failure this check exists to improve on.
+    """
+    try:
+        from esm.models.esmfold2.conformers import load_ccd
+
+        ccd = load_ccd()
+    except Exception:  # noqa: BLE001 - absence of the CCD must not be fatal here
+        return True
+    try:
+        return name in ccd
+    except TypeError:
+        return True

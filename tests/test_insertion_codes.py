@@ -67,24 +67,76 @@ def test_insertion_codes_reach_the_candidate():
     assert candidate.residue_2 == ("A", 100, "A")
 
 
-def test_a_backbone_link_across_an_insertion_code_is_still_declared():
-    """100/C -- 100A/N is not "consecutive" in the numbering, so it is declared."""
+def _numbered_chain(residues, bond):
+    """A chain of GLY residues given as ``(res_id, ins_code)``, with one bond.
+
+    ``bond`` is ``((residue index, atom name), (residue index, atom name))``.
+    Every residue carries N, C and SG so any of the three can be bonded.
+    """
     import biotite.structure as struc
 
-    spec = [("A", 100, "", "C", "C"), ("A", 100, "A", "N", "N")]
-    array = struc.AtomArray(len(spec))
-    array.coord = np.zeros((len(spec), 3), dtype=np.float32)
-    array.set_annotation("chain_id", np.array(["A"] * len(spec), dtype="U4"))
-    array.set_annotation("res_id", np.array([s[1] for s in spec], dtype=int))
-    array.set_annotation("ins_code", np.array([s[2] for s in spec], dtype="U1"))
-    array.set_annotation("res_name", np.array(["GLY"] * len(spec), dtype="U5"))
-    array.set_annotation("atom_name", np.array([s[3] for s in spec], dtype="U6"))
-    array.set_annotation("element", np.array([s[4] for s in spec], dtype="U2"))
-    array.bonds = struc.BondList(len(spec))
-    array.bonds.add_bond(0, 1, struc.BondType.SINGLE)
+    names = ("N", "C", "SG")
+    elements = ("N", "C", "S")
+    n = len(residues) * len(names)
+    array = struc.AtomArray(n)
+    array.coord = np.zeros((n, 3), dtype=np.float32)
+    array.set_annotation("chain_id", np.array(["A"] * n, dtype="U4"))
+    array.set_annotation(
+        "res_id", np.array([r[0] for r in residues for _ in names], dtype=int)
+    )
+    array.set_annotation(
+        "ins_code", np.array([r[1] for r in residues for _ in names], dtype="U1")
+    )
+    array.set_annotation("res_name", np.array(["CYS"] * n, dtype="U5"))
+    array.set_annotation(
+        "atom_name", np.array([a for _ in residues for a in names], dtype="U6")
+    )
+    array.set_annotation(
+        "element", np.array([e for _ in residues for e in elements], dtype="U2")
+    )
+    array.bonds = struc.BondList(n)
+    (res_a, atom_a), (res_b, atom_b) = bond
+    i = res_a * len(names) + names.index(atom_a)
+    j = res_b * len(names) + names.index(atom_b)
+    array.bonds.add_bond(i, j, struc.BondType.SINGLE)
+    return array
 
+
+# 100, 100A, 100B, 101 are four consecutive residues of one polymer -- the
+# ordinary meaning of an insertion code.
+INSERTED = [(100, ""), (100, "A"), (100, "B"), (101, "")]
+
+
+def test_a_peptide_bond_across_an_insertion_code_is_not_declared():
+    """100/C -- 100A/N is plain backbone, whatever the numbering suggests.
+
+    Declaring it would hand the model a `token_bonds` edge that an ordinary
+    chain never has: upstream adds no token bond for a standard residue's
+    backbone at all (`compute_token_bonds` skips them with
+    "Standard residue - no peptide bond added here").
+    """
+    array = _numbered_chain(INSERTED, ((0, "C"), (1, "N")))
+    assert covalent_bond_candidates(array) == []
+
+
+def test_a_peptide_bond_between_two_insertion_codes_is_not_declared():
+    """100A/C -- 100B/N is the same case one residue along."""
+    array = _numbered_chain(INSERTED, ((1, "C"), (2, "N")))
+    assert covalent_bond_candidates(array) == []
+
+
+def test_a_disulphide_across_an_insertion_code_is_declared():
+    """Same residue pair, non-backbone atoms: a real crosslink, and it stays."""
+    array = _numbered_chain(INSERTED, ((0, "SG"), (1, "SG")))
     (candidate,) = covalent_bond_candidates(array)
-    assert candidate.describe() == "A/100/C - A/100A/N"
+    assert candidate.describe() == "A/100/SG - A/100A/SG"
+
+
+def test_a_backbone_bond_between_non_adjacent_residues_is_declared():
+    """100/C -- 100B/N skips a residue, so it is not the backbone."""
+    array = _numbered_chain(INSERTED, ((0, "C"), (2, "N")))
+    (candidate,) = covalent_bond_candidates(array)
+    assert candidate.describe() == "A/100/C - A/100B/N"
 
 
 def test_an_ordinary_backbone_link_is_still_exempt():
@@ -131,3 +183,68 @@ def test_a_chain_info_backed_chain_with_insertion_codes_is_refused_not_guessed()
     )
     assert mapping == {}
     assert report.unrepresentable_insertion_codes == ["A"]
+
+
+def test_an_unplaceable_bond_raises_rather_than_folding_disconnected(parsed, ccd):
+    """Skipping would fold a connected system as though it were not.
+
+    The direct API returns no report, so a caller has nothing to inspect; the
+    only way the fact reaches them is by raising.
+    """
+    import pytest
+
+    from esmfold2_foundry.data.atomworks_to_esm import (
+        atom_array_to_structure_prediction_input,
+    )
+    from esmfold2_foundry.data.spec import CovalentBondResolutionError
+
+    atoms, chain_info = parsed("hemoglobin")
+    bonded = _bond_to_a_residue_outside_the_model(atoms)
+
+    with pytest.raises(CovalentBondResolutionError, match="could not be placed"):
+        atom_array_to_structure_prediction_input(bonded, chain_info=chain_info)
+
+
+def test_the_caller_can_opt_into_the_disconnected_reading(parsed, ccd):
+    from esmfold2_foundry.data.atomworks_to_esm import (
+        AdapterReport,
+        atom_array_to_structure_prediction_input,
+    )
+
+    atoms, chain_info = parsed("hemoglobin")
+    bonded = _bond_to_a_residue_outside_the_model(atoms)
+
+    report = AdapterReport()
+    atom_array_to_structure_prediction_input(
+        bonded,
+        chain_info=chain_info,
+        allow_unresolved_covalent_bonds=True,
+        report=report,
+    )
+    assert report.unresolved_covalent_bonds
+
+
+def _bond_to_a_residue_outside_the_model(atoms):
+    """A bond whose endpoint the model's indexing cannot name.
+
+    Water is dropped before the model sees it, so a bond reaching it is real in
+    the source and unplaceable downstream -- exactly the case that must not be
+    silently dropped.
+    """
+    import biotite.structure as struc
+
+    chain = np.asarray(atoms.chain_id).astype(str)
+    name = np.asarray(atoms.atom_name).astype(str)
+    res_id = np.asarray(atoms.res_id).astype(int)
+
+    his = np.where((chain == "A") & (res_id == 87) & (name == "NE2"))[0]
+    iron = np.where((chain == "E") & (name == "FE"))[0]
+    assert len(his) == 1 and len(iron) == 1
+
+    bonded = atoms.copy()
+    bonded.bonds.add_bond(int(his[0]), int(iron[0]), struc.BondType.SINGLE)
+    # Renumber the haem so the residue map no longer covers it.
+    res_ids = np.asarray(bonded.res_id).copy()
+    res_ids[np.asarray(bonded.chain_id).astype(str) == "E"] = 9999
+    bonded.set_annotation("res_id", res_ids)
+    return bonded

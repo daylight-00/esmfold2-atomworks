@@ -40,6 +40,7 @@ import numpy as np
 
 from esmfold2_foundry.data.spec import (
     GENERIC_LIGAND_NAMES,
+    CovalentBondResolutionError,
     LigandIdentityError,
     LigandSpec,
 )
@@ -415,6 +416,7 @@ def atom_array_to_structure_prediction_input(
     allow_undeclared_ccd_ligands: bool = True,
     emit_modifications: bool = True,
     declare_covalent_bonds: bool = True,
+    allow_unresolved_covalent_bonds: bool = False,
     drop_water: bool = True,
     chain_key: str = "chain_id",
     report: AdapterReport | None = None,
@@ -436,6 +438,10 @@ def atom_array_to_structure_prediction_input(
             spec, use its residue name as a CCD code. Names that carry no
             chemical meaning (``LIG``, ``UNL``, ``UNK``) are refused regardless,
             because those are exactly the labels that collide.
+        allow_unresolved_covalent_bonds: proceed when a bond in the source
+            cannot be placed in the model's indexing. Off by default: the
+            alternative to raising is folding a connected system as though it
+            were disconnected, which nothing downstream can detect.
         emit_modifications: declare non-standard polymer residues by CCD code
             rather than folding the parent residue. See
             :func:`modifications_for_chain` for what this changes.
@@ -558,6 +564,7 @@ def atom_array_to_structure_prediction_input(
             chain_key=chain_key,
             chain_info=chain_info,
             report=rep,
+            allow_unresolved=allow_unresolved_covalent_bonds,
         )
     return spi
 
@@ -570,6 +577,7 @@ def _attach_covalent_bonds(
     chain_key: str,
     chain_info: dict | None,
     report: AdapterReport,
+    allow_unresolved: bool = False,
 ) -> Any:
     """Return *spi* with any non-inferable covalent bonds declared.
 
@@ -605,6 +613,14 @@ def _attach_covalent_bonds(
     )
     report.covalent_bonds = list(candidates)
     report.unresolved_covalent_bonds = skipped
+    if skipped and not allow_unresolved:
+        raise CovalentBondResolutionError(
+            f"{len(skipped)} covalent bond(s) in the source could not be placed "
+            "in the model's indexing, so folding would treat a connected system "
+            "as disconnected:\n  "
+            + "\n  ".join(skipped)
+            + "\nPass allow_unresolved_covalent_bonds=True to proceed anyway."
+        )
     if not bonds:
         return spi
     return StructurePredictionInput(

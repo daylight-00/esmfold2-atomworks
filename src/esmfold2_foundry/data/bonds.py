@@ -42,8 +42,14 @@ __all__ = [
 
 #: Backbone links ESMFold2 reconstructs from the sequence. A bond between
 #: consecutive residues of one chain using these atom names is the polymer
-#: backbone itself and must not be declared -- doing so would also force the
-#: chain out of entity deduplication for no reason.
+#: backbone itself and must not be declared.
+#:
+#: Declaring one would be wrong twice over. Upstream adds no token bond for a
+#: standard residue's backbone at all -- ``compute_token_bonds`` skips them with
+#: ``continue  # Standard residue - no peptide bond added here.`` -- so an
+#: explicit ``CovalentBond`` would introduce an edge in ``token_bonds`` that an
+#: ordinary chain never has. It would also force the chain out of entity
+#: deduplication.
 _POLYMER_LINKS = frozenset({("C", "N"), ("N", "C"), ("O3'", "P"), ("P", "O3'")})
 
 
@@ -114,6 +120,7 @@ def covalent_bond_candidates(
         ins_code = np.asarray(atoms.get_annotation("ins_code")).astype(str)
     else:
         ins_code = np.full(len(atoms), "", dtype="U1")
+    residue_ordinal = _residue_ordinals(atoms)
 
     candidates: list[BondCandidate] = []
     seen: set[tuple] = set()
@@ -132,14 +139,16 @@ def covalent_bond_candidates(
         if same_residue:
             continue
 
-        # The backbone exemption applies only between consecutive *plain*
-        # residues. Between 100 and 100A the numbering does not say they are
-        # adjacent, so such a bond is declared rather than assumed.
+        # Adjacency is by position in the chain, not by residue number.
+        # Insertion codes are the reason: 100, 100A, 100B, 101 are ordinarily
+        # four consecutive residues of one polymer, so 100/C - 100A/N is a plain
+        # peptide bond even though the numbers do not differ by one. Judging on
+        # `res_id` would declare it and hand the model an edge that a standard
+        # chain never has; judging on order also keeps 100 - 100B, which is not
+        # adjacent and so is a genuine crosslink.
         if (
             chain_i == chain_j
-            and not ins_code[i]
-            and not ins_code[j]
-            and abs(int(res_id[i]) - int(res_id[j])) == 1
+            and abs(int(residue_ordinal[i]) - int(residue_ordinal[j])) == 1
             and (atom_name[i], atom_name[j]) in _POLYMER_LINKS
         ):
             continue
@@ -159,6 +168,22 @@ def covalent_bond_candidates(
         (c1, r1, i1, a1), (c2, r2, i2, a2) = key
         candidates.append(BondCandidate(c1, r1, i1, a1, c2, r2, i2, a2))
     return candidates
+
+
+def _residue_ordinals(atoms: AtomArray) -> np.ndarray:
+    """Per atom, the index of its residue in the structure's residue order.
+
+    Residues of one chain are contiguous in a parsed structure, so a difference
+    of one between two atoms of the same chain means their residues are
+    neighbours -- whatever their numbering says.
+    """
+    import biotite.structure as struc
+
+    starts = struc.get_residue_starts(atoms, add_exclusive_stop=True)
+    ordinals = np.zeros(len(atoms), dtype=int)
+    for index in range(len(starts) - 1):
+        ordinals[starts[index] : starts[index + 1]] = index
+    return ordinals
 
 
 def _atom_names_by_residue(

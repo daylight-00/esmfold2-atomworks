@@ -23,7 +23,12 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from biotite.structure import AtomArray
 
-__all__ = ["LigandIdentityError", "LigandSpec", "formula_of"]
+__all__ = [
+    "CovalentBondResolutionError",
+    "LigandIdentityError",
+    "LigandSpec",
+    "formula_of",
+]
 
 #: Residue names that carry no reliable chemical meaning, even though each is a
 #: real CCD code. A structure that uses one of these for a ligand is *not*
@@ -33,6 +38,17 @@ GENERIC_LIGAND_NAMES = frozenset({"LIG", "UNL", "UNK", "UNX"})
 
 class LigandIdentityError(ValueError):
     """A ligand's declared identity disagrees with the atoms present."""
+
+
+class CovalentBondResolutionError(ValueError):
+    """A covalent bond in the source could not be placed in the model's indexing.
+
+    Raised rather than skipped, because skipping folds a connected system as
+    though it were disconnected -- a confident prediction of a different
+    molecule, with nothing in the output to say so. A caller that genuinely
+    wants the unconnected reading asks for it with
+    ``allow_unresolved_covalent_bonds=True``.
+    """
 
 
 def formula_of(atoms: AtomArray) -> dict[str, int]:

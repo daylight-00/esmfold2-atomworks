@@ -162,3 +162,20 @@ def test_a_coverage_floor_can_be_required(parsed, ccd):
                 "chain_infos": chain_infos,
             }
         )
+
+
+def test_label_skipped_chains_survives_the_pipeline(parsed, ccd):
+    """It is written by the transform, and must not be dropped by SubsetToKeys.
+
+    Reporting a skipped chain into a dict that is then filtered away is the
+    same as not reporting it at all.
+    """
+    from esmfold2_foundry.data.pipelines import build_esmfold2_pipeline
+
+    atoms, chain_info = parsed("lysozyme")
+    out = build_esmfold2_pipeline(is_inference=False, seed=0, attach_labels=True)(
+        {"example_id": "lysozyme", "atom_array": atoms, "chain_info": chain_info}
+    )
+    # Always present, so a consumer need not check for the key, and an empty
+    # list means "nothing skipped" rather than "not computed".
+    assert out["label_skipped_chains"] == []

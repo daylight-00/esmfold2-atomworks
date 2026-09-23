@@ -77,7 +77,7 @@ rather than known-good.
 | CCD ligand / cofactor / metal | exact feature parity (HEM, FAD, UV3, ZN, NBN, DHS) |
 | modified residue | exact feature parity (4 × MSE, positions asserted) |
 | D-amino acids | exact feature parity (`7ubd`) |
-| covalent bond | carried and placed; verified to change `token_bonds` and nothing else |
+| covalent bond | carried and placed; changes `token_bonds` and nothing else. Backbone adjacency judged by residue order, so an insertion-coded peptide bond is not declared; an unplaceable bond raises |
 | MSA, single chain | exact feature parity against a hand-written input |
 | MSA, paired heteromer | pairing verified by row content, not just shape |
 | DNA | branch covered (`mol_type` 1, duplex) |

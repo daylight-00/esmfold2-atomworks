@@ -152,10 +152,9 @@ class AttachStructureLabels(Transform):
             data["chain_infos"],
             _residue_index_map(records, data.get("chain_info"), report),
         )
-        if report.unrepresentable_insertion_codes:
-            # Visible rather than merely lower coverage: these chains have no
-            # labels at all, and the reason is structural.
-            data["label_skipped_chains"] = list(report.unrepresentable_insertion_codes)
+        # Always set, so a consumer can read it without a key check and an
+        # empty list means "nothing skipped" rather than "not computed".
+        data["label_skipped_chains"] = list(report.unrepresentable_insertion_codes)
         if (
             self.require_coverage is not None
             and labels.coverage < self.require_coverage
@@ -216,7 +215,7 @@ def build_esmfold2_pipeline(
     if keys_to_keep is None:
         keys_to_keep = ["example_id", "feats", "chain_infos", "extra_info"]
         if attach_labels:
-            keys_to_keep += ["labels", "label_coverage"]
+            keys_to_keep += ["labels", "label_coverage", "label_skipped_chains"]
         if is_inference:
             keys_to_keep += ["atom_array", "adapter_report"]
     transforms.append(SubsetToKeys(keys_to_keep))

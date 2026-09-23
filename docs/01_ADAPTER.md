@@ -60,6 +60,28 @@ An overridden sequence (the design path) drops the structure's modifications
 entirely — a designed sequence is a different molecule, and the structure's
 positions do not apply to it.
 
+## Covalent bonds
+
+ESMFold2 rebuilds connectivity inside a residue from the CCD, and the polymer
+backbone from the sequence. Anything else — a ligand bonded to a side chain, a
+crosslink between chains — exists only in the source, and the adapter carries it
+across as `StructurePredictionInput.covalent_bonds`.
+
+Three decisions worth knowing:
+
+- **Backbone adjacency is judged by residue *order*, not residue number.**
+  A chain numbered 100, 100A, 100B, 101 has four consecutive residues, so
+  `100/C – 100A/N` is a plain peptide bond. Declaring it would hand the model a
+  `token_bonds` edge that an ordinary chain never has, because upstream adds no
+  token bond for a standard residue's backbone at all. `100/SG – 100A/SG` is a
+  disulphide and is declared; `100/C – 100B/N` skips a residue and is declared.
+- **Indices are read back from the tokenizer**, not re-derived — see
+  [03](03_FOUNDRY_INTEGRATION.md) and `data/bonds.py` for why.
+- **An unplaceable bond raises.** Dropping it folds a connected system as though
+  it were disconnected, and the direct `fold_atom_array` path returns no report,
+  so nothing would tell the caller. `allow_unresolved_covalent_bonds=True` opts
+  into that reading deliberately.
+
 ## What `F` refuses
 
 ```python

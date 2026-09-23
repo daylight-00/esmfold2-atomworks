@@ -348,6 +348,13 @@ class FoundryESMFold2:
 
             AtomArray -> StructurePredictionInput -> ESMFold2 -> AtomArray
 
+        Note:
+            A covalent bond in *atoms* that cannot be placed in the model's
+            indexing raises rather than being dropped, because this path returns
+            no report and a silently disconnected fold would be invisible. Pass
+            ``adapter_kwargs={"allow_unresolved_covalent_bonds": True}`` to
+            accept that reading deliberately.
+
         Returns:
             ``(atom_array, result)`` -- the structure, and the native result
             beside it so that confidence values remain available without being

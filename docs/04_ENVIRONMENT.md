@@ -49,6 +49,9 @@ This moved, and the two layouts are incompatible:
 
 `load_native_model_class()` resolves either, and `FoundryESMFold2.provenance()`
 records which one was used — results are only comparable within one of them.
+Both paths are exercised: feature parity and GPU folding have each been run
+against the esm ≥ 3.4 packaging and against the `transformers` fork, with the
+same results.
 `doctor` reports it too, because the input pipeline imports perfectly well
 without any model module, so a missing one surfaces late otherwise.
 

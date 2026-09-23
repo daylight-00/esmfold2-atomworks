@@ -141,9 +141,21 @@ sbatch --partition=<gpu-partition> scripts/parity_gpu.sbatch
 **The sampler is not reproducible, even seeded.** `_seed_context` seeds python,
 numpy, torch and CUDA identically for every fold, and the two paths hand the
 model identical tensors -- yet folding the *same* input twice on an RTX 6000 Ada
-gives coordinates differing by **0.25 A** in the worst atom. Non-deterministic
-GPU kernels and bf16 reduction ordering differ between launches, and the
-diffusion steps amplify it.
+gives coordinates differing by **0.25 A** in the worst atom.
+
+The obvious suspect is `lm_dropout`, which defaults to `0.3` and is left active
+at inference on purpose (it is the ensembling mechanism). It is not the cause.
+Folding lysozyme twice at each setting:
+
+| `lm_dropout` | `coord_max_abs` (A) | `coord_rmsd` (A) | `plddt_max_abs` |
+|---|---|---|---|
+| 0.3 (default) | 0.176 | 0.061 | 0.060 |
+| **0.0** | 0.193 | 0.048 | 0.033 |
+
+Turning dropout off entirely leaves the scatter where it was, so what remains is
+non-deterministic GPU kernels and bf16 reduction ordering, amplified over the
+diffusion steps. **Do not expect `lm_dropout=0` to buy reproducibility** — it
+does not, and a scatter budget is needed either way.
 
 So an absolute tolerance on coordinates cannot tell "the adapter changed the
 input" from "the sampler is not reproducible". The first version of this test

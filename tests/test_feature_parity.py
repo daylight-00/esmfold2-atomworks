@@ -1,10 +1,23 @@
-"""The milestone: ``F(AtomArray)`` featurizes identically to the native input.
+"""The milestone: ``F(AtomArray)`` featurizes identically to an independent input.
 
-These run on CPU, need no weights, and are exact. ``prepare_esmfold2_input`` is
-a pure function of the ``StructurePredictionInput``, so two inputs that
-featurize to the same 29 tensors produce the same prediction by construction --
-which is why this, and not a tolerance check on a sampled structure, is the
-primary evidence that the adapter is faithful.
+These run on CPU, need no weights, and are exact.
+
+**What feature parity does and does not claim.** ``prepare_esmfold2_input`` is a
+pure function of the ``StructurePredictionInput``, so identical inputs give
+identical feature tensors -- that part is by construction. ``forward`` is *not*
+pure: the structure head is a diffusion sampler that consumes RNG, so identical
+features do not give identical coordinates. What follows is that the adapter
+presents the model with the same conditioning, and therefore the same sampling
+distribution. That is the strong claim, and it is the one worth making;
+``tests/test_output_parity_gpu.py`` then checks that the realised samples differ
+no more than the sampler differs from itself.
+
+**The comparison is against a frozen fixture, not a reconstruction.** An earlier
+version rebuilt the "native" input from the adapter's own output, which meant a
+systematic error -- a ligand mapped to the wrong CCD code, say -- would be
+copied into both sides and cancel. ``tests/data/gold/*.json`` is generated from
+AtomWorks' own parse output, checked in, and anchored to facts about the PDB
+entries by ``test_gold_fixtures.py``.
 """
 
 from __future__ import annotations
@@ -20,74 +33,27 @@ from esmfold2_foundry.parity.compare import (
     featurize,
 )
 
-
-def _native(sequences):
-    from esm.models.esmfold2.types import StructurePredictionInput
-
-    return StructurePredictionInput(sequences=list(sequences))
+FIXTURES = ["lysozyme", "hemoglobin", "modified", "zinc", "flavoprotein"]
 
 
-def _canonical(chain_info, chain_id):
-    for key, value in chain_info.items():
-        if str(key) == chain_id:
-            return value["processed_entity_canonical_sequence"]
-    raise KeyError(chain_id)
-
-
-@pytest.mark.parametrize("fixture", ["lysozyme", "hemoglobin", "zinc", "flavoprotein"])
-def test_adapter_featurizes_identically_to_a_hand_written_input(parsed, ccd, fixture):
-    """Every tensor matches, for monomer, multimer, metal and cofactor cases."""
-    from esm.models.esmfold2.types import LigandInput, ProteinInput
-
+@pytest.mark.parametrize("fixture", FIXTURES)
+def test_adapter_featurizes_identically_to_the_gold_input(parsed, ccd, gold, fixture):
+    """Every tensor matches, for monomer, multimer, metal, cofactor and NCAA cases."""
     atoms, chain_info = parsed(fixture)
     adapted = atom_array_to_structure_prediction_input(atoms, chain_info=chain_info)
 
-    # Rebuild the same system the way a user writes it by hand today: one entry
-    # per chain, sequences typed out, ligands named by CCD code.
-    native_entries = []
-    for entry in adapted.sequences:
-        if isinstance(entry, ProteinInput):
-            native_entries.append(
-                ProteinInput(
-                    id=entry.id,
-                    sequence=_canonical(chain_info, entry.id),
-                    modifications=entry.modifications,
-                )
-            )
-        else:
-            native_entries.append(LigandInput(id=entry.id, ccd=entry.ccd))
-
-    diff = compare_features(featurize(_native(native_entries)), featurize(adapted))
+    diff = compare_features(featurize(gold(fixture)), featurize(adapted))
     assert diff.ok, diff.report()
     assert diff.identical, diff.report()
     assert MODEL_CONSUMED_FEATURES <= set(diff.compared)
 
 
-def test_modified_residue_survives_featurization(parsed, ccd):
-    """A declared MSE changes tokenization -- and does so identically both ways."""
-    from esm.models.esmfold2.types import ProteinInput
-
-    atoms, chain_info = parsed("modified")
-    adapted = atom_array_to_structure_prediction_input(atoms, chain_info=chain_info)
-    native = _native(
-        [
-            ProteinInput(
-                id="A",
-                sequence=_canonical(chain_info, "A"),
-                modifications=adapted.sequences[0].modifications,
-            )
-        ]
-    )
-    diff = compare_features(featurize(native), featurize(adapted))
-    assert diff.identical, diff.report()
-
-
 def test_declaring_a_modification_actually_changes_the_features(parsed, ccd):
-    """Guards the test above from being vacuous.
+    """Guards the parity assertions above from being vacuous.
 
-    If declaring ``MSE`` made no difference, the parity assertion would pass
-    whatever the adapter did with modifications. It must change tokenization:
-    a modified residue becomes one token per atom.
+    If declaring ``MSE`` made no difference, the modified-residue parity case
+    would pass whatever the adapter did with modifications. It must change
+    tokenization: a modified residue becomes one token per atom.
     """
     atoms, chain_info = parsed("modified")
     with_mods = atom_array_to_structure_prediction_input(
@@ -102,6 +68,33 @@ def test_declaring_a_modification_actually_changes_the_features(parsed, ccd):
         f"declaring 4 MSE did not change the token count ({n_with} vs {n_without}); "
         "the parity test above would then be vacuous"
     )
+
+
+def test_a_wrong_ligand_would_be_caught(parsed, ccd, gold):
+    """Guards the parity assertions from passing on a mis-identified ligand.
+
+    Substituting one real CCD code for another is exactly the failure D-004
+    exists to prevent, and it must show up as a feature difference rather than
+    being absorbed. Without this, "all 29 tensors identical" would be
+    reassuring without being informative.
+    """
+    from esm.models.esmfold2.types import (
+        LigandInput,
+        ProteinInput,
+        StructurePredictionInput,
+    )
+
+    correct = gold("hemoglobin")
+    tampered = StructurePredictionInput(
+        sequences=[
+            entry
+            if isinstance(entry, ProteinInput)
+            else LigandInput(id=entry.id, ccd=["HEC"])  # haem C, not haem B
+            for entry in correct.sequences
+        ]
+    )
+    diff = compare_features(featurize(correct), featurize(tampered))
+    assert not diff.ok, "swapping HEM for HEC produced identical features"
 
 
 def test_chain_order_is_stable(parsed, ccd):

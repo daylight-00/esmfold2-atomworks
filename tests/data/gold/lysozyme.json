@@ -1,0 +1,12 @@
+{
+  "_provenance": "PDB 6LYZ - hen egg-white lysozyme, single chain",
+  "_note": "Frozen snapshot. Generated once from atomworks parse() output (chain_info / chain_type), NOT from the esmfold2_foundry adapter, and checked in so it cannot follow a change in adapter behaviour.",
+  "_source_file": "6lyz.bcif",
+  "chains": [
+    {
+      "id": "A",
+      "kind": "protein",
+      "sequence": "KVFGRCELAAAMKRHGLDNYRGYSLGNWVCAAKFESNFNTQATNRNTDGSTDYGILQINSRWWCNDGRTPGSRNLCNIPCSALLSSDITASVNCAKKIVSDGNGMNAWVAWRNRCKGTDVQAWIRGCRL"
+    }
+  ]
+}

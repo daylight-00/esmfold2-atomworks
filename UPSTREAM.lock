@@ -1,0 +1,32 @@
+# Upstream revisions this repository's parity claims were verified against.
+#
+# The source trees are consumed from PYTHONPATH rather than pinned by a package
+# manager (see docs/04_ENVIRONMENT.md), so nothing else records which revision
+# produced a given result. This project's central claim is *exact* parity, which
+# makes that gap worse here than it would be for an ordinary wrapper: a reader a
+# month from now cloning three moving repositories has no way to reproduce
+# today's numbers without this file.
+#
+# `esmfold2-foundry doctor` compares these against the trees it finds and
+# reports any drift. Drift is reported, never enforced -- the adapter is
+# deliberately version-tolerant (it supports both ESMFold2 packagings), so a
+# newer tree is a thing to re-verify, not a thing to refuse.
+#
+# To re-pin after verifying against newer trees:
+#   esmfold2-foundry doctor --write-lock
+
+[esm]
+repo = https://github.com/Biohub/esm
+commit = 43b4548b86762edfa747b07d5f440aad3c33acee
+version = 3.4.1.post1
+note = ESMFold2 module ships inside the esm package (>= 3.4)
+
+[atomworks]
+repo = https://github.com/RosettaCommons/atomworks
+commit = fcf7af8c127e0de62a460dab5230c649a25a78d4
+version = 2.2.1
+
+[foundry]
+repo = https://github.com/RosettaCommons/foundry
+commit = b02eed6a6bdf8f44d14a80cc36e3da13c9f2291c
+version = 0.1.0

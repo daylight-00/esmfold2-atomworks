@@ -73,7 +73,7 @@ def model():
     return FoundryESMFold2()
 
 
-def _native_counterpart(spi, chain_info):
+def _native_counterpart(spi, chain_info):  # retained for ad-hoc use
     from esmfold2_foundry.parity.run import _native_counterpart as build
 
     return build(spi, chain_info)
@@ -96,10 +96,16 @@ def _assert_within_scatter(cross, baseline) -> None:
 
 
 @pytest.mark.parametrize("fixture", ["lysozyme", "hemoglobin"])
-def test_adapted_input_folds_within_the_models_own_scatter(parsed, model, fixture):
+def test_adapted_input_folds_within_the_models_own_scatter(
+    parsed, model, gold, fixture
+):
     """The two paths agree as closely as the model agrees with itself.
 
-    Atom naming and ordering are held to exact equality regardless: those are
+    The reference side is the frozen gold input, not a reconstruction of the
+    adapter's output, for the same reason feature parity uses it: a systematic
+    error copied into both sides would cancel.
+
+    Atom naming and ordering are held to exact equality regardless -- those are
     bookkeeping, not sampling, and a mismatch there would make every coordinate
     comparison meaningless rather than merely noisy.
     """
@@ -107,7 +113,7 @@ def test_adapted_input_folds_within_the_models_own_scatter(parsed, model, fixtur
 
     atoms, chain_info = parsed(fixture)
     adapted = atom_array_to_structure_prediction_input(atoms, chain_info=chain_info)
-    native = _native_counterpart(adapted, chain_info)
+    native = gold(fixture)
 
     config = FoldingConfig(num_loops=1, num_sampling_steps=8, seed=0)
     native_a = model.fold(native, config=config)

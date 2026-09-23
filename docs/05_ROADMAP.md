@@ -37,10 +37,18 @@ trunk:
 `.structure_head` as named seams, so opening one is a change of implementation
 rather than of every call site.
 
-**The first blocker is gradients, not architecture.** The release model's
-`forward` is `@torch.inference_mode()`; Phase 3 starts by moving to
-`ESMFold2ExperimentalModel`, whose `forward` is not decorated and which accepts
-`res_type_soft` for soft-sequence design.
+**Gradients are available, but only through the experimental model.** The
+release `forward` is `@torch.inference_mode()`. `EsmFold2ExperimentalModel` is
+not, and it takes `res_type_soft`; in fact it enables autograd precisely when a
+soft sequence is supplied —
+
+```python
+torch.set_grad_enabled(res_type_soft is not None)   # experimental.py
+```
+
+— so the differentiable path is gated on *how* the sequence is passed, not on a
+flag. Phase 3 therefore starts by swapping the model class, which
+`load_native_model_class` already isolates.
 
 **The second is that the trunk is pair-only.** There is no single-representation
 stream — `s_trunk=None` is passed to the structure head, and `d_single=384` is
@@ -48,12 +56,24 @@ declared but unused by the release trunk. Anything that expects an RF3-style
 `(c_s, c_z)` pair of streams has to account for that; the comparable quantity is
 `c_token = 768` inside the diffusion module, not `d_single`.
 
-**The third is that pocket conditioning does not exist yet.** `PocketConditioning`
-is in the input schema and round-trips through serialization, but
-`prepare_esmfold2_input` never reads it — `pocket_feature` is
-`torch.zeros(n_tokens)`, and upstream labels the block `# --- Pocket (dropped) ---`.
-Binder work of the form *target FIXED / binder DIFFUSE* needs that path built,
-not merely passed.
+**The third is conditioning — and two different things get called that.** They
+have very different status, so it is worth separating them:
+
+| conditioning | status |
+|---|---|
+| **sequence** — target sequence + soft binder logits, jointly folded | **already works upstream.** `cookbook/tutorials/binder_design.py` does exactly this: it concatenates a fixed target one-hot with optimizable binder logits into `res_type_soft`, folds, and backpropagates an interface loss from the distogram |
+| **structural** — target *geometry* clamped, binder generated against it | **does not exist.** `PocketConditioning` is in the input schema and round-trips through serialization, but `prepare_esmfold2_input` never reads it: `pocket_feature` is `torch.zeros(n_tokens)` and upstream labels the block `# --- Pocket (dropped) ---` |
+
+So a binder pipeline of the form *given a target sequence, design a binder* is
+reachable now, and the honest first step is to reproduce the upstream trajectory
+through this stack rather than to build anything new — that alone exercises the
+gradient path, the AtomWorks→differentiable-ESMFold2 connection, and gives a
+baseline to measure against.
+
+Only the stronger form — *target coordinates held fixed, binder generated* —
+needs a conditioning path built rather than merely passed. Do not conflate the
+two when planning; the first is an integration exercise and the second is
+research.
 
 ### The experiment this enables
 

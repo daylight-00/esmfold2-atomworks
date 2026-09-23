@@ -60,13 +60,51 @@ pytest tests/test_feature_parity.py -q      # ~30 s, CPU, no weights
 esmfold2-foundry doctor                      # same check on 2hhb, plus the environment
 ```
 
+## What the adapter is compared *against*
+
+`tests/data/gold/*.json` holds a frozen `StructurePredictionInput` per fixture:
+chains, sequences, ligand CCD codes, modification positions.
+
+This matters more than it looks. An earlier version of the suite built the
+reference side by copying chain ids, ligand codes and modifications out of the
+adapter's own output and re-reading only the sequences independently. That is
+circular: an adapter that consistently mapped a ligand to the wrong CCD code
+would have that error copied into the reference, and parity would pass.
+
+The gold files are generated once from AtomWorks' own `parse()` output —
+`chain_info`, `chain_type`, residue names — never from this package, and then
+checked in so they cannot follow a change in adapter behaviour.
+
+A frozen file is only as good as its contents, so `tests/test_gold_fixtures.py`
+anchors them to facts about the entries themselves: 6LYZ is one 129-residue
+chain beginning `KVFGRCELAAAM…`; 2HHB is α₂β₂ with two 141-residue and two
+146-residue chains and four `HEM`; 1A8O carries `MSE` at positions 0, 34, 63 and
+64, each where the canonical sequence reads `M`. Those are checkable against the
+PDB without running any of this code.
+
+`test_a_wrong_ligand_would_be_caught` completes the argument from the other
+side: substituting `HEC` for `HEM` must break feature parity. Without it,
+"all 29 tensors identical" would be reassuring without being informative.
+
 ## Why the feature level is the primary check
 
-`prepare_esmfold2_input` is a pure function of the `StructurePredictionInput`,
-and `ESMFold2Model.forward` is a pure function of its output. So two inputs that
-featurize to the same tensors produce the same prediction **by construction** —
-there is no arithmetic in between to accumulate error, which is why the
-comparison is exact rather than tolerance-based.
+`prepare_esmfold2_input` **is** a pure function of the
+`StructurePredictionInput`, so two inputs that describe the same system produce
+byte-identical tensors: there is no arithmetic in between to accumulate error,
+which is why this comparison is exact rather than tolerance-based.
+
+`forward` is **not** pure. The structure head is a diffusion sampler; it
+consumes RNG, and on a GPU it is not even reproducible across two identical
+calls (see below). So feature parity does *not* say that the two paths produce
+the same coordinates. What it says is:
+
+> the adapter presents the model with exactly the same conditioning, and
+> therefore the same conditional sampling distribution
+
+which is the claim worth making, and the strongest one available for a
+stochastic model. Everything downstream — coordinates, pLDDT, PAE — is then a
+draw from one distribution rather than from two, and the GPU check below
+verifies that the realised draws behave accordingly.
 
 It is also the diagnostic level. A failure names the tensor: a wrong
 `res_type` is a sequence bug, a wrong `ref_element` is a ligand-identity bug, a

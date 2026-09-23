@@ -27,11 +27,20 @@ class ParityOutcome:
 
 
 def _native_counterpart(spi: Any, chain_info: dict) -> Any:
-    """Rebuild *spi* the way a user would write it by hand.
+    """Rebuild *spi* with sequences re-read from ``chain_info``.
 
-    Sequences are typed out from ``chain_info`` and ligands named by CCD code,
-    which is the path the adapter has to reproduce. Modifications are carried
-    across unchanged -- they are a property of the chemistry, not of the route.
+    **This is a self-consistency check, not an independent one**, and the
+    difference matters. Chain ids, ligand CCD codes and modifications are taken
+    from *spi* -- the adapter's own output -- so a systematic error (a ligand
+    mapped to the wrong CCD code, say) would be copied into both sides and
+    cancel. Only the sequences come from an independent source.
+
+    That is acceptable here because this function backs the corpus *survey*,
+    whose job is to find structures the adapter cannot process at all. The
+    assertion suite does not use it: ``tests/data/gold/*.json`` holds frozen
+    inputs generated from AtomWorks' own parse output and anchored to facts
+    about the entries by ``tests/test_gold_fixtures.py``. Use those when adding
+    a case that is meant to prove correctness rather than survey coverage.
     """
     from esm.models.esmfold2.types import (
         DNAInput,

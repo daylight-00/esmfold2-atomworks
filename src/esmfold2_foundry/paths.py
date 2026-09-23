@@ -101,3 +101,59 @@ ESMFOLD2_WEIGHTS = ESMFold2Weights()
 def pythonpath_entries() -> list[Path]:
     """The ``PYTHONPATH`` additions ``env.sh`` makes, in the same order."""
     return [*SOURCE_TREES.values(), REPO_ROOT / "src"]
+
+
+#: Trees whose revision is recorded in ``UPSTREAM.lock``. ``mpnn`` lives inside
+#: the foundry tree, so it is covered by foundry's entry.
+LOCKED_TREES = ("esm", "atomworks", "foundry")
+
+UPSTREAM_LOCK = REPO_ROOT / "UPSTREAM.lock"
+
+
+def read_upstream_lock(path: Path | None = None) -> dict[str, dict[str, str]]:
+    """Parse ``UPSTREAM.lock`` into ``{tree: {key: value}}``.
+
+    Hand-rolled rather than via ``configparser`` so the file can carry comment
+    lines that explain themselves, which is most of its value.
+    """
+    path = path or UPSTREAM_LOCK
+    if not path.exists():
+        return {}
+    locked: dict[str, dict[str, str]] = {}
+    section = ""
+    for raw in path.read_text().splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            section = line[1:-1].strip()
+            locked[section] = {}
+        elif "=" in line and section:
+            key, _, value = line.partition("=")
+            locked[section][key.strip()] = value.strip()
+    return locked
+
+
+def tree_revision(tree: str) -> str | None:
+    """The checked-out commit of a source tree, or ``None`` if not a git repo."""
+    import subprocess
+
+    directory = SOURCE_TREES.get(tree)
+    if directory is None:
+        return None
+    # esm's tree path is the repo root; the others point at src/, so walk up
+    # until a .git turns up.
+    for candidate in (directory, *directory.parents):
+        if (candidate / ".git").exists():
+            try:
+                out = subprocess.run(
+                    ["git", "-C", str(candidate), "rev-parse", "HEAD"],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                    check=False,
+                )
+            except (OSError, subprocess.SubprocessError):
+                return None
+            return out.stdout.strip() or None
+    return None

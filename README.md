@@ -21,14 +21,15 @@ AtomWorks AtomArray ──adapter──> ESMFold2 (unmodified) ──adapter─�
 
 The Phase 1 milestone is met: for monomer, multimer, metal, cofactor and
 modified-residue systems, the input the adapter derives from a structure
-featurizes to **the same 29 tensors** as the input a user writes by hand. Since
-`prepare_esmfold2_input` and `forward` are both pure functions of their inputs,
-identical features mean identical predictions by construction.
+featurizes to **the same 29 tensors** as an independently frozen reference
+input. Featurization is a pure function, so that equality is exact.
 
-Confirmed on a GPU: across real folds the two paths differ no more than the
-model differs from *itself* between two runs of the same input — which is the
-only meaningful statement available about a diffusion sampler, and is measured
-rather than assumed ([docs/02](docs/02_PARITY.md)).
+The model itself is *not* deterministic — its structure head is a diffusion
+sampler — so identical features mean the two paths condition the model
+identically and draw from **the same distribution**, not that they return
+identical coordinates. Confirmed on a GPU: across real folds the two paths
+differ no more than the model differs from *itself* between two runs of the same
+input, measured rather than assumed ([docs/02](docs/02_PARITY.md)).
 
 ## Quickstart
 

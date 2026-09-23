@@ -79,13 +79,40 @@ The CCD dictionary (~50k entries, ~9 s) is loaded once per process into
 module-global state in `esm.models.esmfold2.conformers`. It is **not
 thread-safe**, which is why `FoundryESMFold2.__init__` warms it.
 
+## Pinning: `UPSTREAM.lock`
+
+The trees come from `PYTHONPATH`, so nothing else records *which* revision
+produced a given result — and this project's central claim is **exact** parity,
+which raises the bar for reproducibility well above an ordinary wrapper's.
+`UPSTREAM.lock` records the commit and version of each tree that the published
+parity numbers were verified against, and `doctor` compares them:
+
+```
+upstream revisions
+  [ok  ] esm        43b4548b8676: matches lock (3.4.1.post1)
+  [ok  ] atomworks  fcf7af8c127e: matches lock (2.2.1)
+  [ok  ] foundry    b02eed6a6bdf: matches lock (0.1.0)
+```
+
+Drift is **reported, never enforced**. The adapter is deliberately
+version-tolerant — it supports both ESMFold2 packagings — so a newer tree is
+something to re-verify and re-pin, not something to refuse. Refusing would also
+make `doctor` useless on the day an upstream releases.
+
 ## Checks
 
 ```bash
 uv sync && source env.sh
-esmfold2-foundry doctor        # trees, imports, weights, and a real parity check
+esmfold2-foundry doctor        # trees, revisions, imports, weights, a real parity check
 pytest -q                      # the same, as assertions
 ```
+
+CI (`.github/workflows/ci.yml`) runs only what needs nothing but this
+repository: ruff, the `offline`-marked gold-fixture invariants, and a
+well-formedness check on `UPSTREAM.lock`. The full parity suite needs the three
+source trees plus torch and a CCD download, which is minutes of setup for a
+check that is run locally and recorded in [02_PARITY.md](02_PARITY.md); the
+`offline` subset runs in well under a second.
 
 Everything needed for Phase 1 — the adapter, the pipeline, feature parity,
 `doctor` — runs on **CPU in well under a minute** and needs no weights. That is

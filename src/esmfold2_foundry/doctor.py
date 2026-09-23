@@ -65,6 +65,38 @@ def _find_model_module() -> tuple[bool, str]:
     return False, "install esm >= 3.4, or the Biohub transformers fork for esm <= 3.3"
 
 
+def check_upstream_revisions() -> bool:
+    """Report the source trees' revisions against ``UPSTREAM.lock``.
+
+    Drift is reported but never fails the check. The adapter is deliberately
+    version-tolerant, so a newer tree is something to re-verify rather than
+    something to refuse -- and refusing would make ``doctor`` useless on the
+    day an upstream releases.
+    """
+    print("upstream revisions")
+    locked = paths.read_upstream_lock()
+    if not locked:
+        _check("UPSTREAM.lock", False, "missing; parity results are unanchored")
+        return True
+
+    for tree in paths.LOCKED_TREES:
+        want = locked.get(tree, {})
+        pinned = want.get("commit")
+        actual = paths.tree_revision(tree)
+        version = want.get("version", "?")
+        if actual is None:
+            _check(f"{tree:10s} (not a git checkout)", True, f"locked {version}")
+        elif pinned and actual == pinned:
+            _check(f"{tree:10s} {actual[:12]}", True, f"matches lock ({version})")
+        else:
+            _check(
+                f"{tree:10s} {actual[:12]}",
+                True,
+                f"DRIFT from locked {str(pinned)[:12]} ({version}); re-verify parity",
+            )
+    return True
+
+
 def check_weights() -> bool:
     """Report where the weights would come from.
 
@@ -106,6 +138,7 @@ def main() -> int:
     print(f"  repo: {paths.REPO_ROOT}")
     results = [
         check_source_trees(),
+        check_upstream_revisions(),
         check_imports(),
         check_weights(),
         check_adapter(),

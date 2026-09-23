@@ -1,0 +1,72 @@
+name: ci
+
+# Deliberately small. The full parity suite needs the esm, atomworks and
+# foundry source trees plus torch and a CCD download, which is minutes of setup
+# for a check that is already run locally and recorded in docs/02_PARITY.md.
+# What runs here is everything that needs nothing but this repository, so it
+# stays fast enough to be worth having on every push.
+#
+# To run the full suite, see docs/04_ENVIRONMENT.md.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      # Pinned to match the version the Foundry repo uses, so that moving this
+      # package into foundry/models/ does not produce a reformat diff.
+      - run: pip install ruff==0.8.3
+      - run: ruff check src tests
+      - run: ruff format --check src tests
+
+  offline-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install pytest numpy
+      # The `offline` marker selects the tests that need no source trees: the
+      # gold-fixture invariants, which are what stop a frozen-but-wrong
+      # snapshot from silently anchoring the parity suite.
+      - run: pytest -m offline -v
+        env:
+          PYTHONPATH: src
+
+  lockfile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      # UPSTREAM.lock is what makes an "exact parity" claim reproducible, so a
+      # malformed one should fail loudly rather than be discovered later.
+      - name: UPSTREAM.lock parses and names every tree
+        run: |
+          python - <<'PY'
+          import sys
+          sys.path.insert(0, "src")
+          from esmfold2_foundry import paths
+          locked = paths.read_upstream_lock(paths.REPO_ROOT / "UPSTREAM.lock")
+          missing = [t for t in paths.LOCKED_TREES if t not in locked]
+          assert not missing, f"UPSTREAM.lock is missing {missing}"
+          for tree, entry in locked.items():
+              commit = entry.get("commit", "")
+              assert len(commit) == 40, f"{tree}: {commit!r} is not a full SHA"
+              assert entry.get("repo", "").startswith("https://"), f"{tree}: no repo url"
+          print(f"UPSTREAM.lock ok: {', '.join(sorted(locked))}")
+          PY

@@ -9,9 +9,14 @@ It is checked at two levels, and the cheaper one is by far the more useful:
 
 **Feature parity** (:func:`compare_features`) compares the 29 tensors that
 ``prepare_esmfold2_input`` produces. It needs no GPU, no weights and no
-sampling, it is exact rather than tolerance-based, and when it passes, output
-parity follows by construction -- the model is a pure function of these tensors.
-When it fails it names the tensor, which is a diagnosis rather than a symptom.
+sampling, and it is exact rather than tolerance-based, because featurization
+*is* a pure function of the input. When it fails it names the tensor, which is
+a diagnosis rather than a symptom.
+
+What it establishes is that both paths hand the model the same conditioning,
+and hence the same conditional sampling distribution -- **not** that they return
+the same coordinates. ``forward`` is not pure: the structure head is a diffusion
+sampler.
 
 **Output parity** (:func:`compare_results`) compares coordinates, pLDDT, pTM,
 ipTM and the distogram from a real fold. It needs a GPU and it is the only

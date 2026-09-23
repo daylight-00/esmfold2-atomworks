@@ -182,4 +182,8 @@ addopts = "-ra --strict-markers --strict-config"
 markers = [
     "gpu: requires a GPU and the ESMFold2 weights",
     "slow: takes more than a few seconds",
+    # Needs nothing but this repository -- no source trees, no torch, no
+    # network. CI runs exactly these, which is what makes CI cheap enough to be
+    # worth having (see .github/workflows/ci.yml).
+    "offline: runs without the esm/atomworks/foundry source trees",
 ]

@@ -1,0 +1,55 @@
+{
+  "_provenance": "PDB 2HHB - human deoxyhaemoglobin, a2b2 with 4 haem",
+  "_note": "Frozen snapshot. Generated once from atomworks parse() output (chain_info / chain_type), NOT from the esmfold2_foundry adapter, and checked in so it cannot follow a change in adapter behaviour.",
+  "_source_file": "2hhb.cif.gz",
+  "chains": [
+    {
+      "id": "A",
+      "kind": "protein",
+      "sequence": "VLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSHGSAQVKGHGKKVADALTNAVAHVDDMPNALSALSDLHAHKLRVDPVNFKLLSHCLLVTLAAHLPAEFTPAVHASLDKFLASVSTVLTSKYR"
+    },
+    {
+      "id": "B",
+      "kind": "protein",
+      "sequence": "VHLTPEEKSAVTALWGKVNVDEVGGEALGRLLVVYPWTQRFFESFGDLSTPDAVMGNPKVKAHGKKVLGAFSDGLAHLDNLKGTFATLSELHCDKLHVDPENFRLLGNVLVCVLAHHFGKEFTPPVQAAYQKVVAGVANALAHKYH"
+    },
+    {
+      "id": "C",
+      "kind": "protein",
+      "sequence": "VLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSHGSAQVKGHGKKVADALTNAVAHVDDMPNALSALSDLHAHKLRVDPVNFKLLSHCLLVTLAAHLPAEFTPAVHASLDKFLASVSTVLTSKYR"
+    },
+    {
+      "id": "D",
+      "kind": "protein",
+      "sequence": "VHLTPEEKSAVTALWGKVNVDEVGGEALGRLLVVYPWTQRFFESFGDLSTPDAVMGNPKVKAHGKKVLGAFSDGLAHLDNLKGTFATLSELHCDKLHVDPENFRLLGNVLVCVLAHHFGKEFTPPVQAAYQKVVAGVANALAHKYH"
+    },
+    {
+      "id": "E",
+      "kind": "ligand",
+      "ccd": [
+        "HEM"
+      ]
+    },
+    {
+      "id": "G",
+      "kind": "ligand",
+      "ccd": [
+        "HEM"
+      ]
+    },
+    {
+      "id": "H",
+      "kind": "ligand",
+      "ccd": [
+        "HEM"
+      ]
+    },
+    {
+      "id": "J",
+      "kind": "ligand",
+      "ccd": [
+        "HEM"
+      ]
+    }
+  ]
+}

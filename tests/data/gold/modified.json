@@ -1,0 +1,30 @@
+{
+  "_provenance": "PDB 1A8O variant carrying selenomethionine",
+  "_note": "Frozen snapshot. Generated once from atomworks parse() output (chain_info / chain_type), NOT from the esmfold2_foundry adapter, and checked in so it cannot follow a change in adapter behaviour.",
+  "_source_file": "1a8o_modified.cif",
+  "chains": [
+    {
+      "id": "A",
+      "kind": "protein",
+      "sequence": "MDIRQGPKEPFRDYVDRFYKTLRAEQASQEVKNWMTETLLVQNANPDCKTILKALGPGATLEEMMTACQG",
+      "modifications": [
+        {
+          "position": 0,
+          "ccd": "MSE"
+        },
+        {
+          "position": 34,
+          "ccd": "MSE"
+        },
+        {
+          "position": 63,
+          "ccd": "MSE"
+        },
+        {
+          "position": 64,
+          "ccd": "MSE"
+        }
+      ]
+    }
+  ]
+}

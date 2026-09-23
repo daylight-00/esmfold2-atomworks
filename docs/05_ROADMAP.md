@@ -17,15 +17,19 @@ build on this repository keep their own.
 
 ## Missing for inference completeness
 
-**MSA parity.** Every fixture folds in single-sequence mode. Pairing is driven
-purely by `key=<taxid>` in FASTA headers, so an adapter that builds MSAs without
-injecting those keys gets no cross-chain pairing — silently, and with no shape
-change to reveal it. Wire `LoadPolymerMSAs` into `pre_transforms` and add the
-parity case.
-
 **Corpus coverage.** `esmfold2-foundry parity <dir>/*.cif` over a larger set,
 to enumerate the chain types and ligands the adapter cannot yet express. The
 useful output is the failure list, not the pass rate.
+
+**Input-surface coverage.** The adapter implements `DNAInput`, `RNAInput` and
+SMILES ligands, but no fixture exercises them, so they are untested rather than
+known-good. One parity case per implemented branch would close that; see the
+matrix in [02_PARITY.md](02_PARITY.md).
+
+**`LoadPolymerMSAs` wiring.** MSA transfer and pairing are verified
+([02_PARITY.md](02_PARITY.md)), but the alignments in those tests are
+constructed directly. Composing AtomWorks' own MSA loader into
+`pre_transforms` and re-checking would close the last step of that path.
 
 ## Missing for training
 

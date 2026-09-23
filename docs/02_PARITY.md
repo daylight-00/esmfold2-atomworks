@@ -60,6 +60,32 @@ pytest tests/test_feature_parity.py -q      # ~30 s, CPU, no weights
 esmfold2-foundry doctor                      # same check on 2hhb, plus the environment
 ```
 
+## Coverage
+
+What is tested, and what is merely implemented. The distinction matters: the
+adapter has code paths for inputs no fixture exercises, and those are untested
+rather than known-good.
+
+| input | status |
+|---|---|
+| protein monomer | exact feature parity |
+| protein multimer | exact feature parity |
+| CCD ligand / cofactor / metal | exact feature parity (HEM, FAD, UV3, ZN, NBN, DHS) |
+| modified residue | exact feature parity (4 × MSE, positions asserted) |
+| D-amino acids | exact feature parity (`7ubd`) |
+| covalent bond | carried and placed; verified to change `token_bonds` and nothing else |
+| MSA, single chain | exact feature parity against a hand-written input |
+| MSA, paired heteromer | pairing verified by row content, not just shape |
+| DNA | **implemented, untested** |
+| RNA | **implemented, untested** |
+| protein–nucleic complex | **implemented, untested** |
+| SMILES ligand | **implemented, untested** (needs a seeded-conformer tolerance) |
+| generic `UNL` / unknown CCD | **refused**, with a test asserting the refusal |
+
+The rule the repo follows: *what is supported is tested, what is not supported
+is refused explicitly.* The untested rows are the remaining gap between those
+two.
+
 ## What the adapter is compared *against*
 
 `tests/data/gold/*.json` holds a frozen `StructurePredictionInput` per fixture:

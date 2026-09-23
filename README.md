@@ -17,7 +17,7 @@ AtomWorks AtomArray ──adapter──> ESMFold2 (unmodified) ──adapter─�
 |---|---|
 | **1 — AtomWorks ↔ ESMFold2 adapter** | done; feature parity exact on 5 fixtures |
 | **2 — ESMFold2 as a Foundry model** | wrapper, pipeline, inference engine, configs, CLI |
-| **3 — generative surgery** | seams exposed; blocked upstream on gradients ([docs/05](docs/05_ROADMAP.md)) |
+| **3 — training** | trainer contract wired; needs supervision targets and an objective ([docs/05](docs/05_ROADMAP.md)) |
 
 The Phase 1 milestone is met: for monomer, multimer, metal, cofactor and
 modified-residue systems, the input the adapter derives from a structure

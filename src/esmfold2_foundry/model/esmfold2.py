@@ -14,15 +14,16 @@ fork are explicitly mid-cleanup -- AtomWorks' README says so outright -- so a
 full rewrite would spend its first months chasing upstream API changes, and any
 subtle divergence would show up as a model that runs, reports plausible
 confidence, and is quietly wrong. Wrapping keeps the weights and the numerics
-exactly as published, and leaves one seam per component for Phase 3 to open.
+exactly as published, and leaves one named seam per component.
 
 Three behaviours of the native model are worth knowing before you wire
 anything to it; each is asserted or surfaced below rather than left as folklore.
 
-1. **Release ``forward`` is decorated ``@torch.inference_mode()``.** Its outputs
-   cannot enter an autograd graph. Training therefore needs
-   ``ESMFold2ExperimentalModel``, whose ``forward`` is not so decorated -- see
-   :attr:`FoundryESMFold2.supports_gradients`.
+1. **Gradients depend on the inputs, not just the checkpoint.** The release
+   ``forward`` is ``@torch.inference_mode()`` and can never produce them. The
+   experimental one gates autograd on ``res_type_soft`` being supplied, so
+   loading it is necessary and not sufficient -- see
+   :meth:`FoundryESMFold2.will_produce_gradients`.
 2. **``fold()`` accepts sampler knobs the release model ignores.**
    ``noise_scale``, ``step_scale``, ``max_inference_sigma`` and ``early_exit``
    are forwarded into ``forward(**kwargs)`` and silently discarded; only
@@ -44,7 +45,19 @@ from esmfold2_foundry import paths
 if TYPE_CHECKING:
     from biotite.structure import AtomArray
 
-__all__ = ["FoldingConfig", "FoundryESMFold2", "load_native_model_class"]
+__all__ = [
+    "GRADIENT_GATE",
+    "FoldingConfig",
+    "FoundryESMFold2",
+    "load_native_model_class",
+]
+
+#: The input that switches the experimental forward into a gradient-bearing
+#: mode. Upstream gates autograd on it directly --
+#: ``torch.set_grad_enabled(res_type_soft is not None)`` -- so its presence,
+#: not the checkpoint flavour alone, is what decides whether a loss is
+#: differentiable.
+GRADIENT_GATE = "res_type_soft"
 
 #: ``fold()`` forwards these into the release ``forward``, which does not
 #: declare them, so they land in ``**kwargs`` and are dropped: the sampler is
@@ -126,7 +139,7 @@ class FoldingConfig:
 class FoundryESMFold2:
     """A resident ESMFold2, fed from AtomWorks and answering in AtomWorks terms.
 
-    This is intentionally *not* an ``nn.Module`` subclass yet. Until Phase 3
+    This is intentionally *not* an ``nn.Module`` subclass yet. Until something
     introduces trainable parameters of its own, wrapping in a module would add a
     parameter namespace that every checkpoint has to agree about, for no gain.
     :attr:`net` is the native module and is what a trainer should register.
@@ -196,14 +209,52 @@ class FoundryESMFold2:
         return self.net.config
 
     @property
-    def supports_gradients(self) -> bool:
-        """Whether ``forward`` can participate in autograd.
+    def supports_soft_sequence_design(self) -> bool:
+        """Whether this checkpoint *can* produce gradients at all.
 
-        The release model's ``forward`` is ``@torch.inference_mode()``, so it
-        cannot. Phase 3 training must use the experimental variant, and finding
-        that out from a wrong-looking loss curve is much worse than from here.
+        **Necessary, not sufficient.** The release model's ``forward`` is
+        ``@torch.inference_mode()`` and can never produce them. The
+        experimental model can, but only under the gate it applies internally::
+
+            torch.set_grad_enabled(res_type_soft is not None)  # experimental.py
+
+        so an experimental checkpoint fed an ordinary integer ``res_type``
+        still runs with autograd *off*. Use :meth:`will_produce_gradients` to
+        ask the question that actually matters.
+
+        Deliberately not named ``supports_gradients``: that name invited
+        exactly the reading that loading the experimental checkpoint was
+        enough, which produces a loss with no ``grad_fn`` and a flat training
+        curve whose cause has to be guessed at.
         """
         return getattr(self.config, "type", "release") == "experimental"
+
+    def will_produce_gradients(self, inputs: dict[str, Any]) -> bool:
+        """Whether ``forward(**inputs)`` will build an autograd graph.
+
+        Both conditions, checked together: an experimental checkpoint *and* a
+        soft sequence among the inputs.
+        """
+        return (
+            self.supports_soft_sequence_design and inputs.get(GRADIENT_GATE) is not None
+        )
+
+    def explain_gradient_status(self, inputs: dict[str, Any]) -> str:
+        """Why gradients are or are not available, in one line."""
+        if not self.supports_soft_sequence_design:
+            return (
+                f"no gradients: this is a '{getattr(self.config, 'type', 'release')}' "
+                "checkpoint, whose forward is @torch.inference_mode(). Load the "
+                "experimental checkpoint."
+            )
+        if inputs.get(GRADIENT_GATE) is None:
+            return (
+                f"no gradients: the experimental forward gates autograd on "
+                f"`{GRADIENT_GATE}`, which is absent from the inputs. Pass a soft "
+                "sequence (e.g. a softmax over design logits) instead of relying "
+                "on the integer res_type."
+            )
+        return "gradients available"
 
     def representation_dims(self) -> dict[str, int]:
         """The single/pair widths, for comparison against RFD3's ``c_s``/``c_z``."""
@@ -220,7 +271,7 @@ class FoundryESMFold2:
             dims["c_s_inputs"] = int(getattr(diffusion, "c_s_inputs", 0))
         return dims
 
-    # -- Phase 3 seams -----------------------------------------------------
+    # -- component seams ---------------------------------------------------
     # Named accessors for the three components the plan eventually separates.
     # They exist now so that a later change is a change of implementation
     # rather than a change of every call site.
@@ -270,7 +321,7 @@ class FoundryESMFold2:
         kwargs.update(overrides)
 
         ignored = [k for k in SILENTLY_IGNORED_BY_RELEASE if k in kwargs]
-        if ignored and not self.supports_gradients:
+        if ignored and not self.supports_soft_sequence_design:
             warnings.warn(
                 f"{ignored} are accepted by ESMFold2InputBuilder.fold but are not "
                 "declared by the release ESMFold2Model.forward, so they are "

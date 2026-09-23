@@ -92,7 +92,7 @@ Foundry contributes dataset, trainer, config, distributed execution, logging and
 checkpointing. The architecture stays exactly as published, so the weights keep
 meaning what they meant.
 
-`FoundryESMFold2` is deliberately **not** an `nn.Module` yet: until Phase 3 adds
+`FoundryESMFold2` is deliberately **not** an `nn.Module` yet: until something adds
 parameters of its own, wrapping would introduce a parameter namespace every
 checkpoint has to agree about, for nothing. `.net` is the module a trainer
 registers.

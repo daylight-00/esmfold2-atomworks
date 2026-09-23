@@ -1,25 +1,30 @@
 """Foundry ``FabricTrainer`` integration for ESMFold2.
 
-Status: **the contract is implemented, the gradient path is blocked upstream.**
-That is a property of the released model, not an omission here, and it is worth
-stating precisely because it determines what Phase 3 has to do first.
+Status: **the Foundry trainer contract is wired up; the objective is not, and
+the gradient path has a precondition that is easy to miss.**
 
-``transformers.models.esmfold2.ESMFold2Model.forward`` is decorated
-``@torch.inference_mode()``. Tensors produced under that decorator are marked
-inference tensors: they carry no autograd history and cannot be made to. So a
-loss computed from a release-model forward has nothing to differentiate, and no
-amount of trainer engineering changes it. ``ESMFold2ExperimentalModel.forward``
-carries no such decorator and additionally accepts ``res_type_soft`` for
-soft-sequence design, which is why it -- not the release model -- is the
-starting point for the generative surgery in Phase 3.
+*Gradients.* The release ``forward`` is ``@torch.inference_mode()``; tensors it
+produces are inference tensors and can never carry autograd history. The
+experimental ``forward`` can, but gates it on an **input**::
 
-:meth:`ESMFold2Trainer.training_step` therefore refuses a release model with an
-explanation, instead of producing a loss that never decreases and leaving the
-reason to be discovered from a flat curve.
+    torch.set_grad_enabled(res_type_soft is not None)  # experimental.py
 
-What *is* wired up: the Foundry trainer contract (``training_step`` /
-``validation_step``, ``self.state``, ``construct_model``), so that a working
-forward is the only missing piece rather than the whole integration.
+So loading the experimental checkpoint is necessary and *not* sufficient: fed an
+ordinary integer ``res_type``, it still runs with autograd off, and the loss
+comes back with no ``grad_fn``. :meth:`ESMFold2Trainer.training_step` therefore
+checks the real condition against the assembled inputs on every step, not just
+the checkpoint flavour once at construction, and names which half is missing.
+
+*Objective.* :meth:`compute_loss` is intentionally unimplemented. ESMFold2 ships
+no training loss, and choosing one is a modelling decision rather than an
+integration detail; putting a default here would bury that choice in a base
+class where it would be inherited silently.
+
+*Labels.* The pipeline carries model **inputs**, not supervision targets. A
+structural loss needs the source coordinates aligned to ESMFold2's atom
+ordering, which nothing here produces -- see ``docs/05_ROADMAP.md``. Note in
+particular that ``feats["gt_coords"]`` is not that: it is built from the
+prediction input and is zeros at inference.
 """
 
 from __future__ import annotations
@@ -97,8 +102,12 @@ def make_trainer_class() -> Any:
             wrapper = hydra.utils.instantiate(
                 self.state["train_cfg"].model, _recursive_=False
             )
-            if self.require_gradients and not wrapper.supports_gradients:
-                raise GradientsUnavailableError(_RELEASE_MODEL_MESSAGE)
+            if self.require_gradients and not wrapper.supports_soft_sequence_design:
+                raise GradientsUnavailableError(
+                    wrapper.explain_gradient_status({})
+                    + " Pass require_gradients=False to run this trainer for "
+                    "evaluation only."
+                )
 
             self.wrapper = wrapper
             self.initialize_or_update_trainer_state({"model": wrapper.net})
@@ -129,11 +138,24 @@ def make_trainer_class() -> Any:
         ) -> None:
             example = batch[0] if not isinstance(batch, dict) else batch
             model = self.state["model"]
+            wrapper = getattr(self, "wrapper", None)
 
-            if self.require_gradients and not getattr(self, "wrapper", None):
-                raise GradientsUnavailableError(_RELEASE_MODEL_MESSAGE)
+            if self.require_gradients and wrapper is None:
+                raise GradientsUnavailableError(
+                    "construct_model() has not run, so the gradient contract "
+                    "was never checked."
+                )
 
             inputs = self._assemble_network_inputs(example)
+
+            # Checked here, not only at construction: the experimental forward
+            # gates autograd on an *input*, so a checkpoint that can produce
+            # gradients still will not if the step does not supply a soft
+            # sequence. Catching it there yields a loss with no grad_fn and a
+            # flat curve; catching it here names the reason.
+            if self.require_gradients and not wrapper.will_produce_gradients(inputs):
+                raise GradientsUnavailableError(wrapper.explain_gradient_status(inputs))
+
             output = model(**inputs)
             loss = self.compute_loss(output, example)
 
@@ -157,7 +179,7 @@ def make_trainer_class() -> Any:
                 **self.compute_metrics(output, example),
             }
 
-        # -- to be supplied by Phase 3 -----------------------------------
+        # -- supplied by the caller --------------------------------------
 
         def compute_loss(self, output: dict, example: dict) -> Any:
             """The training objective.
@@ -177,14 +199,6 @@ def make_trainer_class() -> Any:
             return {}
 
     return ESMFold2Trainer
-
-
-_RELEASE_MODEL_MESSAGE = (
-    "The release ESMFold2Model.forward is decorated @torch.inference_mode(), so "
-    "its outputs carry no autograd history and cannot be trained through. Load "
-    "ESMFold2ExperimentalModel (config.type == 'experimental') instead, or pass "
-    "require_gradients=False to run this trainer for evaluation only."
-)
 
 
 def __getattr__(name: str) -> Any:

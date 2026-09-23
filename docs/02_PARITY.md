@@ -88,10 +88,17 @@ side: substituting `HEC` for `HEM` must break feature parity. Without it,
 
 ## Why the feature level is the primary check
 
-`prepare_esmfold2_input` **is** a pure function of the
-`StructurePredictionInput`, so two inputs that describe the same system produce
+`prepare_esmfold2_input` is a pure function of the `StructurePredictionInput`
+**at a fixed seed**, so two inputs that describe the same system produce
 byte-identical tensors: there is no arithmetic in between to accumulate error,
 which is why this comparison is exact rather than tolerance-based.
+
+The seed qualifier is not pedantry. A ligand given as SMILES gets an RDKit
+conformer embedded at call time, which is seeded but stochastic — the same
+`LigandInput` at two different seeds yields different `ref_pos`. CCD-specified
+ligands read a stored conformer and are unaffected. All the fixtures here are
+CCD, which is why the comparison holds exactly; a SMILES case needs the same
+seed on both sides, or a tolerance.
 
 `forward` is **not** pure. The structure head is a diffusion sampler; it
 consumes RNG, and on a GPU it is not even reproducible across two identical
@@ -152,10 +159,13 @@ Folding lysozyme twice at each setting:
 | 0.3 (default) | 0.176 | 0.061 | 0.060 |
 | **0.0** | 0.193 | 0.048 | 0.033 |
 
-Turning dropout off entirely leaves the scatter where it was, so what remains is
-non-deterministic GPU kernels and bf16 reduction ordering, amplified over the
-diffusion steps. **Do not expect `lm_dropout=0` to buy reproducibility** — it
-does not, and a scatter budget is needed either way.
+Turning dropout off entirely leaves the scatter where it was. What that
+establishes is that **`lm_dropout` is not the cause**; the residue is consistent
+with non-deterministic GPU kernels and bf16 reduction ordering amplified over
+the diffusion steps, but that has not been isolated here and is stated as the
+remaining explanation rather than a demonstrated one. **Do not expect
+`lm_dropout=0` to buy reproducibility** — it does not, and a scatter budget is
+needed either way.
 
 So an absolute tolerance on coordinates cannot tell "the adapter changed the
 input" from "the sampler is not reproducible". The first version of this test
@@ -175,10 +185,11 @@ RTX 6000 Ada, `num_loops=1`, `num_sampling_steps=8`, `seed=0`:
 | `pae_max_abs` | 5.56 | 5.74 | 5.75 | 7.19 |
 | `atom_name_mismatches` | 0 | 0 | 0 | 0 |
 
-The cross-path difference is **indistinguishable from the model's disagreement
-with itself**, and on lysozyme it is smaller. Together with exact feature
-parity, that is as strong as an output-level statement about a stochastic
-sampler can be.
+**The cross-path deviation falls within the observed self-scatter** — on
+lysozyme it is smaller than it. That is a single paired observation per fixture,
+not a distributional claim, and it does not need to be more: the load-bearing
+evidence is exact feature parity, and this only has to show that nothing
+unexpected happens once the sampler runs.
 
 Three deliberate choices:
 
@@ -195,6 +206,14 @@ Three deliberate choices:
 
 ## What parity does *not* cover
 
+- **The source structure's coordinates.** This one is worth stating plainly
+  because the parity table invites the opposite reading. `gt_coords` is among
+  the 29 tensors and it matches — but `StructurePredictionInput` carries no
+  coordinates at all, and ESMFold2 derives geometry from CCD reference
+  conformers. `gt_coords` is built from the *prediction input* and is zeros at
+  inference, so both sides agree on a placeholder. **Matching `gt_coords` does
+  not mean the AtomWorks coordinates were transferred.** Nothing in this
+  pipeline transfers them; see [05](05_ROADMAP.md).
 - **SMILES ligands.** RDKit conformer embedding is the one genuinely stochastic
   step in featurization. With a fixed seed it is reproducible, but a ligand
   declared as SMILES on one side and CCD on the other will differ in `ref_pos`

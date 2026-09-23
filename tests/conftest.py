@@ -48,8 +48,14 @@ def ccd() -> None:
 
 @pytest.fixture(scope="session")
 def parsed(data_dir):
-    """``name -> (atom_array, chain_info)``, parsed once and memoized."""
-    from atomworks.io import parse
+    """``name -> (atom_array, chain_info)``, parsed once and memoized.
+
+    Skips rather than errors when the source trees are absent, so that a test
+    requesting this fixture behind a `gpu`/weights guard reports "skipped"
+    instead of a collection error in an environment that was never expected to
+    have them.
+    """
+    parse = pytest.importorskip("atomworks.io").parse
 
     cache: dict[str, tuple] = {}
 

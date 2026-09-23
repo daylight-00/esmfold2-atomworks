@@ -1,96 +1,86 @@
-# 05 — Roadmap
+# 05 — What is not done yet
 
-Phases 1 and 2 are done; see [02_PARITY.md](02_PARITY.md) and
-[03_FOUNDRY_INTEGRATION.md](03_FOUNDRY_INTEGRATION.md). This is what is left.
+This project is scoped to one thing: making the published ESMFold2 reachable
+from AtomWorks data and usable as a Foundry model, faithfully. What follows is
+what that scope still lacks — not a research plan. Downstream projects that
+build on this repository keep their own.
 
-## Immediate
+## Done
 
-1. **Output parity on a GPU.** `scripts/parity_gpu.sbatch`. Feature parity makes
-   this a confirmation, not a discovery, but it should be recorded.
-2. **MSA parity.** The current fixtures fold in single-sequence mode. Pairing is
-   driven purely by `key=<taxid>` in FASTA headers, so an adapter that builds
-   MSAs without injecting those keys gets no cross-chain pairing — silently, and
-   with no shape change to reveal it. Wire `LoadPolymerMSAs` into
-   `pre_transforms` and add the case.
-3. **A corpus survey.** `esmfold2-foundry parity <dir>/*.cif` over a few thousand
-   PDB entries, to find which chain types and ligands the adapter cannot yet
-   reproduce. The point is the failure list, not the pass rate.
+- **AtomWorks → ESMFold2 adapter**, with exact feature parity against frozen
+  reference inputs ([02_PARITY.md](02_PARITY.md)).
+- **Output parity on a GPU**, as a controlled comparison against the model's own
+  run-to-run scatter.
+- **Both ESMFold2 packagings** (esm ≤ 3.3 via the `transformers` fork, esm ≥ 3.4
+  in-package), verified on CPU and GPU.
+- **Inference**: engine, CLI, configs, AtomWorks round trip.
 
-## Phase 3 — generative surgery
+## Missing for inference completeness
 
-The reason for all of the above. Today:
+**MSA parity.** Every fixture folds in single-sequence mode. Pairing is driven
+purely by `key=<taxid>` in FASTA headers, so an adapter that builds MSAs without
+injecting those keys gets no cross-chain pairing — silently, and with no shape
+change to reveal it. Wire `LoadPolymerMSAs` into `pre_transforms` and add the
+parity case.
 
-```
-S -> ESMC(S) -> h -> FoldingTrunk(h) -> StructureDiffusion -> X
-```
+**Corpus coverage.** `esmfold2-foundry parity <dir>/*.cif` over a larger set,
+to enumerate the chain types and ligands the adapter cannot yet express. The
+useful output is the failure list, not the pass rate.
 
-The plan is to expose those as separable modules and add a second path into the
-trunk:
+## Missing for training
 
-```
-                  ESMC(sequence)  ──┐
-                                    ├──> FoldingTrunk -> pair z -> StructureDiffusion
-  noise z -> LatentGenerator      ──┘
-```
+The Foundry trainer contract is wired up (`training_step` / `validation_step`,
+`construct_model`, state, checkpointing). Two things stand between that and a
+training run, and both are properties of the port rather than of any particular
+objective.
 
-`FoundryESMFold2` already exposes `.esmc`, `.folding_trunk` and
-`.structure_head` as named seams, so opening one is a change of implementation
-rather than of every call site.
+**1. Supervision targets do not exist in the pipeline.**
 
-**Gradients are available, but only through the experimental model.** The
-release `forward` is `@torch.inference_mode()`. `EsmFold2ExperimentalModel` is
-not, and it takes `res_type_soft`; in fact it enables autograd precisely when a
-soft sequence is supplied —
+`StructurePredictionInput` carries no coordinates: it is a sequence- and
+chemistry-level description, and ESMFold2 derives all geometry from CCD
+reference conformers. So the AtomWorks structure's own coordinates are *not*
+transferred by the adapter, by construction.
+
+This has a consequence that is easy to misread. `feats["gt_coords"]` is part of
+the 29 tensors compared by feature parity, and it matches — but it is built from
+the *prediction input* and is zeros at inference. **Parity on `gt_coords` does
+not mean the source coordinates were carried across.** Both sides simply hold
+the same placeholder.
+
+A supervised structural loss therefore needs something the pipeline does not
+produce: the source atoms aligned to ESMFold2's atom ordering, in a namespace
+of their own (`example["labels"]`, say) rather than overwriting an input
+tensor. The alignment is the work — `(chain, residue_index, atom_name)` has to
+map onto the tokenizer's ordering, and ligands, modified residues and
+unresolved atoms each break the naive correspondence. `chain_infos` is the
+bridge: `ChainInfo.tokens[].{token_index, atom_start, atom_count}` is the only
+record of it.
+
+**2. The gradient path has a precondition.**
+
+The release `forward` is `@torch.inference_mode()` and can never yield
+gradients. The experimental one can, but gates them on an input:
 
 ```python
 torch.set_grad_enabled(res_type_soft is not None)   # experimental.py
 ```
 
-— so the differentiable path is gated on *how* the sequence is passed, not on a
-flag. Phase 3 therefore starts by swapping the model class, which
-`load_native_model_class` already isolates.
+Loading the experimental checkpoint is therefore necessary and **not**
+sufficient. `FoundryESMFold2.will_produce_gradients(inputs)` checks the real
+condition and `explain_gradient_status(inputs)` says which half is missing;
+`tests/test_gradient_contract.py` asserts both, and — given a GPU and the
+experimental checkpoint — that a structural objective really does move soft
+sequence logits.
 
-**The second is that the trunk is pair-only.** There is no single-representation
-stream — `s_trunk=None` is passed to the structure head, and `d_single=384` is
-declared but unused by the release trunk. Anything that expects an RF3-style
-`(c_s, c_z)` pair of streams has to account for that; the comparable quantity is
-`c_token = 768` inside the diffusion module, not `d_single`.
+**3. No objective.** `compute_loss` is deliberately unimplemented: ESMFold2
+ships no training loss, and picking one is a modelling decision that does not
+belong in a base class.
 
-**The third is conditioning — and two different things get called that.** They
-have very different status, so it is worth separating them:
+## Not planned here
 
-| conditioning | status |
-|---|---|
-| **sequence** — target sequence + soft binder logits, jointly folded | **already works upstream.** `cookbook/tutorials/binder_design.py` does exactly this: it concatenates a fixed target one-hot with optimizable binder logits into `res_type_soft`, folds, and backpropagates an interface loss from the distogram |
-| **structural** — target *geometry* clamped, binder generated against it | **does not exist.** `PocketConditioning` is in the input schema and round-trips through serialization, but `prepare_esmfold2_input` never reads it: `pocket_feature` is `torch.zeros(n_tokens)` and upstream labels the block `# --- Pocket (dropped) ---` |
-
-So a binder pipeline of the form *given a target sequence, design a binder* is
-reachable now, and the honest first step is to reproduce the upstream trajectory
-through this stack rather than to build anything new — that alone exercises the
-gradient path, the AtomWorks→differentiable-ESMFold2 connection, and gives a
-baseline to measure against.
-
-Only the stronger form — *target coordinates held fixed, binder generated* —
-needs a conditioning path built rather than merely passed. Do not conflate the
-two when planning; the first is an integration exercise and the second is
-research.
-
-### The experiment this enables
-
-With RFD3 and ESMFold2 both reachable from the same `AtomArray`, the comparison
-stops being "two different architectures" and becomes a comparison of the
-**representation prior**:
-
-| arm | representation | generator |
-|---|---|---|
-| A | RFD3 | RFD3 |
-| B | ESMC | same/similar |
-| C | ESMFold2 folding trunk | same/similar |
-
-which is the actual research question.
-
-## Not planned
-
-Rewriting ESMFold2 module by module in Foundry idiom. See D-001 and the "Non-goals"
-section of [00_SCOPE.md](00_SCOPE.md). Components get separated when an
-experiment needs them separated, one at a time, each behind a parity check.
+Rewriting ESMFold2 module by module in Foundry idiom. See `D-001` and the
+non-goals in [00_SCOPE.md](00_SCOPE.md). Components get separated when something
+concrete needs them separated, one at a time, each behind a parity check —
+`FoundryESMFold2` exposes `.esmc`, `.folding_trunk` and `.structure_head` as
+named seams so that such a change is an implementation change rather than a
+change to every call site.

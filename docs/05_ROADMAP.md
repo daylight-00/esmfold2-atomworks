@@ -14,6 +14,12 @@ build on this repository keep their own.
 - **Both ESMFold2 packagings** (esm ≤ 3.3 via the `transformers` fork, esm ≥ 3.4
   in-package), verified on CPU and GPU.
 - **Inference**: engine, CLI, configs, AtomWorks round trip.
+- **Covalent bonds** carried across, with indices read back from the tokenizer.
+- **MSA** transfer and cross-chain pairing by `key=<taxid>`.
+- **Nucleic acid and SMILES branches** covered.
+- **Packaged configs** compose from an installed wheel (checked in CI).
+- **Foundry integration** verified against the pinned checkout, not just
+  described.
 
 ## Missing for inference completeness
 
@@ -38,7 +44,7 @@ The Foundry trainer contract is wired up (`training_step` / `validation_step`,
 training run, and both are properties of the port rather than of any particular
 objective.
 
-**1. Supervision targets do not exist in the pipeline.**
+**1. Supervision targets: available, but the alignment is by name.**
 
 `StructurePredictionInput` carries no coordinates: it is a sequence- and
 chemistry-level description, and ESMFold2 derives all geometry from CCD
@@ -51,14 +57,19 @@ the *prediction input* and is zeros at inference. **Parity on `gt_coords` does
 not mean the source coordinates were carried across.** Both sides simply hold
 the same placeholder.
 
-A supervised structural loss therefore needs something the pipeline does not
-produce: the source atoms aligned to ESMFold2's atom ordering, in a namespace
-of their own (`example["labels"]`, say) rather than overwriting an input
-tensor. The alignment is the work — `(chain, residue_index, atom_name)` has to
-map onto the tokenizer's ordering, and ligands, modified residues and
-unresolved atoms each break the naive correspondence. `chain_infos` is the
-bridge: `ChainInfo.tokens[].{token_index, atom_start, atom_count}` is the only
-record of it.
+`build_esmfold2_pipeline(attach_labels=True)` now supplies the missing half:
+`example["labels"]` holds the source coordinates permuted onto the model's atom
+axis, plus a mask. Unresolved atoms are **masked, never imputed** — a
+placeholder would silently bias any loss that averages over atoms — and nothing
+is centred or normalised, because that belongs to the objective.
+
+The remaining caveat is the alignment itself. It matches on
+`(chain, residue index, atom name)`, which is exact for standard residues and
+CCD ligands but has no answer where the source and the CCD disagree about atom
+naming. `StructureLabels.coverage` and `unmatched_examples` report what did not
+match, and `AttachStructureLabels(require_coverage=...)` will refuse a structure
+that falls below a threshold — a silently half-matched label set being worse
+than a refused one.
 
 **2. The gradient path has a precondition.**
 

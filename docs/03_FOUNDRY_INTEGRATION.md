@@ -1,5 +1,14 @@
 # 03 — Foundry integration
 
+> Everything on this page is checked against the pinned Foundry by
+> `tests/test_foundry_integration.py`: the trainer really subclasses
+> `FabricTrainer` with no abstract method left and matching signatures, the
+> engine really offers `BaseInferenceEngine`'s surface, `RegisteredCheckpoint`
+> really takes the fields named below, all six registration tables really
+> exist, models really are registered centrally rather than per-model, and the
+> data-pipeline config really instantiates into a working pipeline. The tests
+> do not modify the Foundry checkout — they check each claim where it lives.
+
 ## The repo is shaped like `foundry/models/<name>/`
 
 ```

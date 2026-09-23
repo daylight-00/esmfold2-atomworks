@@ -25,9 +25,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
-      # Pinned to match the version the Foundry repo uses, so that moving this
-      # package into foundry/models/ does not produce a reformat diff.
-      - run: pip install ruff==0.8.3
+      # Pinned so CI and a local run agree. Keep this identical to the `dev`
+      # group in pyproject.toml -- when they drift, `ruff format --check` fails
+      # here on files that are correctly formatted locally, which is noise
+      # rather than signal. (Foundry currently pins 0.8.3, which formats some
+      # files differently; expect one reformat commit when upstreaming.)
+      - run: pip install ruff==0.16.6
       - run: ruff check src tests
       - run: ruff format --check src tests
 

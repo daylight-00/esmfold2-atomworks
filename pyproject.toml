@@ -42,7 +42,7 @@ esmfold2-foundry = "esmfold2_foundry.cli:app"
 dev = [
     "pytest",
     "pytest-xdist",
-    "ruff==0.8.3",
+    "ruff==0.16.6",
     "ipykernel",
 ]
 # --- shared numerics / config / serialization used by all three source trees ---

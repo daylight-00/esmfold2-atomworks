@@ -80,12 +80,18 @@ class ESMFold2InferenceEngine:
         chunk_size: int | None = 64,
         load_esmc: bool = True,
         verbose: bool = False,
+        allow: Any = (),
     ) -> None:
         self.ckpt_path = ckpt_path
         self.device = device
         self.load_esmc = load_esmc
         self.chunk_size = chunk_size
         self.verbose = verbose
+        from esmfold2_foundry.data.atomworks_to_esm import allow_kwargs
+
+        # Validated at construction: a misspelt name must fail before the model
+        # loads, not after minutes of weight download.
+        self.adapter_policy = allow_kwargs(allow)
         self.folding = FoldingConfig(
             num_loops=num_loops,
             num_sampling_steps=num_sampling_steps,
@@ -143,6 +149,7 @@ class ESMFold2InferenceEngine:
         Returns:
             One :class:`ESMFold2Output` per input, in input order.
         """
+        from esmfold2_foundry.data.atomworks_to_esm import AdapterReport
         from esmfold2_foundry.metrics import fold_metrics
 
         self.initialize()
@@ -151,16 +158,22 @@ class ESMFold2InferenceEngine:
         outputs: list[ESMFold2Output] = []
         for example_id, item in named.items():
             atoms, chain_info = _load(item)
+            report = AdapterReport()
             structure, result = self.model.fold_atom_array(
-                atoms, chain_info=chain_info, config=self.folding, **overrides
+                atoms,
+                chain_info=chain_info,
+                config=self.folding,
+                adapter_kwargs={**self.adapter_policy, "report": report},
+                **overrides,
             )
+            accepted = _accepted_degradations(report)
             if isinstance(structure, list):
                 # num_diffusion_samples > 1: emit one output per sample.
                 for index, (one, res) in enumerate(zip(structure, result, strict=True)):
                     outputs.append(
                         ESMFold2Output(
                             atom_array=one,
-                            metadata=fold_metrics(res) | {"sample": index},
+                            metadata=fold_metrics(res) | {"sample": index} | accepted,
                             example_id=f"{example_id}_{index}",
                         )
                     )
@@ -168,7 +181,7 @@ class ESMFold2InferenceEngine:
                 outputs.append(
                     ESMFold2Output(
                         atom_array=structure,
-                        metadata=fold_metrics(result),
+                        metadata=fold_metrics(result) | accepted,
                         example_id=example_id,
                     )
                 )
@@ -180,6 +193,26 @@ class ESMFold2InferenceEngine:
 
     forward = run
     __call__ = run
+
+
+def _accepted_degradations(report: Any) -> dict[str, Any]:
+    """What the caller opted into *and what actually happened*, for the output.
+
+    Opting in says a degradation is acceptable; it does not say which structure
+    it happened to. Recording it per output is what makes the permissive run
+    auditable afterwards -- the JSON beside each CIF says what was dropped or
+    approximated for that one. Empty when nothing was.
+    """
+    happened = {
+        "dropped_chains": [
+            chain for chain, reason in report.dropped if reason != "water"
+        ],
+        "unresolved_covalent_bonds": list(report.unresolved_covalent_bonds),
+        "inferred_chain_kinds": list(report.inferred_chain_kinds),
+        "unplaceable_modifications": list(report.unplaceable_modifications),
+    }
+    happened = {key: value for key, value in happened.items() if value}
+    return {"adapter.degradations": happened} if happened else {}
 
 
 def _canonicalize_inputs(inputs: Any) -> dict[str, Any]:

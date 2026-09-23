@@ -349,11 +349,16 @@ class FoundryESMFold2:
             AtomArray -> StructurePredictionInput -> ESMFold2 -> AtomArray
 
         Note:
-            A covalent bond in *atoms* that cannot be placed in the model's
-            indexing raises rather than being dropped, because this path returns
-            no report and a silently disconnected fold would be invisible. Pass
-            ``adapter_kwargs={"allow_unresolved_covalent_bonds": True}`` to
-            accept that reading deliberately.
+            Strict by default. Anything that would fold a different molecule
+            than the one described -- an unsupported chain, a covalent bond
+            that cannot be placed, a chain kind that would have to be guessed,
+            a non-standard residue whose position is unknown -- raises, because
+            this path returns no report and a recorded-but-silent degradation
+            would be invisible here. Accept one by name through
+            ``adapter_kwargs={"allow_<name>": True}``; the names are
+            :data:`esmfold2_foundry.data.atomworks_to_esm.DEGRADATIONS`. To see
+            what happened under an opt-in, pass an ``AdapterReport`` as
+            ``adapter_kwargs={"report": report}`` and read it afterwards.
 
         Returns:
             ``(atom_array, result)`` -- the structure, and the native result

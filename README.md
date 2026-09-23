@@ -37,7 +37,7 @@ measured rather than assumed ([docs/02](docs/02_PARITY.md)).
 ```bash
 source env.sh
 esmfold2-foundry doctor              # trees, imports, weights + a real parity check
-pytest -q                            # ~50 s, CPU, no GPU and no weights needed
+pytest -q                            # ~30 s, CPU, no GPU and no weights needed
 
 esmfold2-foundry parity structures/*.cif          # survey a corpus
 esmfold2-foundry fold input.cif --out-dir runs/   # needs a GPU
@@ -66,10 +66,14 @@ prediction of the wrong molecule:
 - a sequence is taken from the full entity record, not from the residues that
   happen to be modelled, so unresolved loops are not silently deleted;
 - a non-standard residue is declared by CCD code, not folded as its parent;
-- every chain that does not reach the model is **named** in the report.
+- a chain that cannot be expressed, a covalent bond that cannot be placed, a
+  chain kind that would have to be guessed, or a modification whose position is
+  unknown each **raises** by default — accepted only by name, on every path,
+  and recorded per output when accepted.
 
 Each of these has a decision ID in [docs/00_SCOPE.md](docs/00_SCOPE.md) and a
-test.
+test; the strictness policy is laid out in
+[docs/01](docs/01_ADAPTER.md#strictness-no-silent-semantic-degradation).
 
 ## Layout
 

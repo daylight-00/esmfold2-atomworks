@@ -13,7 +13,7 @@ pytest -q                      # ~30 s, CPU only, no weights needed
 ruff check src tests && ruff format --check src tests
 ```
 
-## The three rules most easily broken
+## The four rules most easily broken
 
 - **Convert at `StructurePredictionInput`, never at the tensors** (`D-001`).
   AtomWorks and ESMFold2 both featurize AF3-like and their conventions differ.
@@ -23,6 +23,11 @@ ruff check src tests && ruff format --check src tests
   are refused. There is no residue-name→CCD fallback, by design.
 - **A metric the model did not produce stays absent** (`D-006`). Never `0.0` —
   for pLDDT that reads as a catastrophic fold, for PAE as a perfect one.
+- **Nothing degrades silently** (`D-005`). A new way for the adapter to drop or
+  approximate part of the input goes into `atomworks_to_esm.DEGRADATIONS`,
+  raises by default, and is accepted only by name; `tests/test_strictness.py`
+  then enforces the rest. Recording it in `AdapterReport` alone is not enough —
+  `fold_atom_array` returns no report.
 
 ## When changing the adapter
 

@@ -56,13 +56,19 @@ class StructurePredictionInputTransform(Transform):
         allow_undeclared_ccd_ligands: bool = True,
         emit_modifications: bool = True,
         keep_report: bool = True,
+        allow: Any = (),
         **kwargs: Any,
     ) -> None:
+        from esmfold2_foundry.data.atomworks_to_esm import allow_kwargs
+
         super().__init__(**kwargs)
         self.ligands = ligands
         self.allow_undeclared_ccd_ligands = allow_undeclared_ccd_ligands
         self.emit_modifications = emit_modifications
         self.keep_report = keep_report
+        # Validated here, at construction, so a misspelt opt-in fails when the
+        # pipeline is built rather than on the first example that needs it.
+        self.allow = allow_kwargs(allow)
 
     def check_input(self, data: dict[str, Any]) -> None:
         check_contains_keys(data, ["atom_array"])
@@ -82,6 +88,7 @@ class StructurePredictionInputTransform(Transform):
             allow_undeclared_ccd_ligands=self.allow_undeclared_ccd_ligands,
             emit_modifications=self.emit_modifications,
             report=report,
+            **self.allow,
         )
         if self.keep_report:
             # Kept so a training run can be asked afterwards what it dropped,
@@ -176,6 +183,7 @@ def build_esmfold2_pipeline(
     ligands: dict[str, Any] | tuple[Any, ...] = (),
     allow_undeclared_ccd_ligands: bool = True,
     emit_modifications: bool = True,
+    allow: Any = (),
     attach_labels: bool = False,
     pre_transforms: list[Transform] | None = None,
     keys_to_keep: list[str] | None = None,
@@ -189,6 +197,9 @@ def build_esmfold2_pipeline(
             per-example variation in a SMILES conformer is augmentation; set it
             for evaluation, where the same variation is noise.
         ligands: declared ligand identities, keyed by chain id.
+        allow: degradations to accept by name -- see
+            :data:`esmfold2_foundry.data.atomworks_to_esm.DEGRADATIONS`. Empty
+            by default, so every one of them raises.
         attach_labels: also emit ``data["labels"]`` -- the source coordinates on
             the model's atom axis, plus a mask. Supervision targets only; the
             objective stays with the caller.
@@ -206,6 +217,7 @@ def build_esmfold2_pipeline(
             ligands=ligands,
             allow_undeclared_ccd_ligands=allow_undeclared_ccd_ligands,
             emit_modifications=emit_modifications,
+            allow=allow,
         )
     )
     transforms.append(FeaturizeForESMFold2(seed=seed))

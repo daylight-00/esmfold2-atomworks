@@ -52,8 +52,23 @@ def fold(
     num_diffusion_samples: int = typer.Option(1),
     seed: int | None = typer.Option(None),
     device: str | None = typer.Option(None, help="cuda, cuda:1, cpu..."),
+    allow: list[str] = typer.Option(
+        [],
+        "--allow",
+        help=(
+            "Accept one named degradation instead of raising; repeatable. "
+            "One of: unsupported_chains, unresolved_covalent_bonds, "
+            "inferred_chain_kind, unplaceable_modifications."
+        ),
+    ),
 ) -> None:
-    """Fold structures through the AtomWorks adapter and write CIF + metrics."""
+    """Fold structures through the AtomWorks adapter and write CIF + metrics.
+
+    Strict by default: anything that would fold a different molecule than the
+    one described raises, and ``--allow`` accepts it by name. Whatever was
+    accepted is recorded per structure under ``adapter.degradations`` in the
+    JSON written beside each CIF.
+    """
     from esmfold2_foundry.inference.engine import ESMFold2InferenceEngine
 
     engine = ESMFold2InferenceEngine(
@@ -64,6 +79,7 @@ def fold(
         num_diffusion_samples=num_diffusion_samples,
         seed=seed,
         verbose=True,
+        allow=allow,
     )
     outputs = engine.run([str(p) for p in structures], out_dir=out_dir)
     for output in outputs:

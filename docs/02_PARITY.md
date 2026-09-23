@@ -261,8 +261,11 @@ Three deliberate choices:
   step of that path.
 - **Chains whose insertion codes cannot be placed.** `chain_info` records no
   insertion code, so for a chain numbered 100/100A/100B whose sequence comes
-  from there, residues cannot be tied to sequence positions. Such a chain is
-  named in the report and its labels and bonds are skipped, rather than
-  attached to whichever residue happened to be written last.
-- **Anything with a `chain_type` the mapping does not know.** Reported as
-  `unsupported` rather than folded.
+  from there, residues cannot be tied to sequence positions. The fold input is
+  unaffected, but the chain's labels are skipped (and named in
+  `label_skipped_chains`) and a covalent bond on it raises as unplaceable,
+  rather than either being attached to whichever residue happened to be
+  written last.
+- **Anything with a `chain_type` the mapping does not know.** Raises
+  `UnsupportedChainError` rather than being folded; it can be dropped by name
+  (`allow_unsupported_chains`).

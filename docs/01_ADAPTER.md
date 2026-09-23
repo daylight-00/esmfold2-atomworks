@@ -24,8 +24,9 @@ POLYPEPTIDE_L / POLYPEPTIDE_D / CYCLIC_PSEUDO_PEPTIDE  -> ProteinInput
 DNA                                                     -> DNAInput
 RNA                                                     -> RNAInput
 NON_POLYMER / BRANCHED / MACROLIDE                      -> LigandInput
-WATER                                                   -> dropped, and reported
-anything else                                           -> unsupported, and reported
+WATER                                                   -> dropped by policy (drop_water), and reported
+anything else                                           -> raises UnsupportedChainError
+no chain_type annotation                                -> raises InferredChainKindError
 ```
 
 ## Modification positions are verified, not assumed
@@ -51,10 +52,14 @@ fails loudly rather than folding four wrong residues.
 Non-polymer chains have no canonical sequence at all, so the lookup is only made
 for polymers.
 
-When the alignment cannot be established the adapter emits **no** modifications
-and records the chain in `AdapterReport.unplaceable_modifications`. Folding the
-parent residues is an approximation; placing a modification by coincidence is a
-wrong molecule.
+When the alignment cannot be established — no `res_name` in `chain_info`, and
+modelled residues that do not line up with the sequence — a chain carrying a
+non-standard residue **raises** `ModificationResolutionError`, because folding
+the parent residue in its place is a different molecule. Placing a modification
+by coincidence would be worse still, so accepting the approximation
+(`allow_unplaceable_modifications=True`) emits **no** modifications and names the
+chain in `AdapterReport.unplaceable_modifications`. A chain of standard residues
+has nothing to place, so the same misalignment is not an error there.
 
 An overridden sequence (the design path) drops the structure's modifications
 entirely — a designed sequence is a different molecule, and the structure's
@@ -82,24 +87,66 @@ Three decisions worth knowing:
   so nothing would tell the caller. `allow_unresolved_covalent_bonds=True` opts
   into that reading deliberately.
 
-## Strictness: what raises, and what is dropped by policy
+## Strictness: no silent semantic degradation
 
 The adapter would rather stop than hand back a confident prediction of a
 different system. `fold_atom_array` returns no report, so anything it merely
-recorded would be invisible to the caller — which makes raising the only way
-some facts arrive.
+*recorded* would be invisible to the caller — which makes raising the only way
+some facts arrive. The failure this guards against always has that shape: a
+degradation noted in `AdapterReport` and nowhere else.
 
-| situation | default | opt out with |
+The degradations the adapter can detect are listed once, in
+`atomworks_to_esm.DEGRADATIONS`, and each is accepted only by name:
+
+| degradation | default | accept with |
 |---|---|---|
-| water chain | dropped | `drop_water=False` to refuse instead |
-| chain no ESMFold2 input can express | **raises** `UnsupportedChainError` | `allow_unsupported_chains=True` |
-| covalent bond that cannot be placed | **raises** `CovalentBondResolutionError` | `allow_unresolved_covalent_bonds=True` |
-| ligand labelled `LIG`/`UNL`/`UNK` | **raises** `LigandIdentityError` | declare a `LigandSpec` |
-| residue name absent from the CCD | **raises** `LigandIdentityError` | declare a `LigandSpec` |
+| a chain no ESMFold2 input can express | **raises** `UnsupportedChainError` | `unsupported_chains` |
+| a covalent bond that cannot be placed | **raises** `CovalentBondResolutionError` | `unresolved_covalent_bonds` |
+| a chain kind that would be guessed (no `chain_type`) | **raises** `InferredChainKindError` | `inferred_chain_kind` |
+| a non-standard residue whose position is unknown | **raises** `ModificationResolutionError` | `unplaceable_modifications` |
 
-The two bond-related rows are independent on purpose. Accepting that a chain is
-dropped is not the same as accepting that a bond to it disappears, so opting
-into the first still raises on the second.
+The same name works on every path, so no error names a remedy its caller
+cannot reach:
+
+```python
+atom_array_to_structure_prediction_input(atoms, allow_inferred_chain_kind=True)
+model.fold_atom_array(atoms, adapter_kwargs={"allow_inferred_chain_kind": True})
+build_esmfold2_pipeline(is_inference=False, allow=["inferred_chain_kind"])
+ESMFold2InferenceEngine(allow=["inferred_chain_kind"])
+```
+```bash
+esmfold2-foundry fold input.cif --allow inferred_chain_kind
+```
+
+A misspelt name raises rather than being ignored — an opt-in that silently did
+nothing would leave a caller believing a run was permissive, or strict, when it
+was not. `tests/test_strictness.py` checks the table is complete: every entry
+must be an adapter keyword that defaults to `False`.
+
+Opting in says a degradation is acceptable, not which structure it hit. The
+engine therefore records, per output, what actually happened under
+`adapter.degradations` in the JSON beside each CIF; direct callers pass an
+`AdapterReport` through `adapter_kwargs={"report": report}`.
+
+Two refusals have no opt-in, because there is nothing reasonable to proceed
+with; and water is not a degradation but a policy with its own switch:
+
+| situation | behaviour |
+|---|---|
+| ligand labelled `LIG`/`UNL`/`UNK`, or a name absent from the CCD | **raises** `LigandIdentityError`; declare a `LigandSpec` |
+| an empty sequence override | **raises** `ValueError`; the chain would otherwise vanish |
+| water | dropped under the explicit `drop_water` policy (`drop_water=False` refuses instead) |
+
+**The boundary of the policy.** It acts on what the adapter can establish.
+Without `chain_info`, the sequence comes from the modelled residues, so an
+unresolved loop is simply absent (D-003). A gap in the numbering can hint at
+that, but not reliably — numbering may skip legitimately — and it can never say
+*what* is missing. So this case is recorded (`sequence_source == "atoms"`) and
+documented rather than raised; supplying `chain_info` removes it entirely.
+
+Dropping a chain and losing a bond are independent on purpose. Accepting that a
+chain is dropped is not the same as accepting that a bond to it disappears, so
+opting into the first still raises on the second.
 
 Detection of bonds is deliberately kept separate from that policy:
 `covalent_bond_candidates` returns a bond whose endpoint is not in the model
@@ -145,8 +192,13 @@ than returning a partial structure if any atom is claimed by no token span.
 
 `AdapterReport` records, per conversion: every chain and its classification,
 everything dropped and why, the sequence source per chain, unmapped residues,
-the modifications emitted, and any chain whose modifications could not be placed.
+the modifications emitted, the covalent bonds found — and, for each degradation
+the caller accepted by name, exactly what it hit.
 
-This exists because of D-005. A conversion that quietly drops a chain produces a
-successful fold with reasonable-looking metrics of a system the caller did not
-describe, and nothing downstream is in a position to notice.
+It is the audit trail, not the safeguard (D-005). A conversion that quietly
+drops a chain produces a successful fold with reasonable-looking metrics of a
+system the caller did not describe, and nothing downstream is in a position to
+notice. A report cannot prevent that — `fold_atom_array` does not even return
+one — so the safeguard is the raise, and the report's degradation fields are
+filled only once a degradation has been accepted. After a raise, the error
+message carries the detail.

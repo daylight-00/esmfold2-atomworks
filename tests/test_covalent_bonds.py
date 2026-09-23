@@ -156,12 +156,17 @@ def test_a_bond_to_an_omitted_chain_still_raises_once_the_drop_is_accepted(parse
     from esmfold2_foundry.data.spec import CovalentBondResolutionError
 
     atoms, chain_info = parsed("hemoglobin")
+    report = AdapterReport()
     with pytest.raises(CovalentBondResolutionError, match="as disconnected"):
         atom_array_to_structure_prediction_input(
             _with_an_unsupported_partner(atoms),
             chain_info=chain_info,
             allow_unsupported_chains=True,
+            report=report,
         )
+    # The report names what was accepted, not what was refused.
+    assert ("E", "unsupported chain_type 1") in report.dropped
+    assert report.unresolved_covalent_bonds == []
 
 
 def test_both_can_be_opted_out_of_and_are_then_reported(parsed, ccd):

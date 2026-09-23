@@ -10,4 +10,7 @@ is_inference: false
 seed: null             # null -> per-example SMILES conformer variation (augmentation)
 allow_undeclared_ccd_ligands: true
 emit_modifications: true
+# Degradations to accept by name instead of raising. Empty = strict. See
+# esmfold2_foundry.data.atomworks_to_esm.DEGRADATIONS for the names.
+allow: []
 pre_transforms: []

@@ -25,8 +25,10 @@ if TYPE_CHECKING:
 
 __all__ = [
     "CovalentBondResolutionError",
+    "InferredChainKindError",
     "LigandIdentityError",
     "LigandSpec",
+    "ModificationResolutionError",
     "UnsupportedChainError",
     "formula_of",
 ]
@@ -49,6 +51,23 @@ class UnsupportedChainError(ValueError):
     confident prediction of a smaller system, with nothing saying a chain went
     missing. Water is the exception -- it is dropped under the explicit
     ``drop_water`` policy.
+    """
+
+
+class InferredChainKindError(ValueError):
+    """A chain's kind would have to be guessed because it has no ``chain_type``.
+
+    ``is_polymer`` cannot tell protein from DNA or RNA, nor water from a
+    ligand. A DNA duplex arriving without ``chain_type`` is otherwise folded as
+    a protein of unknown residues -- measured: sequence ``XXXXXXXX``.
+    """
+
+
+class ModificationResolutionError(ValueError):
+    """A non-standard residue could not be tied to a position in the sequence.
+
+    Proceeding would fold the parent residue in its place -- selenomethionine as
+    methionine, say -- which is a different molecule.
     """
 
 

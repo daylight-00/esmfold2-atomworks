@@ -41,8 +41,10 @@ import numpy as np
 from esmfold2_foundry.data.spec import (
     GENERIC_LIGAND_NAMES,
     CovalentBondResolutionError,
+    InferredChainKindError,
     LigandIdentityError,
     LigandSpec,
+    ModificationResolutionError,
     UnsupportedChainError,
 )
 
@@ -50,13 +52,73 @@ if TYPE_CHECKING:
     from biotite.structure import AtomArray
 
 __all__ = [
+    "DEGRADATIONS",
     "AdapterReport",
     "ChainRecord",
+    "allow_kwargs",
     "atom_array_to_structure_prediction_input",
     "chain_records",
     "modifications_for_chain",
     "sequence_of_chain",
 ]
+
+
+# --------------------------------------------------------------------------
+# Strictness
+# --------------------------------------------------------------------------
+#: Every semantic degradation the adapter can detect, and the error it raises
+#: by default. Each is permitted only by naming it: ``allow_<name>=True`` on the
+#: adapter, ``allow=[<name>]`` in a pipeline or engine config, ``--allow <name>``
+#: on the command line.
+#:
+#: The rule is that none of these happens silently. A degradation that is
+#: merely *recorded* is invisible on the direct API, which returns no report,
+#: so recording is never enough on its own. Keeping the complete list in one
+#: table is what lets a test check that each one has an opt-in and defaults to
+#: raising, rather than relying on remembering to add both.
+#:
+#: Not listed, deliberately: dropping water (an explicit ``drop_water`` policy,
+#: not a degradation), and taking the sequence from modelled residues when no
+#: ``chain_info`` is supplied. The latter can delete unresolved loops (D-003),
+#: but without an entity record the adapter cannot establish that anything is
+#: missing -- a numbering gap may be legitimate -- let alone what, and a policy
+#: can only act on what it can establish.
+DEGRADATIONS: dict[str, type[Exception]] = {
+    "unsupported_chains": UnsupportedChainError,
+    "unresolved_covalent_bonds": CovalentBondResolutionError,
+    "inferred_chain_kind": InferredChainKindError,
+    "unplaceable_modifications": ModificationResolutionError,
+}
+
+
+def allow_kwargs(names: object = ()) -> dict[str, bool]:
+    """``["unsupported_chains"] -> {"allow_unsupported_chains": True}``.
+
+    For the config- and CLI-driven paths, where a list of names is easier to
+    write than a set of booleans. Unknown names raise rather than being
+    ignored: a misspelt opt-in that silently does nothing would leave the
+    caller believing they had accepted a degradation they had not -- or, worse,
+    believing a strict run was permissive.
+    """
+    if names is None:
+        return {}
+    if isinstance(names, str):
+        names = [names]
+    unknown = sorted(set(names) - set(DEGRADATIONS))  # type: ignore[arg-type]
+    if unknown:
+        raise ValueError(
+            f"unknown degradation(s) {unknown}; known: {sorted(DEGRADATIONS)}"
+        )
+    return {f"allow_{name}": True for name in names}  # type: ignore[union-attr]
+
+
+def _remedy(name: str) -> str:
+    """How to opt in, phrased for every path that can reach this error."""
+    return (
+        f"Opt in deliberately with allow_{name}=True (adapter / fold_atom_array "
+        f"adapter_kwargs), allow=[{name!r}] (pipeline or engine config), or "
+        f"--allow {name} (CLI)."
+    )
 
 
 # --------------------------------------------------------------------------
@@ -123,7 +185,8 @@ class ChainRecord:
     #: True when ``kind`` was inferred from ``is_polymer`` because the
     #: array carries no ``chain_type``. A nucleic-acid chain arriving that
     #: way is called protein, so the flag distinguishes an inference from
-    #: a statement.
+    #: a statement -- and the adapter will not fold on an inference unless
+    #: it is accepted by name (``allow_inferred_chain_kind``).
     kind_is_inferred: bool = False
 
     @property
@@ -133,12 +196,19 @@ class ChainRecord:
 
 @dataclass
 class AdapterReport:
-    """What the adapter did, so that nothing it dropped is invisible.
+    """What the adapter did: the audit trail, not the safeguard.
 
-    A conversion that quietly discards a chain is the failure mode this whole
-    project is trying to make impossible: the fold still succeeds, the metrics
-    still look reasonable, and the model was given a different system than the
-    caller believes. Every chain that does not reach ESMFold2 is named here.
+    A conversion that quietly discards a chain, a bond or a modification is the
+    failure mode this whole project is trying to make impossible: the fold
+    still succeeds, the metrics still look reasonable, and the model was given
+    a different system than the caller believes. Recording that here would not
+    prevent it -- ``fold_atom_array`` returns no report -- so each such
+    degradation raises instead (:data:`DEGRADATIONS`).
+
+    The degradation fields are therefore filled only when the caller accepted
+    one by name, and then say exactly what happened to the input returned.
+    After a raise, the error message carries the detail. Every chain that does
+    not reach ESMFold2 is named in ``dropped``.
     """
 
     chains: list[ChainRecord] = field(default_factory=list)
@@ -147,19 +217,26 @@ class AdapterReport:
     unknown_residues: dict[str, list[str]] = field(default_factory=dict)
     modifications: dict[str, list[tuple[int, str]]] = field(default_factory=dict)
     #: Chains carrying non-standard residues whose position could not be tied
-    #: to the folded sequence. Folding proceeds with the parent residues, so
-    #: this is the one case where chemistry is knowingly approximated.
+    #: to the folded sequence, where ``allow_unplaceable_modifications``
+    #: accepted folding the parent residues instead -- a knowing
+    #: approximation of the chemistry.
     unplaceable_modifications: list[str] = field(default_factory=list)
-    #: Covalent bonds carried across from the source structure.
+    #: Covalent bonds detected in the source structure, placed or not.
     covalent_bonds: list[Any] = field(default_factory=list)
     #: Bonds detected but not placeable in the model's indexing, with the
-    #: reason. Skipped rather than guessed -- a wrong index bonds the wrong
-    #: pair of atoms, which upstream cannot detect.
+    #: reason, where ``allow_unresolved_covalent_bonds`` accepted folding
+    #: without them. Never guessed -- a wrong index bonds the wrong pair of
+    #: atoms, which upstream cannot detect.
     unresolved_covalent_bonds: list[str] = field(default_factory=list)
     #: Chains whose residues carry insertion codes that cannot be tied to
-    #: the sequence, because ``chain_info`` does not record them. Their
-    #: bonds and labels are skipped rather than mis-assigned.
+    #: the sequence, because ``chain_info`` does not record them. The fold
+    #: input is unaffected; a covalent bond on such a chain cannot be placed
+    #: (and so raises by default), and its labels are skipped rather than
+    #: mis-assigned.
     unrepresentable_insertion_codes: list[str] = field(default_factory=list)
+    #: Chains whose kind was inferred from ``is_polymer`` for want of a
+    #: ``chain_type`` -- populated only when that was explicitly allowed.
+    inferred_chain_kinds: list[str] = field(default_factory=list)
 
     def dropped_summary(self) -> str:
         if not self.dropped:
@@ -369,11 +446,12 @@ def chain_records(
             #
             # The polymer branch is a genuine guess -- a DNA or RNA chain
             # arriving without chain_type would be called protein here. It is
-            # kept because refusing would reject every hand-built AtomArray,
-            # but it is recorded (`ChainRecord.kind_is_inferred`) so a caller
-            # can tell an inference from a statement. Anything from
-            # `atomworks.io.parse` or the component assembler carries
-            # chain_type and never takes this path.
+            # made so that a hand-built AtomArray can still be described, and
+            # flagged (`ChainRecord.kind_is_inferred`) so that the adapter
+            # refuses to fold on it unless the caller accepts it by name
+            # (`allow_inferred_chain_kind`). Anything from `atomworks.io.parse`
+            # or the component assembler carries chain_type and never takes
+            # this path.
             inferred = is_polymer is not None
             if is_polymer is None:
                 kind = "unsupported"
@@ -440,6 +518,8 @@ def atom_array_to_structure_prediction_input(
     declare_covalent_bonds: bool = True,
     allow_unresolved_covalent_bonds: bool = False,
     allow_unsupported_chains: bool = False,
+    allow_inferred_chain_kind: bool = False,
+    allow_unplaceable_modifications: bool = False,
     drop_water: bool = True,
     chain_key: str = "chain_id",
     report: AdapterReport | None = None,
@@ -470,6 +550,13 @@ def atom_array_to_structure_prediction_input(
             direct API returns no report, so the chain would simply be absent
             from a confident prediction. Water is unaffected; it is dropped
             under ``drop_water``.
+        allow_inferred_chain_kind: proceed when a chain has no ``chain_type``
+            and its kind must be guessed from ``is_polymer``. Off by default:
+            the guess cannot tell protein from nucleic acid, and a DNA chain
+            guessed this way is folded as a poly-X protein.
+        allow_unplaceable_modifications: proceed when a non-standard residue
+            cannot be tied to a sequence position, folding its parent residue
+            instead. Off by default, because that is a different molecule.
         emit_modifications: declare non-standard polymer residues by CCD code
             rather than folding the parent residue. See
             :func:`modifications_for_chain` for what this changes.
@@ -504,6 +591,18 @@ def atom_array_to_structure_prediction_input(
     for record in records:
         chain_id = record.chain_id
 
+        if record.kind_is_inferred:
+            if not allow_inferred_chain_kind:
+                raise InferredChainKindError(
+                    f"chain {chain_id!r} has no chain_type annotation, so its kind "
+                    f"would be inferred from is_polymer as {record.kind!r}. That "
+                    "cannot tell protein from DNA or RNA -- a nucleic-acid chain "
+                    "inferred this way is folded as a protein -- nor water from a "
+                    "ligand. Set chain_type explicitly (atomworks.enums.ChainType). "
+                    + _remedy("inferred_chain_kind")
+                )
+            rep.inferred_chain_kinds.append(chain_id)
+
         if record.kind == "water":
             if drop_water:
                 rep.dropped.append((chain_id, "water"))
@@ -514,21 +613,32 @@ def atom_array_to_structure_prediction_input(
             )
 
         if record.kind == "unsupported":
-            reason = f"unsupported chain_type {record.chain_type!r}"
-            rep.dropped.append((chain_id, reason))
+            reason = (
+                f"unsupported chain_type {record.chain_type!r}"
+                if record.chain_type is not None
+                else "no chain_type or is_polymer annotation"
+            )
             if not allow_unsupported_chains:
                 raise UnsupportedChainError(
                     f"chain {chain_id!r} cannot be expressed as an ESMFold2 input "
-                    f"({reason}), so folding would silently omit it. Pass "
-                    "allow_unsupported_chains=True to drop it deliberately."
+                    f"({reason}), so folding would silently omit it. "
+                    + _remedy("unsupported_chains")
                 )
+            rep.dropped.append((chain_id, reason))
             continue
 
         if record.is_polymer:
             sequence = sequences.get(chain_id, record.sequence or "")
             if not sequence:
-                rep.dropped.append((chain_id, "empty sequence"))
-                continue
+                # Only reachable through an empty override: a chain with
+                # residues always yields a sequence. Dropping it would fold a
+                # smaller system than the caller described, so it is refused.
+                source = "override" if chain_id in sequences else "sequence"
+                raise ValueError(
+                    f"chain {chain_id!r} has an empty {source}; folding would omit "
+                    "the chain. Supply a sequence, or remove the chain from the "
+                    "structure if it is meant to be absent."
+                )
 
             rep.sequence_source[chain_id] = (
                 "override"
@@ -551,6 +661,7 @@ def atom_array_to_structure_prediction_input(
                 overridden=chain_id in sequences,
                 emit=emit_modifications,
                 report=rep,
+                allow_unplaceable=allow_unplaceable_modifications,
             )
 
             if record.kind == "protein":
@@ -665,15 +776,16 @@ def _attach_covalent_bonds(
     )
     skipped = unrepresented + skipped
     report.covalent_bonds = list(candidates)
-    report.unresolved_covalent_bonds = skipped
     if skipped and not allow_unresolved:
         raise CovalentBondResolutionError(
             f"{len(skipped)} covalent bond(s) in the source could not be placed "
             "in the model's indexing, so folding would treat a connected system "
             "as disconnected:\n  "
             + "\n  ".join(skipped)
-            + "\nPass allow_unresolved_covalent_bonds=True to proceed anyway."
+            + "\n"
+            + _remedy("unresolved_covalent_bonds")
         )
+    report.unresolved_covalent_bonds = skipped
     if not bonds:
         return spi
     return StructurePredictionInput(
@@ -705,9 +817,10 @@ def _residue_index_map(
 
     So when the sequence came from ``chain_info`` *and* the chain uses insertion
     codes, the two cannot be reconciled here. That chain is left out of the map
-    and named in the report: its bonds and labels are then skipped with a
-    reason, rather than silently attached to whichever residue happened to
-    overwrite the others.
+    and named in the report, rather than silently attached to whichever residue
+    happened to overwrite the others: a bond on it then fails to resolve --
+    which raises unless unresolved bonds are accepted -- and its labels are
+    skipped with a reason.
     """
     mapping: dict[tuple[str, int, str], int] = {}
     for record in records:
@@ -744,6 +857,7 @@ def _modifications_for(
     overridden: bool,
     emit: bool,
     report: AdapterReport,
+    allow_unplaceable: bool = False,
 ) -> list[Any]:
     """Modifications for one polymer chain, or an empty list with a reason.
 
@@ -759,7 +873,24 @@ def _modifications_for(
     if names is None:
         names = list(record.residue_names)
         if len(names) != len(sequence):
-            if record.chain_type is not None:
+            # A degradation only if something actually needed placing: a chain
+            # of standard residues folds identically with or without this, and
+            # raising on it would be a false alarm.
+            protein_map, dna_map, rna_map = _three_to_one_maps()
+            table = {"protein": protein_map, "dna": dna_map, "rna": rna_map}[
+                record.kind
+            ]
+            nonstandard = sorted({name for name in names if name not in table})
+            if nonstandard:
+                if not allow_unplaceable:
+                    raise ModificationResolutionError(
+                        f"chain {chain_id!r} carries non-standard residue(s) "
+                        f"{nonstandard}, but its {len(names)} modelled residues "
+                        f"cannot be aligned to its {len(sequence)}-residue sequence, "
+                        "so their positions are unknown and the parent residues "
+                        "would be folded instead. "
+                        + _remedy("unplaceable_modifications")
+                    )
                 report.unplaceable_modifications.append(chain_id)
             return []
 

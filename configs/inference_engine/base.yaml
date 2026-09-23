@@ -6,6 +6,9 @@ load_esmc: true        # false lets several folding models share one ESMC
 chunk_size: 64         # null is faster below L~600; 64 fits L~2k on 80 GB
 verbose: false
 seed: null
+# Degradations to accept by name instead of raising; empty = strict.
+# Whatever is accepted is recorded per output under adapter.degradations.
+allow: []
 
 # Sampling. These defaults follow the SHIPPED biohub/ESMFold2 config.json, which
 # differs from the dataclass defaults in configuration_esmfold2.py -- that file

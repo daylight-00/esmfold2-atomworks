@@ -48,8 +48,11 @@ it expects.
 
 AtomWorks annotates every atom with its `chain_type` (`atomworks.enums.ChainType`).
 The adapter maps that enum onto ESMFold2's four input classes. A chain type the
-mapping does not know becomes `unsupported` **and is reported**, rather than
-falling into whichever branch happened to be the default.
+mapping does not know **raises** (`UnsupportedChainError`), rather than falling
+into whichever branch happened to be the default. So does a chain with no
+`chain_type` at all (`InferredChainKindError`): the only fallback, `is_polymer`,
+cannot tell protein from DNA or RNA, and a DNA chain read that way folds as a
+protein of unknown residues.
 
 ### D-003 — Sequences come from `chain_info`, not from the residues that were modelled
 
@@ -75,12 +78,18 @@ So: a generic label is **refused**. A CCD code that came through
 a real statement about chemistry, so it is accepted — and a declared
 `expected_formula` is checked against the heavy atoms present.
 
-### D-005 — Nothing is dropped silently
+### D-005 — Nothing is dropped or approximated silently
 
-Every chain that does not reach ESMFold2 is named in `AdapterReport`. A
-conversion that quietly discards a chain is the same class of failure as D-004:
-the fold succeeds, the metrics look reasonable, and the model was given a
-different system than the caller believes.
+A conversion that quietly discards a chain, a covalent bond or a modification is
+the same class of failure as D-004: the fold succeeds, the metrics look
+reasonable, and the model was given a different system than the caller believes.
+
+Recording such a degradation is not enough, because the direct path
+(`fold_atom_array`) returns no report. So every degradation the adapter can
+detect **raises** by default and is accepted only by naming it
+(`atomworks_to_esm.DEGRADATIONS`); what was accepted is then named in
+`AdapterReport` and, on the engine path, in each output's metadata. Dropping
+water is an explicit policy (`drop_water`), not a degradation.
 
 ### D-006 — A metric the model did not produce stays absent
 

@@ -1,0 +1,6 @@
+defaults:
+  - atomworks
+  - _self_
+
+is_inference: true
+seed: 0                # evaluation wants a fixed conformer, not augmentation

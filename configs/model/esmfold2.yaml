@@ -1,0 +1,12 @@
+# The Foundry model wrapper. It holds the native ESMFold2 rather than
+# reimplementing it (docs/03), so there is no `net` sub-config of layer widths
+# to set here: the architecture comes from the checkpoint's own config.json.
+# Read c_z / c_token / c_atom off model.representation_dims() at runtime.
+_target_: esmfold2_foundry.model.esmfold2.FoundryESMFold2
+
+weights: null          # null -> paths.ESMFOLD2_WEIGHTS.standard
+device: null
+load_esmc: true
+esmc_precision: bf16   # fp8 needs H100 + TransformerEngine >= 2
+chunk_size: 64
+kernel_backend: null   # null | fused | cuequivariance; does not stack with torch.compile

@@ -1,0 +1,28 @@
+# @package _global_
+# Parameters for ESMFold2InferenceEngine.__init__()
+ckpt_path: null        # weight directory or HF repo id; null -> paths.ESMFOLD2_WEIGHTS.standard
+device: null           # null -> cuda when available, else cpu
+load_esmc: true        # false lets several folding models share one ESMC
+chunk_size: 64         # null is faster below L~600; 64 fits L~2k on 80 GB
+verbose: false
+seed: null
+
+# Sampling. These defaults follow the SHIPPED biohub/ESMFold2 config.json, which
+# differs from the dataclass defaults in configuration_esmfold2.py -- that file
+# declares num_loops=20, the checkpoint ships 3. Always read dimensions and
+# schedules off model.config, never off the dataclass.
+num_loops: 3
+num_sampling_steps: 100
+num_diffusion_samples: 1
+lm_dropout: 0.3        # LM dropout left on at inference is the ensembling mechanism
+lm_mask_pct: null      # 0.1 for the Fast checkpoint, 0.0 for the standard one
+
+# NOTE: noise_scale, step_scale, max_inference_sigma and early_exit are NOT here.
+# ESMFold2InputBuilder.fold accepts them, but the release ESMFold2Model.forward
+# does not declare them, so they land in **kwargs and are discarded. Exposing
+# them as config keys would promise control the model does not offer; set them
+# on config.structure_head instead. See docs/03_FOUNDRY_INTEGRATION.md.
+
+# Parameters for ESMFold2InferenceEngine.run()
+inputs: ???
+out_dir: ???

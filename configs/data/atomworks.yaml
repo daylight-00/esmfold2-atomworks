@@ -1,0 +1,13 @@
+# The ESMFold2 featurization pipeline. Everything structural -- crops, filters,
+# MSA loading -- belongs in pre_transforms and runs BEFORE the conversion to a
+# StructurePredictionInput, because ESMFold2 folds whatever sequence it is
+# finally given. A crop applied after the featurizer would be ignored; a crop
+# applied before changes the molecule being folded, which is what training wants
+# and evaluation usually does not.
+_target_: esmfold2_foundry.data.pipelines.build_esmfold2_pipeline
+
+is_inference: false
+seed: null             # null -> per-example SMILES conformer variation (augmentation)
+allow_undeclared_ccd_ligands: true
+emit_modifications: true
+pre_transforms: []

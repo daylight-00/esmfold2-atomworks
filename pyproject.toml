@@ -1,0 +1,185 @@
+[project]
+name = "esmfold2-foundry"
+version = "0.1.0"
+description = "AtomWorks-compatible, Foundry-trainable ESMFold2"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.14"
+
+# NOTE: esm, atomworks and foundry are deliberately NOT declared here. They are
+# consumed as source trees via PYTHONPATH (see env.sh) because their pyproject
+# metadata pins python<3.13, torch<2.8 and biotite==1.4.0, which would drag the
+# whole environment backwards. What IS declared here is the union of their
+# *runtime imports* plus this project's own dependencies. When a source tree
+# grows a new import, add it to the matching dependency group -- do not add the
+# tree itself. See docs/04_ENVIRONMENT.md.
+dependencies = [
+    "pip",
+    "torch>=2.12",
+    "numpy",
+    "scipy",
+    "pandas",
+    "pyarrow",
+    "scikit-learn",
+    "rdkit",
+    # biotite 1.7 moved connect_via_residue_names out of biotite.structure.bonds,
+    # which atomworks.io.utils.io_utils imports by that path. atomworks pins
+    # ==1.4.0, but 1.4 has no cp314 wheel (only 1.5/1.6/1.7 do); 1.6 keeps the
+    # import path and is current.
+    "biotite>=1.5,<1.7",
+    "biopython",
+    "tqdm",
+]
+
+[project.scripts]
+# When this package moves into foundry/models/esmfold2/, this becomes an entry
+# in Foundry's root pyproject as `esmfold2 = "esmfold2.cli:app"` -- Foundry has
+# exactly one pyproject and registers every model there. See docs/03.
+esmfold2-foundry = "esmfold2_foundry.cli:app"
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-xdist",
+    "ruff==0.8.3",
+    "ipykernel",
+]
+# --- shared numerics / config / serialization used by all three source trees ---
+common = [
+    "brotli",
+    "einops",
+    "einx",
+    "dm-tree",
+    "hydra-core",
+    "zstd",
+    "zstandard",
+    "cuequivariance_ops_cu13",
+    "cuequivariance_ops_torch_cu13",
+    "cuequivariance_torch",
+]
+# --- imports required by the esm source tree ---
+# Where the ESMFold2 nn.Module lives depends on the esm version:
+#   esm <= 3.3  ships the input pipeline only; the module is in a FORK of
+#               transformers, which the `esm-legacy-model` group below provides.
+#   esm >= 3.4  ships the module itself and drops the fork, using stock
+#               transformers. It also imports huggingface_hub, safetensors and
+#               accelerate at package-import time, so they are listed here
+#               rather than left to be pulled in incidentally.
+# `load_native_model_class` resolves either, so both are supported.
+esm = [
+    "transformers>=4.57.6",
+    "huggingface_hub",
+    "safetensors",
+    "accelerate",
+    "cloudpathlib",
+    "msgpack_numpy",
+    "attrs",
+    "httpx",
+    "tenacity",
+    "ipywidgets",
+    "py3Dmol",
+    "pydssp",
+    "boto3",
+    "pygtrie",
+    "dna_features_viewer",
+]
+# --- imports required by the atomworks and foundry source trees ---
+atomworks = [
+    "pydantic",
+    "rootutils",
+    "environs",
+    "rich",
+    "jaxtyping",
+    "beartype",
+    "typer",
+    "lightning",
+    "loralib",
+    "opt_einsum",
+    "assertpy",
+    "toolz",
+    "cython",
+    "cytoolz",
+    "py3Dmol",
+    "pymol-remote",
+    "hydride",
+    "wandb",
+    "python-dotenv",
+]
+# --- OPT-IN, and only for esm <= 3.3. The fork carries the ESMFold2 module for
+#     versions of esm that do not ship it. It conflicts with the stock
+#     transformers pinned above, so install one or the other, never both.
+esm-legacy-model = [
+    "transformers @ git+https://github.com/Biohub/transformers.git@main",
+]
+# --- OPT-IN ONLY. An optional attention backend. A prebuilt wheel must match
+#     the installed torch exactly: one built against an earlier torch fails at
+#     import on a libtorch ABI symbol rather than at build time. ESMFold2 runs
+#     without it via the torch SDPA fallback.
+flash = [
+    "flash-attn",
+]
+# --- OPT-IN ONLY. Excluded from default-groups because there is often no wheel
+#     for the current interpreter, so this group COMPILES FROM SOURCE. Cap the
+#     build (MAX_JOBS=8) and run it on a machine you are allowed to saturate --
+#     an uncapped parallel compile will take a shared host down.
+te = [
+    "transformer-engine[pytorch]",
+    "ninja",
+    "nvidia-cuda-nvcc",
+    "nvidia-cuda-cccl",
+]
+
+[tool.uv]
+# Deliberately not "all": `flash` and `te` are excluded so that `uv sync`
+# installs wheels only and compiles nothing.
+default-groups = ["dev", "common", "esm", "atomworks"]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu132" }
+
+[[tool.uv.index]]
+name = "pytorch-cu132"
+url = "https://download.pytorch.org/whl/cu132"
+explicit = true
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/esmfold2_foundry"]
+
+# ---------------------------------------------------------------------------
+# Lint and test settings mirror the Foundry repo so that this package can be
+# dropped into foundry/models/esmfold2/ without a reformat diff.
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 88
+indent-width = 4
+target-version = "py310"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+docstring-code-line-length = 88
+
+[tool.ruff.lint]
+extend-select = ["I", "F401"]
+ignore = [
+    "F722", # jaxtyping shape annotations
+    "F821", # jaxtyping forward references
+    "E741", # variables like "L"
+    # typer declares CLI arguments as defaults; it is the library's only API for
+    # help text and options, and Foundry's own cli.py modules do the same.
+    "B008",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --strict-config"
+markers = [
+    "gpu: requires a GPU and the ESMFold2 weights",
+    "slow: takes more than a few seconds",
+]

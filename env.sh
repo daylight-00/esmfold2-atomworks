@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# esmfold2-foundry environment.
+#   source env.sh
+#
+# The heavy research trees (esm, atomworks, foundry) are consumed as SOURCE, not
+# as pip packages: their pyproject metadata pins python<3.13, torch<2.8 and
+# biotite==1.4.0, which would drag this environment backwards. See
+# docs/04_ENVIRONMENT.md.
+
+EF_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export EF_ROOT
+
+# ---------------------------------------------------------------- source trees
+# DESIGN_ROOT is DISCOVERED, never hardcoded: walk up from this repo until a
+# directory holds all three source trees. That keeps the same env.sh correct
+# from the repo itself, from a git worktree (which sits several levels deeper),
+# and after the tree is reorganized again -- which has already happened twice.
+if [ -z "${DESIGN_ROOT:-}" ]; then
+    _ef_dir="${EF_ROOT}"
+    while [ "${_ef_dir}" != "/" ]; do
+        if [ -d "${_ef_dir}/esm" ] && [ -d "${_ef_dir}/atomworks" ] && [ -d "${_ef_dir}/foundry" ]; then
+            DESIGN_ROOT="${_ef_dir}"
+            break
+        fi
+        _ef_dir="$(dirname "${_ef_dir}")"
+    done
+    # Fall back to the parent directory, which is the layout when the trees are
+    # staged but incomplete; `doctor` reports precisely what is missing.
+    DESIGN_ROOT="${DESIGN_ROOT:-$(cd "${EF_ROOT}/.." && pwd)}"
+    unset _ef_dir
+fi
+export DESIGN_ROOT
+
+export PYTHONPATH="${DESIGN_ROOT}/foundry/models/mpnn/src:${PYTHONPATH:-}"
+export PYTHONPATH="${DESIGN_ROOT}/foundry/src:${PYTHONPATH:-}"
+export PYTHONPATH="${DESIGN_ROOT}/atomworks/src:${PYTHONPATH:-}"
+export PYTHONPATH="${DESIGN_ROOT}/esm:${PYTHONPATH:-}"
+export PYTHONPATH="${EF_ROOT}/src:${PYTHONPATH:-}"
+
+# ------------------------------------------------------------------- artifacts
+export EF_MODELS="${EF_MODELS:-${DESIGN_ROOT}/biohub}"
+export EF_CHECKPOINTS="${EF_CHECKPOINTS:-${DESIGN_ROOT}/checkpoints}"
+export EF_RUNS="${EF_RUNS:-${EF_ROOT}/runs}"
+
+# ---------------------------------------------------------------- thread policy
+# Featurization parity is many small CPU jobs; BLAS threads only oversubscribe.
+export OMP_NUM_THREADS="${OMP_NUM_THREADS:-1}"
+export MKL_NUM_THREADS="${MKL_NUM_THREADS:-1}"
+export OPENBLAS_NUM_THREADS="${OPENBLAS_NUM_THREADS:-1}"
+export NUMEXPR_NUM_THREADS="${NUMEXPR_NUM_THREADS:-1}"
+
+# ---------------------------------------------------------------------- venv
+# EF_VENV points at an existing environment; otherwise this repo's own .venv is
+# used when present. Set EF_VENV to share one environment across several
+# projects that consume the same source trees. If neither exists and nothing is
+# already active, the current interpreter is left alone -- `doctor` then reports
+# which imports are missing.
+if [ -n "${EF_VENV:-}" ] && [ -f "${EF_VENV}/bin/activate" ]; then
+    # shellcheck disable=SC1091
+    source "${EF_VENV}/bin/activate"
+elif [ -f "${EF_ROOT}/.venv/bin/activate" ]; then
+    # shellcheck disable=SC1091
+    source "${EF_ROOT}/.venv/bin/activate"
+fi

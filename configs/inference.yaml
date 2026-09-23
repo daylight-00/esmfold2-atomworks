@@ -1,0 +1,12 @@
+# @package _global_
+# Mirrors models/rfd3/configs/inference.yaml. `pkg://configs` is vestigial in
+# Foundry (there is no top-level configs package) but is kept so that this file
+# is identical in shape to the ones beside it once dropped into the repo.
+hydra:
+  searchpath:
+    - pkg://esmfold2_foundry.configs
+    - pkg://configs
+
+defaults:
+  - inference_engine: esmfold2
+  - _self_

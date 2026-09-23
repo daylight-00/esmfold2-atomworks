@@ -1,0 +1,7 @@
+defaults:
+  - esmfold2
+  - _self_
+
+# The Fast checkpoint is the same architecture with a distilled LM path; it
+# wants a non-zero lm_mask_pct at inference, which lives on the engine config.
+weights: ${oc.env:EF_MODELS,.}/ESMFold2-Fast

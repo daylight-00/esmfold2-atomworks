@@ -39,11 +39,24 @@ def test_labels_cover_the_model_atom_axis(parsed, ccd):
     atoms, chain_info = parsed("lysozyme")
     labels, features = _labels(atoms, chain_info)
 
+    import numpy as np
+
     assert labels.atom_coords.shape == (features["ref_pos"].shape[0], 3)
     assert labels.atom_mask.shape == (features["ref_pos"].shape[0],)
-    # Lysozyme is fully resolved, so essentially every real atom should match.
-    assert labels.coverage > 0.9, (
-        f"only {labels.coverage:.1%} matched; unmatched: {labels.unmatched_examples}"
+
+    # Coverage is measured against the model's REAL atoms, not the padded axis.
+    # ESMFold2 pads to a multiple of 32, so lysozyme's 1000 atoms sit on a
+    # 1024-long axis; dividing by the axis would report 0.977 for a structure
+    # that is in fact complete, and `require_coverage=0.99` would reject it.
+    real = int(np.asarray(features["atom_attention_mask"]).sum())
+    padded = int(np.asarray(features["atom_attention_mask"]).size)
+    assert padded > real, "expected the axis to be padded, or this asserts nothing"
+    assert labels.n_model_atoms == real
+    assert labels.coverage == pytest.approx(labels.matched / real)
+
+    # Lysozyme is fully resolved, so every real model atom must match.
+    assert labels.coverage == pytest.approx(1.0), (
+        f"{labels.matched}/{real} matched; unmatched: {labels.unmatched_examples}"
     )
 
 
@@ -112,7 +125,7 @@ def test_the_pipeline_can_attach_labels(parsed, ccd):
     )
     assert set(out["labels"]) == {"atom_coords", "atom_mask"}
     assert out["labels"]["atom_coords"].shape[0] == out["feats"]["ref_pos"].shape[0]
-    assert out["label_coverage"] > 0.9
+    assert out["label_coverage"] == pytest.approx(1.0)
 
 
 def test_labels_are_off_by_default(parsed, ccd):
@@ -138,6 +151,7 @@ def test_a_coverage_floor_can_be_required(parsed, ccd):
 
     _f, chain_infos = prepare_esmfold2_input(clean_esmfold2_input(spi), seed=0)
 
+    # 1.0 is now attainable, so the floor has to exceed it to trip.
     transform = AttachStructureLabels(require_coverage=1.01)
     with pytest.raises(ValueError, match="below the required"):
         transform(

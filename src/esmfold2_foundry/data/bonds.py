@@ -49,19 +49,35 @@ _POLYMER_LINKS = frozenset({("C", "N"), ("N", "C"), ("O3'", "P"), ("P", "O3'")})
 
 @dataclass(frozen=True)
 class BondCandidate:
-    """One covalent bond, in the source structure's own terms."""
+    """One covalent bond, in the source structure's own terms.
+
+    A residue is identified by ``(chain, res_id, ins_code)``. The insertion
+    code is not decoration: a deposited chain may number residues 100, 100A,
+    100B, and keying on ``res_id`` alone makes those one residue -- which turns
+    a genuine bond between two of them into an intra-residue bond and drops it.
+    """
 
     chain_1: str
     res_id_1: int
+    ins_code_1: str
     atom_name_1: str
     chain_2: str
     res_id_2: int
+    ins_code_2: str
     atom_name_2: str
+
+    @property
+    def residue_1(self) -> tuple[str, int, str]:
+        return (self.chain_1, self.res_id_1, self.ins_code_1)
+
+    @property
+    def residue_2(self) -> tuple[str, int, str]:
+        return (self.chain_2, self.res_id_2, self.ins_code_2)
 
     def describe(self) -> str:
         return (
-            f"{self.chain_1}/{self.res_id_1}/{self.atom_name_1}"
-            f" - {self.chain_2}/{self.res_id_2}/{self.atom_name_2}"
+            f"{self.chain_1}/{self.res_id_1}{self.ins_code_1}/{self.atom_name_1}"
+            f" - {self.chain_2}/{self.res_id_2}{self.ins_code_2}/{self.atom_name_2}"
         )
 
 
@@ -94,6 +110,10 @@ def covalent_bond_candidates(
     res_id = np.asarray(atoms.res_id).astype(int)
     atom_name = np.asarray(atoms.atom_name).astype(str)
     element = np.asarray(atoms.element).astype(str)
+    if "ins_code" in set(atoms.get_annotation_categories()):
+        ins_code = np.asarray(atoms.get_annotation("ins_code")).astype(str)
+    else:
+        ins_code = np.full(len(atoms), "", dtype="U1")
 
     candidates: list[BondCandidate] = []
     seen: set[tuple] = set()
@@ -106,12 +126,19 @@ def covalent_bond_candidates(
         ):
             continue
 
-        same_residue = chain_i == chain_j and res_id[i] == res_id[j]
+        same_residue = (
+            chain_i == chain_j and res_id[i] == res_id[j] and ins_code[i] == ins_code[j]
+        )
         if same_residue:
             continue
 
+        # The backbone exemption applies only between consecutive *plain*
+        # residues. Between 100 and 100A the numbering does not say they are
+        # adjacent, so such a bond is declared rather than assumed.
         if (
             chain_i == chain_j
+            and not ins_code[i]
+            and not ins_code[j]
             and abs(int(res_id[i]) - int(res_id[j])) == 1
             and (atom_name[i], atom_name[j]) in _POLYMER_LINKS
         ):
@@ -121,16 +148,16 @@ def covalent_bond_candidates(
         key = tuple(
             sorted(
                 [
-                    (chain_i, int(res_id[i]), atom_name[i]),
-                    (chain_j, int(res_id[j]), atom_name[j]),
+                    (chain_i, int(res_id[i]), ins_code[i], atom_name[i]),
+                    (chain_j, int(res_id[j]), ins_code[j], atom_name[j]),
                 ]
             )
         )
         if key in seen:
             continue
         seen.add(key)
-        (c1, r1, a1), (c2, r2, a2) = key
-        candidates.append(BondCandidate(c1, r1, a1, c2, r2, a2))
+        (c1, r1, i1, a1), (c2, r2, i2, a2) = key
+        candidates.append(BondCandidate(c1, r1, i1, a1, c2, r2, i2, a2))
     return candidates
 
 
@@ -186,9 +213,10 @@ def resolve_covalent_bonds(
     """Turn source-space bonds into ESM ``CovalentBond`` objects.
 
     Args:
-        residue_index_of: ``(chain_id, source res_id) -> tokenizer residue
-            index``. The source numbering is the deposited one and need not
-            start at zero or be contiguous, so it cannot be used directly.
+        residue_index_of: ``(chain_id, res_id, ins_code) -> tokenizer residue
+            index``. The source numbering is the deposited one: it need not
+            start at zero, need not be contiguous, and may repeat a number
+            under different insertion codes, so it cannot be used directly.
 
     Returns:
         ``(bonds, skipped)`` -- the resolved bonds, and a human-readable reason
@@ -205,13 +233,15 @@ def resolve_covalent_bonds(
     for candidate in candidates:
         resolved = []
         failure = None
-        for chain_id, res_id, atom_name in (
-            (candidate.chain_1, candidate.res_id_1, candidate.atom_name_1),
-            (candidate.chain_2, candidate.res_id_2, candidate.atom_name_2),
+        for (chain_id, res_id, ins_code), atom_name in (
+            (candidate.residue_1, candidate.atom_name_1),
+            (candidate.residue_2, candidate.atom_name_2),
         ):
-            residue_index = residue_index_of.get((chain_id, res_id))
+            residue_index = residue_index_of.get((chain_id, res_id, ins_code))
             if residue_index is None:
-                failure = f"residue {chain_id}/{res_id} is not in the model input"
+                failure = (
+                    f"residue {chain_id}/{res_id}{ins_code} is not in the model input"
+                )
                 break
             names = ordering.get((chain_id, residue_index))
             if names is None:
@@ -222,7 +252,7 @@ def resolve_covalent_bonds(
             if atom_name not in names:
                 failure = (
                     f"atom {atom_name!r} is not among the tokenizer's atoms for "
-                    f"{chain_id}/{res_id} ({names})"
+                    f"{chain_id}/{res_id}{ins_code} ({names})"
                 )
                 break
             resolved.append((chain_id, residue_index, names.index(atom_name)))

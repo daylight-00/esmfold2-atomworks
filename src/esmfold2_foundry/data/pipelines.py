@@ -137,6 +137,7 @@ class AttachStructureLabels(Transform):
 
     def forward(self, data: dict[str, Any]) -> dict[str, Any]:
         from esmfold2_foundry.data.atomworks_to_esm import (
+            AdapterReport,
             _residue_index_map,
             chain_records,
         )
@@ -144,12 +145,17 @@ class AttachStructureLabels(Transform):
 
         atoms = data["atom_array"]
         records = chain_records(atoms, chain_info=data.get("chain_info"))
+        report = AdapterReport()
         labels = structure_labels(
             atoms,
             data["feats"],
             data["chain_infos"],
-            _residue_index_map(records, data.get("chain_info")),
+            _residue_index_map(records, data.get("chain_info"), report),
         )
+        if report.unrepresentable_insertion_codes:
+            # Visible rather than merely lower coverage: these chains have no
+            # labels at all, and the reason is structural.
+            data["label_skipped_chains"] = list(report.unrepresentable_insertion_codes)
         if (
             self.require_coverage is not None
             and labels.coverage < self.require_coverage

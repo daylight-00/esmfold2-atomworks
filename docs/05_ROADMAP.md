@@ -27,11 +27,6 @@ build on this repository keep their own.
 to enumerate the chain types and ligands the adapter cannot yet express. The
 useful output is the failure list, not the pass rate.
 
-**Input-surface coverage.** The adapter implements `DNAInput`, `RNAInput` and
-SMILES ligands, but no fixture exercises them, so they are untested rather than
-known-good. One parity case per implemented branch would close that; see the
-matrix in [02_PARITY.md](02_PARITY.md).
-
 **`LoadPolymerMSAs` wiring.** MSA transfer and pairing are verified
 ([02_PARITY.md](02_PARITY.md)), but the alignments in those tests are
 constructed directly. Composing AtomWorks' own MSA loader into
@@ -40,9 +35,9 @@ constructed directly. Composing AtomWorks' own MSA loader into
 ## Missing for training
 
 The Foundry trainer contract is wired up (`training_step` / `validation_step`,
-`construct_model`, state, checkpointing). Two things stand between that and a
-training run, and both are properties of the port rather than of any particular
-objective.
+`construct_model`, state, checkpointing), and supervision targets are
+available. What remains is described below: the alignment's one caveat, the
+gradient precondition, and the objective -- which stays with the caller.
 
 **1. Supervision targets: available, but the alignment is by name.**
 

@@ -1,6 +1,7 @@
 # 03 — Foundry integration
 
-> Everything on this page is checked against the pinned Foundry by
+> Everything on this page is **verified against Foundry's current integration
+> contracts** by
 > `tests/test_foundry_integration.py`: the trainer really subclasses
 > `FabricTrainer` with no abstract method left and matching signatures, the
 > engine really offers `BaseInferenceEngine`'s surface, `RegisteredCheckpoint`
@@ -8,6 +9,9 @@
 > exist, models really are registered centrally rather than per-model, and the
 > data-pipeline config really instantiates into a working pipeline. The tests
 > do not modify the Foundry checkout — they check each claim where it lives.
+> What they do *not* do is copy the package in, patch Foundry's `pyproject.toml`
+> and install the result; that would verify the same contracts while leaving a
+> dirty tree, and would need re-doing on every upstream release.
 
 ## The repo is shaped like `foundry/models/<name>/`
 

@@ -116,6 +116,7 @@ class ChainRecord:
     sequence: str | None = None
     residue_names: tuple[str, ...] = ()
     residue_ids: tuple[int, ...] = ()
+    ins_codes: tuple[str, ...] = ()
     chain_type: int | None = None
 
     @property
@@ -148,6 +149,10 @@ class AdapterReport:
     #: reason. Skipped rather than guessed -- a wrong index bonds the wrong
     #: pair of atoms, which upstream cannot detect.
     unresolved_covalent_bonds: list[str] = field(default_factory=list)
+    #: Chains whose residues carry insertion codes that cannot be tied to
+    #: the sequence, because ``chain_info`` does not record them. Their
+    #: bonds and labels are skipped rather than mis-assigned.
+    unrepresentable_insertion_codes: list[str] = field(default_factory=list)
 
     def dropped_summary(self) -> str:
         if not self.dropped:
@@ -173,6 +178,14 @@ def _three_to_one_maps() -> tuple[dict[str, str], dict[str, str], dict[str, str]
     dna = {"DA": "A", "DC": "C", "DG": "G", "DT": "T", "DU": "U", "DI": "I"}
     rna = {"A": "A", "C": "C", "G": "G", "U": "U", "I": "I"}
     return protein, dna, rna
+
+
+def _ins_codes_at(atoms: AtomArray, starts: np.ndarray) -> tuple[str, ...]:
+    """Insertion codes of the residues beginning at *starts*, or blanks."""
+    if "ins_code" not in set(atoms.get_annotation_categories()):
+        return tuple("" for _ in starts)
+    codes = np.asarray(atoms.get_annotation("ins_code")).astype(str)
+    return tuple(str(codes[i]) for i in starts)
 
 
 def _residue_starts(atoms: AtomArray) -> np.ndarray:
@@ -380,6 +393,7 @@ def chain_records(
                 sequence=sequence,
                 residue_names=tuple(str(n) for n in chain.res_name[starts]),
                 residue_ids=tuple(int(r) for r in chain.res_id[starts]),
+                ins_codes=_ins_codes_at(chain, starts),
                 chain_type=ctype,
             )
         )
@@ -587,7 +601,7 @@ def _attach_covalent_bonds(
         candidates,
         features,
         chain_infos,
-        _residue_index_map(records, chain_info),
+        _residue_index_map(records, chain_info, report),
     )
     report.covalent_bonds = list(candidates)
     report.unresolved_covalent_bonds = skipped
@@ -601,21 +615,54 @@ def _attach_covalent_bonds(
 
 
 def _residue_index_map(
-    records: list[ChainRecord], chain_info: dict | None
-) -> dict[tuple[str, int], int]:
-    """``(chain_id, source res_id) -> tokenizer residue index``.
+    records: list[ChainRecord],
+    chain_info: dict | None,
+    report: AdapterReport | None = None,
+) -> dict[tuple[str, int, str], int]:
+    """``(chain_id, res_id, ins_code) -> tokenizer residue index``.
 
-    The deposited numbering need not start at one or be contiguous, so the two
-    are related only through the residue list the sequence was built from.
+    The deposited numbering need not start at one, need not be contiguous, and
+    may repeat a number under different insertion codes -- ``100``, ``100A``,
+    ``100B`` -- so it is only related to the model's indices through the residue
+    list the sequence was built from.
+
+    Two sources, and which one is usable depends on the chain:
+
+    * ``chain_info`` lists every residue of the entity, including those never
+      resolved, which is what makes it the right basis for the sequence. But it
+      carries **no insertion code**, so for a chain that uses them it cannot say
+      which of ``100``/``100A`` a given entry is.
+    * The observed residues carry both, but omit anything unresolved.
+
+    So when the sequence came from ``chain_info`` *and* the chain uses insertion
+    codes, the two cannot be reconciled here. That chain is left out of the map
+    and named in the report: its bonds and labels are then skipped with a
+    reason, rather than silently attached to whichever residue happened to
+    overwrite the others.
     """
-    mapping: dict[tuple[str, int], int] = {}
+    mapping: dict[tuple[str, int, str], int] = {}
     for record in records:
+        observed_uses_ins_codes = any(code for code in record.ins_codes)
+
         entry = _chain_info_entry(chain_info, record.chain_id)
         res_ids = entry.get("res_id") if entry else None
-        if res_ids is None:
-            res_ids = record.residue_ids
-        for index, res_id in enumerate(res_ids or []):
-            mapping[(record.chain_id, int(res_id))] = index
+
+        if res_ids is not None and observed_uses_ins_codes:
+            if report is not None:
+                report.unrepresentable_insertion_codes.append(record.chain_id)
+            continue
+
+        if res_ids is not None:
+            for index, res_id in enumerate(res_ids):
+                mapping[(record.chain_id, int(res_id), "")] = index
+            continue
+
+        # No chain_info: the sequence came from the observed residues, so their
+        # order *is* the model's residue order and insertion codes are usable.
+        for index, (res_id, ins_code) in enumerate(
+            zip(record.residue_ids, record.ins_codes, strict=False)
+        ):
+            mapping[(record.chain_id, int(res_id), str(ins_code))] = index
     return mapping
 
 

@@ -57,12 +57,25 @@ class StructureLabels:
     atom_mask: np.ndarray
     matched: int
     unmatched_examples: list[tuple[str, int, str]]
+    #: Real atoms on the model's axis, excluding padding. ESMFold2 pads the
+    #: atom axis up to a multiple of 32, and those slots correspond to no atom
+    #: in any structure.
+    n_model_atoms: int = 0
 
     @property
     def coverage(self) -> float:
-        """Fraction of the model's atoms the source supplied."""
-        total = int(self.atom_mask.size)
-        return float(self.matched) / total if total else 0.0
+        """Fraction of the model's **real** atoms the source supplied.
+
+        The denominator excludes padding. Counting it would make a perfectly
+        resolved structure report less than 1.0 -- lysozyme matches all 1000 of
+        its real atoms but sits on a 1024-long axis, so dividing by the axis
+        gives 0.977. That matters because ``require_coverage`` is a public
+        knob: a caller asking for 0.99 would have had complete structures
+        rejected for a reason having nothing to do with their structure.
+        """
+        if self.n_model_atoms <= 0:
+            return 0.0
+        return float(self.matched) / float(self.n_model_atoms)
 
     def as_dict(self) -> dict[str, np.ndarray]:
         """The plain arrays, for putting under ``example["labels"]``."""
@@ -116,7 +129,7 @@ def structure_labels(
     atoms: AtomArray,
     features: dict[str, Any],
     chain_infos: list[Any],
-    residue_index_of: dict[tuple[str, int], int],
+    residue_index_of: dict[tuple[str, int, str], int],
     *,
     chain_key: str = "chain_id",
     max_unmatched_examples: int = 8,
@@ -124,10 +137,10 @@ def structure_labels(
     """Permute *atoms*' coordinates onto the model's atom axis.
 
     Args:
-        residue_index_of: ``(chain_id, source res_id) -> model residue index``,
-            as the adapter builds it. The deposited numbering need not start at
-            one or be contiguous, so the two are related only through the
-            residue list the sequence came from.
+        residue_index_of: ``(chain_id, res_id, ins_code) -> model residue
+            index``, as the adapter builds it. Residues it does not cover --
+            including a chain whose insertion codes could not be tied to the
+            sequence -- simply do not match, and are masked and reported.
 
     Returns:
         :class:`StructureLabels`. Atoms the source does not provide -- an
@@ -141,12 +154,18 @@ def structure_labels(
     res_id = np.asarray(atoms.res_id).astype(int)
     atom_name = np.asarray(atoms.atom_name).astype(str)
     coords = np.asarray(atoms.coord, dtype=np.float32)
+    if "ins_code" in set(atoms.get_annotation_categories()):
+        ins_code = np.asarray(atoms.get_annotation("ins_code")).astype(str)
+    else:
+        ins_code = np.full(len(atoms), "", dtype="U1")
 
     # (chain, model residue index, atom name) -> source row. Built once; a
     # per-atom scan would be quadratic on anything real.
     source: dict[tuple[str, int, str], int] = {}
     for index in range(len(atoms)):
-        model_residue = residue_index_of.get((chain[index], int(res_id[index])))
+        model_residue = residue_index_of.get(
+            (chain[index], int(res_id[index]), str(ins_code[index]))
+        )
         if model_residue is None:
             continue
         source.setdefault((chain[index], model_residue, atom_name[index]), index)
@@ -179,4 +198,5 @@ def structure_labels(
         atom_mask=mask,
         matched=int(mask.sum()),
         unmatched_examples=unmatched,
+        n_model_atoms=sum(1 for identity in identities if identity is not None),
     )

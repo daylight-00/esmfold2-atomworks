@@ -248,15 +248,21 @@ Three deliberate choices:
   coordinates at all, and ESMFold2 derives geometry from CCD reference
   conformers. `gt_coords` is built from the *prediction input* and is zeros at
   inference, so both sides agree on a placeholder. **Matching `gt_coords` does
-  not mean the AtomWorks coordinates were transferred.** Nothing in this
-  pipeline transfers them; see [05](05_ROADMAP.md).
+  not mean the AtomWorks coordinates were transferred.** The default feature
+  path does not transfer them at all; `build_esmfold2_pipeline(attach_labels=True)`
+  does, into `example["labels"]` — see [05](05_ROADMAP.md).
 - **SMILES ligands.** RDKit conformer embedding is the one genuinely stochastic
   step in featurization. With a fixed seed it is reproducible, but a ligand
   declared as SMILES on one side and CCD on the other will differ in `ref_pos`
   legitimately. `compare_features` takes `atol` for this case.
-- **MSAs.** The fixtures fold in single-sequence mode. Pairing is driven purely
-  by `key=<taxid>` in the FASTA header, so an adapter that builds MSAs without
-  injecting those keys gets no cross-chain pairing at all — silently, and with
-  no shape change to reveal it. That is the next parity case to add.
+- **MSAs built by AtomWorks' own loader.** Transfer and `key=<taxid>` pairing
+  are verified, but with alignments the tests construct directly. Composing
+  `LoadPolymerMSAs` into `pre_transforms` and re-checking would close the last
+  step of that path.
+- **Chains whose insertion codes cannot be placed.** `chain_info` records no
+  insertion code, so for a chain numbered 100/100A/100B whose sequence comes
+  from there, residues cannot be tied to sequence positions. Such a chain is
+  named in the report and its labels and bonds are skipped, rather than
+  attached to whichever residue happened to be written last.
 - **Anything with a `chain_type` the mapping does not know.** Reported as
   `unsupported` rather than folded.

@@ -17,19 +17,20 @@ AtomWorks AtomArray ──adapter──> ESMFold2 (unmodified) ──adapter─�
 |---|---|
 | **1 — AtomWorks ↔ ESMFold2 adapter** | done; feature parity exact on 5 fixtures |
 | **2 — ESMFold2 as a Foundry model** | wrapper, pipeline, inference engine, configs, CLI |
-| **3 — training** | trainer contract wired; needs supervision targets and an objective ([docs/05](docs/05_ROADMAP.md)) |
+| **3 — training** | trainer contract wired, supervision targets available; the objective is the caller's ([docs/05](docs/05_ROADMAP.md)) |
 
 The Phase 1 milestone is met: for monomer, multimer, metal, cofactor and
 modified-residue systems, the input the adapter derives from a structure
 featurizes to **the same 29 tensors** as an independently frozen reference
-input. Featurization is a pure function, so that equality is exact.
+input. Featurization is a pure function **at a fixed seed**, so that
+equality is exact. (Only a SMILES ligand makes the seed matter: its conformer
+is embedded at call time.)
 
 The model itself is *not* deterministic — its structure head is a diffusion
 sampler — so identical features mean the two paths condition the model
-identically and draw from **the same distribution**, not that they return
-identical coordinates. Confirmed on a GPU: across real folds the two paths
-differ no more than the model differs from *itself* between two runs of the same
-input, measured rather than assumed ([docs/02](docs/02_PARITY.md)).
+identically, not that they return identical coordinates. Confirmed on a GPU:
+the cross-path deviation falls within the model's own run-to-run scatter,
+measured rather than assumed ([docs/02](docs/02_PARITY.md)).
 
 ## Quickstart
 
@@ -86,7 +87,10 @@ docs/                   the design record — read docs/README.md first
 ```
 
 It mirrors `foundry/models/<name>/` so it can be moved there unchanged; see
-[docs/03](docs/03_FOUNDRY_INTEGRATION.md) for the five registrations that needs.
+[docs/03](docs/03_FOUNDRY_INTEGRATION.md) for what that needs: six edits to
+Foundry's root `pyproject.toml`, a checkpoint-registry entry and a docs
+symlink. Those contracts are checked against the pinned Foundry by
+`tests/test_foundry_integration.py`.
 
 ## Requirements
 

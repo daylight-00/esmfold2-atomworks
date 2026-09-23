@@ -27,6 +27,7 @@ __all__ = [
     "CovalentBondResolutionError",
     "LigandIdentityError",
     "LigandSpec",
+    "UnsupportedChainError",
     "formula_of",
 ]
 
@@ -38,6 +39,17 @@ GENERIC_LIGAND_NAMES = frozenset({"LIG", "UNL", "UNK", "UNX"})
 
 class LigandIdentityError(ValueError):
     """A ligand's declared identity disagrees with the atoms present."""
+
+
+class UnsupportedChainError(ValueError):
+    """A chain the adapter cannot express reached it, and was not opted out of.
+
+    Raised rather than dropped, because the direct API returns no report: a
+    caller folding a structure with one unsupported chain would otherwise get a
+    confident prediction of a smaller system, with nothing saying a chain went
+    missing. Water is the exception -- it is dropped under the explicit
+    ``drop_water`` policy.
+    """
 
 
 class CovalentBondResolutionError(ValueError):

@@ -248,3 +248,25 @@ def _bond_to_a_residue_outside_the_model(atoms):
     res_ids[np.asarray(bonded.chain_id).astype(str) == "E"] = 9999
     bonded.set_annotation("res_id", res_ids)
     return bonded
+
+
+def test_a_chain_kind_guessed_without_chain_type_is_marked_as_such():
+    """Without `chain_type` the kind is inferred, and says so.
+
+    `is_polymer` cannot distinguish protein from nucleic acid, so a DNA chain
+    arriving this way is called protein. Refusing would reject every hand-built
+    AtomArray, so the guess stands -- but a caller can tell it from a statement.
+    Anything from `atomworks.io.parse` or the component assembler carries
+    `chain_type` and never takes this path.
+    """
+    atoms = _chain_with_insertion_codes()  # has is_polymer, no chain_type
+    (record,) = chain_records(atoms)
+    assert record.chain_type is None
+    assert record.kind == "protein"
+    assert record.kind_is_inferred is True
+
+
+def test_a_chain_kind_from_chain_type_is_not_marked_inferred(parsed):
+    atoms, chain_info = parsed("hemoglobin")
+    for record in chain_records(atoms, chain_info=chain_info):
+        assert record.kind_is_inferred is False

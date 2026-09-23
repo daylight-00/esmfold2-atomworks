@@ -82,6 +82,32 @@ Three decisions worth knowing:
   so nothing would tell the caller. `allow_unresolved_covalent_bonds=True` opts
   into that reading deliberately.
 
+## Strictness: what raises, and what is dropped by policy
+
+The adapter would rather stop than hand back a confident prediction of a
+different system. `fold_atom_array` returns no report, so anything it merely
+recorded would be invisible to the caller — which makes raising the only way
+some facts arrive.
+
+| situation | default | opt out with |
+|---|---|---|
+| water chain | dropped | `drop_water=False` to refuse instead |
+| chain no ESMFold2 input can express | **raises** `UnsupportedChainError` | `allow_unsupported_chains=True` |
+| covalent bond that cannot be placed | **raises** `CovalentBondResolutionError` | `allow_unresolved_covalent_bonds=True` |
+| ligand labelled `LIG`/`UNL`/`UNK` | **raises** `LigandIdentityError` | declare a `LigandSpec` |
+| residue name absent from the CCD | **raises** `LigandIdentityError` | declare a `LigandSpec` |
+
+The two bond-related rows are independent on purpose. Accepting that a chain is
+dropped is not the same as accepting that a bond to it disappears, so opting
+into the first still raises on the second.
+
+Detection of bonds is deliberately kept separate from that policy:
+`covalent_bond_candidates` returns a bond whose endpoint is not in the model
+rather than filtering it out, so the decision belongs to the caller. An earlier
+version filtered inside detection, which put such bonds beyond the strict check
+entirely — an unsupported chain and a real bond to it could both vanish in
+silence.
+
 ## What `F` refuses
 
 ```python

@@ -15,6 +15,7 @@ is the case that matters.
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from esmfold2_foundry.data.atomworks_to_esm import (
     AdapterReport,
@@ -109,13 +110,79 @@ def test_bonds_can_be_switched_off(parsed, ccd):
     assert spi.covalent_bonds is None
 
 
-def test_bonds_to_dropped_chains_are_not_declared(parsed, ccd):
-    """An index into a chain the model never saw is an error upstream."""
+def _with_an_unsupported_partner(atoms):
+    """2HHB with chain E made unsupported, still bonded to A/His87."""
+    import biotite.structure as struc
+
+    mutated = atoms.copy()
+    chain = np.asarray(mutated.chain_id).astype(str)
+    chain_type = np.asarray(mutated.get_annotation("chain_type")).copy()
+    chain_type[chain == "E"] = 1  # OTHER_POLYMER: no ESMFold2 input expresses it
+    mutated.set_annotation("chain_type", chain_type)
+
+    name = np.asarray(mutated.atom_name).astype(str)
+    res_id = np.asarray(mutated.res_id).astype(int)
+    his = np.where((chain == "A") & (res_id == 87) & (name == "NE2"))[0]
+    iron = np.where((chain == "E") & (name == "FE"))[0]
+    mutated.bonds.add_bond(int(his[0]), int(iron[0]), struc.BondType.SINGLE)
+    return mutated
+
+
+def test_a_bond_to_an_omitted_chain_is_not_filtered_away(parsed, ccd):
+    """It must reach the caller's policy rather than being dropped beforehand.
+
+    Filtering on "chains that made it into the model" used to happen inside
+    candidate detection, which put such a bond beyond the strict check
+    entirely: an unsupported chain and a real bond to it both vanished, and the
+    direct API returns no report to notice with.
+    """
+    atoms, _chain_info = parsed("hemoglobin")
+    candidates = covalent_bond_candidates(_with_an_unsupported_partner(atoms))
+    assert [c.describe() for c in candidates] == ["A/87/NE2 - E/142/FE"]
+
+
+def test_an_unsupported_chain_raises_before_it_can_go_missing(parsed, ccd):
+    from esmfold2_foundry.data.spec import UnsupportedChainError
+
+    atoms, chain_info = parsed("hemoglobin")
+    with pytest.raises(UnsupportedChainError, match="silently omit it"):
+        atom_array_to_structure_prediction_input(
+            _with_an_unsupported_partner(atoms), chain_info=chain_info
+        )
+
+
+def test_a_bond_to_an_omitted_chain_still_raises_once_the_drop_is_accepted(parsed, ccd):
+    """The two policies are independent: accepting the drop is not accepting the bond."""
+    from esmfold2_foundry.data.spec import CovalentBondResolutionError
+
+    atoms, chain_info = parsed("hemoglobin")
+    with pytest.raises(CovalentBondResolutionError, match="as disconnected"):
+        atom_array_to_structure_prediction_input(
+            _with_an_unsupported_partner(atoms),
+            chain_info=chain_info,
+            allow_unsupported_chains=True,
+        )
+
+
+def test_both_can_be_opted_out_of_and_are_then_reported(parsed, ccd):
+    atoms, chain_info = parsed("hemoglobin")
+    report = AdapterReport()
+    atom_array_to_structure_prediction_input(
+        _with_an_unsupported_partner(atoms),
+        chain_info=chain_info,
+        allow_unsupported_chains=True,
+        allow_unresolved_covalent_bonds=True,
+        report=report,
+    )
+    assert any("not represented" in entry for entry in report.unresolved_covalent_bonds)
+    assert ("E", "unsupported chain_type 1") in report.dropped
+
+
+def test_water_bonds_stay_silent(parsed, ccd):
+    """Water is omitted under an explicit policy, so its bonds are not news."""
     atoms, _chain_info = parsed("hemoglobin")
     bonded = _with_proximal_histidine_bond(atoms)
-    # Pretend chain E never reaches the model.
-    candidates = covalent_bond_candidates(bonded, keep_chains=frozenset({"A", "B"}))
-    assert candidates == []
+    assert covalent_bond_candidates(bonded, ignore_chains=frozenset({"A"})) == []
 
 
 def _tiny(spec, bond_pairs):

@@ -43,6 +43,7 @@ from esmfold2_foundry.data.spec import (
     CovalentBondResolutionError,
     LigandIdentityError,
     LigandSpec,
+    UnsupportedChainError,
 )
 
 if TYPE_CHECKING:
@@ -119,6 +120,11 @@ class ChainRecord:
     residue_ids: tuple[int, ...] = ()
     ins_codes: tuple[str, ...] = ()
     chain_type: int | None = None
+    #: True when ``kind`` was inferred from ``is_polymer`` because the
+    #: array carries no ``chain_type``. A nucleic-acid chain arriving that
+    #: way is called protein, so the flag distinguishes an inference from
+    #: a statement.
+    kind_is_inferred: bool = False
 
     @property
     def is_polymer(self) -> bool:
@@ -360,21 +366,36 @@ def chain_records(
             # No chain_type annotation: the array did not come through
             # atomworks.io.parse. Fall back to is_polymer, and if that is
             # missing too, say so rather than guessing from residue names.
+            #
+            # The polymer branch is a genuine guess -- a DNA or RNA chain
+            # arriving without chain_type would be called protein here. It is
+            # kept because refusing would reject every hand-built AtomArray,
+            # but it is recorded (`ChainRecord.kind_is_inferred`) so a caller
+            # can tell an inference from a statement. Anything from
+            # `atomworks.io.parse` or the component assembler carries
+            # chain_type and never takes this path.
+            inferred = is_polymer is not None
             if is_polymer is None:
                 kind = "unsupported"
             else:
                 kind = "protein" if bool(is_polymer[mask][0]) else "ligand"
         elif ctype in protein_t:
+            inferred = False
             kind = "protein"
         elif ctype in dna_t:
+            inferred = False
             kind = "dna"
         elif ctype in rna_t:
+            inferred = False
             kind = "rna"
         elif ctype in ligand_t:
+            inferred = False
             kind = "ligand"
         elif ctype in water_t:
+            inferred = False
             kind = "water"
         else:
+            inferred = False
             kind = "unsupported"
 
         starts = _residue_starts(chain)
@@ -396,6 +417,7 @@ def chain_records(
                 residue_ids=tuple(int(r) for r in chain.res_id[starts]),
                 ins_codes=_ins_codes_at(chain, starts),
                 chain_type=ctype,
+                kind_is_inferred=inferred,
             )
         )
     return records
@@ -417,6 +439,7 @@ def atom_array_to_structure_prediction_input(
     emit_modifications: bool = True,
     declare_covalent_bonds: bool = True,
     allow_unresolved_covalent_bonds: bool = False,
+    allow_unsupported_chains: bool = False,
     drop_water: bool = True,
     chain_key: str = "chain_id",
     report: AdapterReport | None = None,
@@ -442,6 +465,11 @@ def atom_array_to_structure_prediction_input(
             cannot be placed in the model's indexing. Off by default: the
             alternative to raising is folding a connected system as though it
             were disconnected, which nothing downstream can detect.
+        allow_unsupported_chains: proceed when a chain cannot be expressed as
+            any ESMFold2 input. Off by default for the same reason -- the
+            direct API returns no report, so the chain would simply be absent
+            from a confident prediction. Water is unaffected; it is dropped
+            under ``drop_water``.
         emit_modifications: declare non-standard polymer residues by CCD code
             rather than folding the parent residue. See
             :func:`modifications_for_chain` for what this changes.
@@ -486,9 +514,14 @@ def atom_array_to_structure_prediction_input(
             )
 
         if record.kind == "unsupported":
-            rep.dropped.append(
-                (chain_id, f"unsupported chain_type {record.chain_type!r}")
-            )
+            reason = f"unsupported chain_type {record.chain_type!r}"
+            rep.dropped.append((chain_id, reason))
+            if not allow_unsupported_chains:
+                raise UnsupportedChainError(
+                    f"chain {chain_id!r} cannot be expressed as an ESMFold2 input "
+                    f"({reason}), so folding would silently omit it. Pass "
+                    "allow_unsupported_chains=True to drop it deliberately."
+                )
             continue
 
         if record.is_polymer:
@@ -593,24 +626,44 @@ def _attach_covalent_bonds(
         resolve_covalent_bonds,
     )
 
-    keep = frozenset(
-        record.chain_id for record in records if record.kind != "water"
-    ) & frozenset(str(entry.id) for entry in spi.sequences)
+    # Water is omitted under an explicit policy, so its bonds are genuinely
+    # uninteresting. Every other chain that failed to reach the model is a
+    # different matter: a bond touching it is real, unplaceable, and exactly
+    # what the caller's strictness policy is for -- so it is partitioned out
+    # below rather than filtered away here, where it would escape that policy.
+    water = frozenset(record.chain_id for record in records if record.kind == "water")
+    represented = frozenset(str(entry.id) for entry in spi.sequences)
 
-    candidates = covalent_bond_candidates(atoms, chain_key=chain_key, keep_chains=keep)
+    candidates = covalent_bond_candidates(
+        atoms, chain_key=chain_key, ignore_chains=water
+    )
     if not candidates:
         return spi
+
+    placeable, unrepresented = [], []
+    for candidate in candidates:
+        missing = sorted(
+            str(chain) for chain in {candidate.chain_1, candidate.chain_2} - represented
+        )
+        if missing:
+            unrepresented.append(
+                f"{candidate.describe()}: endpoint chain(s) {missing} are not "
+                "represented in the model input"
+            )
+        else:
+            placeable.append(candidate)
 
     from esm.models.esmfold2.prepare_input import prepare_esmfold2_input
     from esm.models.esmfold2.processor import clean_esmfold2_input
 
     features, chain_infos = prepare_esmfold2_input(clean_esmfold2_input(spi), seed=0)
     bonds, skipped = resolve_covalent_bonds(
-        candidates,
+        placeable,
         features,
         chain_infos,
         _residue_index_map(records, chain_info, report),
     )
+    skipped = unrepresented + skipped
     report.covalent_bonds = list(candidates)
     report.unresolved_covalent_bonds = skipped
     if skipped and not allow_unresolved:

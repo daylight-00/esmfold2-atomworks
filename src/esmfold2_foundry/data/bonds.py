@@ -91,19 +91,24 @@ def covalent_bond_candidates(
     atoms: AtomArray,
     *,
     chain_key: str = "chain_id",
-    keep_chains: frozenset[str] | None = None,
+    ignore_chains: frozenset[str] = frozenset(),
 ) -> list[BondCandidate]:
     """Bonds in *atoms* that ESMFold2 would not otherwise know about.
 
     Excluded, in order: bonds inside one residue (the CCD supplies them), the
     polymer backbone between consecutive residues (the sequence supplies it),
-    anything touching hydrogen (ESMFold2 models heavy atoms), and anything
-    reaching a chain that will not be sent to the model at all.
+    and anything touching hydrogen (ESMFold2 models heavy atoms).
+
+    A bond reaching a chain that will *not* be sent to the model is still
+    returned. It cannot be placed, but dropping it here would put it beyond the
+    caller's strictness policy -- and a bond to a chain that silently went
+    missing is exactly the case worth hearing about. The caller decides.
 
     Args:
-        keep_chains: chains that survive into the model input. Bonds to any
-            other chain are dropped, because an index into a chain that does
-            not exist is an error upstream rather than a no-op.
+        ignore_chains: chains omitted under an explicit policy, whose bonds are
+            genuinely uninteresting -- water, in practice. Only for policies the
+            caller has already stated; everything else is returned and judged
+            upstream.
     """
     if atoms.bonds is None:
         return []
@@ -128,9 +133,7 @@ def covalent_bond_candidates(
         if element[i].upper() in ("H", "D") or element[j].upper() in ("H", "D"):
             continue
         chain_i, chain_j = chain[i], chain[j]
-        if keep_chains is not None and (
-            chain_i not in keep_chains or chain_j not in keep_chains
-        ):
+        if chain_i in ignore_chains or chain_j in ignore_chains:
             continue
 
         same_residue = (

@@ -5,8 +5,11 @@ Python **3.14**. `source env.sh` before anything.
 ## Source trees, not packages
 
 `esm` and `atomworks` — and `foundry`, for the optional integration — are
-consumed as **source** on `PYTHONPATH` rather than installed, because their metadata pins `python<3.13`, `torch<2.8`
-and `biotite==1.4.0`, which would hold the whole environment back:
+consumed as **source** on `PYTHONPATH` rather than installed, because their
+package metadata would hold the whole environment back: esm 3.4 pins
+`torch>=2.11,<2.12` while this project asks for `torch>=2.12`, and atomworks pins
+`biotite==1.4.0`, which has no cp314 wheel. Foundry's own pins conflict with
+nothing here, but it depends on atomworks and would bring that pin with it.
 
 | module | expected location |
 |---|---|
@@ -17,6 +20,11 @@ and `biotite==1.4.0`, which would hold the whole environment back:
 `pyproject.toml` therefore declares the **union of those trees' runtime
 imports**, not the trees. When a tree grows a new import, add it to the matching
 dependency group — do not add the tree itself.
+
+`uv sync` installs the core: the `common`, `esm` and `atomworks` groups, plus
+`dev`. The Foundry integration's imports are a group of their own, added with
+`uv sync --group foundry`; it also covers what Foundry's own models import from
+the tree they share with it.
 
 Clone them next to this repo:
 
@@ -113,11 +121,13 @@ pytest -q                      # the same, as assertions
 ```
 
 CI (`.github/workflows/ci.yml`) runs only what needs nothing but this
-repository: ruff, the `offline`-marked gold-fixture invariants, and a
-well-formedness check on `UPSTREAM.lock`. The full parity suite needs the three
-source trees plus torch and a CCD download, which is minutes of setup for a
-check that is run locally and recorded in [02_PARITY.md](02_PARITY.md); the
-`offline` subset runs in well under a second.
+repository: ruff; the `offline`-marked tests — the gold-fixture invariants and
+the strictness and declaration checks; a wheel build whose packaged configs
+must compose; and a well-formedness check on `UPSTREAM.lock`. The core suite,
+feature parity included, needs the `esm` and `atomworks` trees plus torch and a
+CCD download — only the Foundry contract tests also need `foundry` — which is
+minutes of setup for a check that is run locally and recorded in
+[02_PARITY.md](02_PARITY.md); the `offline` subset runs in well under a second.
 
 Everything in the core — the adapter, the pipeline, feature parity,
 `doctor` — runs on **CPU in well under a minute** and needs no weights. That is

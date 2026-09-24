@@ -20,11 +20,12 @@ no training loss, and choosing one is a modelling decision rather than an
 integration detail; putting a default here would bury that choice in a base
 class where it would be inherited silently.
 
-*Labels.* The pipeline carries model **inputs**, not supervision targets. A
-structural loss needs the source coordinates aligned to ESMFold2's atom
-ordering, which nothing here produces -- see ``docs/05_ROADMAP.md``. Note in
-particular that ``feats["gt_coords"]`` is not that: it is built from the
-prediction input and is zeros at inference.
+*Labels.* The default pipeline carries model **inputs** only. For a structural
+loss, ``build_esmfold2_pipeline(attach_labels=True)`` adds ``example["labels"]``:
+the source coordinates on ESMFold2's atom axis, with a mask and no imputation
+-- see ``docs/05_ROADMAP.md`` for how atoms are matched. Note that
+``feats["gt_coords"]`` is not that: it is built from the prediction input and is
+zeros at inference.
 """
 
 from __future__ import annotations

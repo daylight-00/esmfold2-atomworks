@@ -2,10 +2,12 @@
 # esmfold2-atomworks environment.
 #   source env.sh
 #
-# The research trees are consumed as SOURCE, not as pip packages: their
-# pyproject metadata pins python<3.13, torch<2.8 and biotite==1.4.0, which would
-# drag this environment backwards. esm and atomworks are required; foundry is
-# needed only by the optional Foundry integration. See docs/04_ENVIRONMENT.md.
+# The research trees are consumed as SOURCE, not as pip packages, because their
+# package metadata would pull this environment back: esm pins torch<2.12, and
+# atomworks pins biotite==1.4.0, which has no cp314 wheel (Foundry depends on
+# atomworks, so installing it would bring that pin along). esm and atomworks
+# are required; foundry is needed only by the optional Foundry integration.
+# See docs/04_ENVIRONMENT.md.
 
 EF_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export EF_ROOT

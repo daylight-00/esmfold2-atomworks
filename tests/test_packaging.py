@@ -9,11 +9,22 @@ packaging failure is visible.
 
 from __future__ import annotations
 
+import ast
+import re
+import sys
+
 import pytest
 import tomllib
-from omegaconf import OmegaConf
 
 from esmfold2_atomworks import paths
+
+
+def _yaml(path):
+    """Load a config file. The configs belong to the optional Foundry integration,
+    so they need its config stack; without it these checks skip rather than fail.
+    """
+    return pytest.importorskip("omegaconf").OmegaConf.load(path)
+
 
 EXPECTED_GROUP_TARGETS = {
     "model/esmfold2.yaml": "esmfold2_atomworks.model.esmfold2.AtomWorksESMFold2",
@@ -34,7 +45,7 @@ def test_config_dir_resolves():
 @pytest.mark.offline
 @pytest.mark.parametrize("relative", sorted(EXPECTED_GROUP_TARGETS))
 def test_group_configs_carry_their_targets(relative):
-    node = OmegaConf.load(paths.config_dir() / relative)
+    node = _yaml(paths.config_dir() / relative)
     assert node.get("_target_") == EXPECTED_GROUP_TARGETS[relative]
 
 
@@ -60,7 +71,7 @@ def test_every_group_file_referenced_by_a_default_exists():
     """A defaults entry naming a missing file fails only at compose time."""
     config_dir = paths.config_dir()
     for entry in sorted(config_dir.rglob("*.yaml")):
-        node = OmegaConf.load(entry)
+        node = _yaml(entry)
         for default in node.get("defaults") or []:
             if not isinstance(default, str) or default == "_self_":
                 continue
@@ -74,6 +85,33 @@ def test_every_group_file_referenced_by_a_default_exists():
 @pytest.mark.offline
 def test_searchpath_names_only_resolvable_packages():
     """Hydra warns on every compose for a searchpath it cannot resolve."""
-    node = OmegaConf.load(paths.config_dir() / "inference.yaml")
+    node = _yaml(paths.config_dir() / "inference.yaml")
     searchpath = list(node.hydra.searchpath)
     assert searchpath == ["pkg://esmfold2_atomworks.configs"], searchpath
+
+
+@pytest.mark.offline
+def test_the_console_script_imports_only_declared_dependencies():
+    """The CLI is the first thing a plain install runs, so an undeclared import
+    breaks it there -- while every source checkout, which has the trees'
+    dependencies anyway, keeps working.
+
+    Its module-level imports must be the standard library, this package, or a
+    runtime dependency: the wheel's metadata is all an installer reads.
+    """
+    source = (paths.REPO_ROOT / "src" / "esmfold2_atomworks" / "cli.py").read_text()
+    imported = set()
+    for node in ast.parse(source).body:
+        if isinstance(node, ast.Import):
+            imported |= {alias.name.split(".")[0] for alias in node.names}
+        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+            imported.add(node.module.split(".")[0])
+    third_party = imported - set(sys.stdlib_module_names) - {"esmfold2_atomworks"}
+
+    with (paths.REPO_ROOT / "pyproject.toml").open("rb") as handle:
+        requirements = tomllib.load(handle)["project"]["dependencies"]
+    declared = {
+        re.split(r"[<>=!~\[; ]", r, maxsplit=1)[0].lower() for r in requirements
+    }
+    missing = sorted(name for name in third_party if name.lower() not in declared)
+    assert not missing, f"the console script imports undeclared {missing}"

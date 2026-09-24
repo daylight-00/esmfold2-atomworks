@@ -107,8 +107,9 @@ against the pinned Foundry by `tests/test_foundry_integration.py`.
 ## Requirements
 
 Python 3.14, and the `esm` and `atomworks` source trees beside this repo
-(discovered automatically — see [docs/04](docs/04_ENVIRONMENT.md)); the
-`foundry` tree only for the Foundry integration.
+(discovered automatically — see [docs/04](docs/04_ENVIRONMENT.md)). The
+Foundry integration additionally needs the `foundry` tree and the `foundry`
+dependency group (`uv sync --group foundry`).
 
 Where the ESMFold2 `nn.Module` comes from depends on the `esm` version — a
 `transformers` fork for esm ≤ 3.3, and `esm` itself from 3.4. Both are

@@ -8,12 +8,14 @@ license-files = ["LICENSE"]
 requires-python = ">=3.14"
 
 # NOTE: esm, atomworks and foundry are deliberately NOT declared here. They are
-# consumed as source trees via PYTHONPATH (see env.sh) because their pyproject
-# metadata pins python<3.13, torch<2.8 and biotite==1.4.0, which would drag the
-# whole environment backwards. What IS declared here is the union of their
-# *runtime imports* plus this project's own dependencies. When a source tree
-# grows a new import, add it to the matching dependency group -- do not add the
-# tree itself. See docs/04_ENVIRONMENT.md.
+# consumed as source trees via PYTHONPATH (see env.sh) because installing them
+# as packages would pull this environment back: esm 3.4 pins torch>=2.11,<2.12
+# while this project asks for torch>=2.12, and atomworks pins biotite==1.4.0,
+# which has no cp314 wheel. Foundry's own pins conflict with nothing here, but
+# it depends on atomworks and would bring that pin with it. What IS declared
+# here is the union of their *runtime imports* plus this project's own
+# dependencies. When a source tree grows a new import, add it to the matching
+# dependency group -- do not add the tree itself. See docs/04_ENVIRONMENT.md.
 dependencies = [
     "pip",
     "torch>=2.12",
@@ -30,6 +32,8 @@ dependencies = [
     "biotite>=1.5,<1.7",
     "biopython",
     "tqdm",
+    # The console script (esmfold2_atomworks.cli) imports it at module level.
+    "typer",
 ]
 
 [project.scripts]
@@ -45,13 +49,10 @@ dev = [
     "ruff==0.16.6",
     "ipykernel",
 ]
-# --- shared numerics / config / serialization used by all three source trees ---
+# --- shared numerics / serialization used by the esm and atomworks trees ---
 common = [
     "brotli",
     "einops",
-    "einx",
-    "dm-tree",
-    "hydra-core",
     "zstd",
     "zstandard",
     "cuequivariance_ops_cu13",
@@ -84,27 +85,36 @@ esm = [
     "pygtrie",
     "dna_features_viewer",
 ]
-# --- imports required by the atomworks and foundry source trees ---
+# --- imports required by the atomworks source tree ---
 atomworks = [
-    "pydantic",
-    "rootutils",
-    "environs",
-    "rich",
     "jaxtyping",
-    "beartype",
-    "typer",
-    "lightning",
-    "loralib",
-    "opt_einsum",
-    "assertpy",
     "toolz",
-    "cython",
-    "cytoolz",
     "py3Dmol",
     "pymol-remote",
     "hydride",
+]
+# --- OPTIONAL: the Foundry integration (training/, configs/). Not a default
+#     group, so `uv sync` installs the core alone; add `--group foundry` to
+#     train through Foundry. These are the foundry tree's imports: its trainer
+#     and config stack, then what Foundry's own models import from that tree.
+foundry = [
+    "hydra-core",
+    "lightning",
     "wandb",
+    "beartype",
+    "rich",
+    "rootutils",
+    "environs",
     "python-dotenv",
+    # imported only by Foundry's own models (rf3, rfd3), which share its tree
+    "pydantic",
+    "loralib",
+    "opt_einsum",
+    "assertpy",
+    "cython",
+    "cytoolz",
+    "einx",
+    "dm-tree",
 ]
 # --- OPT-IN, and only for esm <= 3.3. The fork carries the ESMFold2 module for
 #     versions of esm that do not ship it. It conflicts with the stock
@@ -131,8 +141,9 @@ te = [
 ]
 
 [tool.uv]
-# Deliberately not "all": `flash` and `te` are excluded so that `uv sync`
-# installs wheels only and compiles nothing.
+# Deliberately not "all". `foundry` is the optional integration, so `uv sync`
+# installs the AtomWorks <-> ESMFold2 core alone; `flash` and `te` are excluded
+# so that it installs wheels only and compiles nothing.
 default-groups = ["dev", "common", "esm", "atomworks"]
 
 [tool.uv.sources]

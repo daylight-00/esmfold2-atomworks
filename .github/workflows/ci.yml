@@ -1,8 +1,9 @@
 name: ci
 
-# Deliberately small. The full parity suite needs the esm, atomworks and
-# foundry source trees plus torch and a CCD download, which is minutes of setup
-# for a check that is already run locally and recorded in docs/02_PARITY.md.
+# Deliberately small. The core suite, feature parity included, needs the esm
+# and atomworks source trees plus torch and a CCD download -- only the Foundry
+# contract tests also need the foundry tree -- which is minutes of setup for a
+# check that is already run locally and recorded in docs/02_PARITY.md.
 # What runs here is everything that needs nothing but this repository, so it
 # stays fast enough to be worth having on every push.
 #
@@ -43,8 +44,9 @@ jobs:
           python-version: "3.14"
       - run: pip install pytest numpy omegaconf
       # The `offline` marker selects the tests that need no source trees: the
-      # gold-fixture invariants, which are what stop a frozen-but-wrong
-      # snapshot from silently anchoring the parity suite.
+      # gold-fixture invariants, which stop a frozen-but-wrong snapshot from
+      # silently anchoring the parity suite, and the strictness and declaration
+      # checks, which hold the adapter's refusal policy in place.
       - run: pytest -m offline -v
         env:
           PYTHONPATH: src

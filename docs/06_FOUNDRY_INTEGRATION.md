@@ -4,7 +4,9 @@ Foundry is not part of the core AtomWorks ↔ ESMFold2 contract. It provides one
 supported training and execution backend: the `FabricTrainer` subclass in
 `training/` and the Hydra configs in `configs/`. Nothing else in the package
 imports it — `tests/test_core_boundary.py` holds it to that — and a workspace
-without the Foundry tree is complete for everything else.
+without the Foundry tree is complete for everything else. Its imports are the
+`foundry` dependency group, installed with `uv sync --group foundry`; a plain
+`uv sync` leaves them out.
 
 > Everything on this page is **verified against Foundry's current integration
 > contracts** by

@@ -9,7 +9,7 @@ Read in order. Decisions carry IDs (`D-001` …) and the code cites them.
 | [02_PARITY.md](02_PARITY.md) | the milestone: method, result, and what it does not cover |
 | [03_MODEL.md](03_MODEL.md) | the model wrapper, the AtomWorks pipeline, the engine, and upstream gotchas |
 | [04_ENVIRONMENT.md](04_ENVIRONMENT.md) | source trees, venv, compute |
-| [05_ROADMAP.md](05_ROADMAP.md) | what the port still lacks |
+| [05_ROADMAP.md](05_ROADMAP.md) | what is not done yet |
 | [06_FOUNDRY_INTEGRATION.md](06_FOUNDRY_INTEGRATION.md) | the optional Foundry integration: how it drops into `foundry/models/`, and training |
 
 The record is authoritative. If the code and a doc disagree, that is a bug in

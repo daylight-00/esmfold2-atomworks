@@ -68,7 +68,7 @@ ignore = [
     "F821", # jaxtyping forward references
     "E741", # variables like "L"
     # typer declares CLI arguments as defaults; it is the library's only API for
-    # help text and options, and Foundry's own cli.py modules do the same.
+    # help text and options.
     "B008",
 ]
 

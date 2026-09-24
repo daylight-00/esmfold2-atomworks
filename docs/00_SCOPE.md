@@ -27,8 +27,7 @@ wrapper, the inference engine and the CLI.
 
 Foundry is one supported integration on top of that core: training,
 configuration and checkpointing on Foundry's trainer, without changing the
-native model ([06_FOUNDRY_INTEGRATION.md](06_FOUNDRY_INTEGRATION.md)). It keeps
-Foundry's model-package conventions, so an upstream integration stays thin.
+native model ([06_FOUNDRY_INTEGRATION.md](06_FOUNDRY_INTEGRATION.md)).
 
 ## Decisions
 

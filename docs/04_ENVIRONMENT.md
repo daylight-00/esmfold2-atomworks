@@ -77,6 +77,9 @@ esmfold2-atomworks doctor    # where the upstreams come from, imports, weights, 
 pytest -q                    # the same, as assertions
 ```
 
+`pytest` is in the `dev` dependency group, which `uv sync` installs along with
+the package; `pip install -e .` does not, so on that path add it yourself.
+
 `doctor` fails only on a missing import or a failed parity check. Source trees,
 `UPSTREAM.lock` and AtomWorks' test structures belong to the reference
 environment; an ordinary install has none of them and is reported as such. The

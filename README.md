@@ -20,7 +20,7 @@ AtomWorks AtomArray ──adapter──> ESMFold2 (unmodified) ──adapter─�
 |---|---|
 | **AtomWorks ↔ ESMFold2** — adapter and its reverse, AtomWorks pipeline, supervision labels | done; feature parity exact on 5 fixtures |
 | **Inference** — model wrapper, engine, CLI | done; output parity within the model's own scatter on a GPU |
-| **Foundry integration** (optional) — trainer, Hydra configs, registration | contracts verified against the pinned Foundry; the objective is the caller's ([docs/05](docs/05_ROADMAP.md)) |
+| **Foundry integration** (optional) — trainer, Hydra configs | integration contracts verified against the pinned Foundry and rc-foundry 0.2.0; the objective is the caller's ([docs/05](docs/05_ROADMAP.md)) |
 
 The core milestone is met: for monomer, multimer, metal, cofactor and
 modified-residue systems, the input the adapter derives from a structure
@@ -42,7 +42,6 @@ pip install -e .                 # esm and atomworks resolve like any dependency
 pip install -e ".[foundry]"      # optional: training through Foundry (Python 3.12)
 
 esmfold2-atomworks doctor        # imports, weights; parity given AtomWorks' test data
-pytest -q                        # CPU only, no GPU and no weights needed
 
 esmfold2-atomworks parity structures/*.cif        # survey a corpus
 esmfold2-atomworks fold input.cif --out-dir runs/ # needs a GPU

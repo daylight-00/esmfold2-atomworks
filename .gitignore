@@ -7,3 +7,5 @@ runs/
 *.egg-info/
 .claude/worktrees/
 .env
+# The package resolves fresh; the pinned environment is reproducibility/uv.lock.
+/uv.lock

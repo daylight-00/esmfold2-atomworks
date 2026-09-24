@@ -65,13 +65,16 @@ jobs:
           python-version: "3.14"
       - run: pip install build hydra-core
       - run: python -m build --wheel --outdir dist
-      # --no-deps: the wheel's dependencies are esm, atomworks and torch --
-      # minutes to install, and biotite 1.4.0 has no cp314 wheel -- while this
-      # job checks what is packaged. The next step checks that they resolve.
+      # The wheel goes in with --no-deps: its dependencies are esm, atomworks
+      # and torch -- minutes to install, and biotite 1.4.0 has no cp314 wheel --
+      # while this job checks what is packaged, and a later step checks that
+      # they resolve. hydra-core is installed separately, with its own
+      # dependencies, because --no-deps applies to every package on the line.
       - name: Install the wheel into a clean environment
         run: |
           python -m venv /tmp/wheelenv
-          /tmp/wheelenv/bin/pip install --quiet --no-deps dist/*.whl hydra-core
+          /tmp/wheelenv/bin/pip install --quiet --no-deps dist/*.whl
+          /tmp/wheelenv/bin/pip install --quiet hydra-core
       - name: Packaged configs compose
         run: /tmp/wheelenv/bin/python scripts/check_packaging.py
       - name: Declared dependencies resolve

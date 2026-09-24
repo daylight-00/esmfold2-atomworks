@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from biotite.structure import AtomArray
 
 __all__ = [
+    "check_residue_name",
     "molecular_complex_to_atom_array",
     "rename_ligand_residues",
     "result_to_atom_array",
@@ -111,29 +112,36 @@ def molecular_complex_to_atom_array(complex_: Any) -> AtomArray:
             f"{len(spans)} token spans"
         )
 
+    # The spans have to partition the atoms: every atom in exactly one, and no
+    # span empty. An unclaimed atom would vanish, a doubly claimed one would
+    # be silently handed to whichever token came last, and an empty span would
+    # drop a residue that the complex's per-residue arrays still count -- each
+    # the failure this module exists to remove.
+    claims = np.zeros(n_atoms, dtype=int)
+    for span in spans:
+        np.add.at(claims, span, 1)
+    unclaimed = int((claims == 0).sum())
+    shared = int((claims > 1).sum())
+    empty = sum(1 for span in spans if len(span) == 0)
+    if unclaimed or shared or empty:
+        raise ValueError(
+            f"{unclaimed} of {n_atoms} atoms are claimed by no token span and "
+            f"{shared} by more than one, and {empty} token span(s) claim none: the "
+            "spans must partition the atoms, so refusing to build a structure "
+            "that drops or reassigns atoms, or loses a residue"
+        )
+
     per_atom_chain = np.empty(n_atoms, dtype="U8")
     per_atom_res_name = np.empty(n_atoms, dtype="U5")
     per_atom_res_id = np.zeros(n_atoms, dtype=int)
 
     counters: dict[str, int] = {}
-    covered = np.zeros(n_atoms, dtype=bool)
     for token, span in enumerate(spans):
-        if len(span) == 0:
-            continue
         chain = str(chain_ids[token])
         counters[chain] = counters.get(chain, 0) + 1
         per_atom_chain[span] = chain
         per_atom_res_name[span] = residue_names[token][:5]
         per_atom_res_id[span] = counters[chain]
-        covered[span] = True
-
-    if not covered.all():
-        # Every atom must belong to a token, or atoms vanish silently -- which
-        # is the failure this module exists to remove.
-        raise ValueError(
-            f"{int((~covered).sum())} of {n_atoms} atoms are claimed by no token "
-            "span; refusing to build a partial structure"
-        )
 
     array = struc.AtomArray(n_atoms)
     array.coord = positions.astype(np.float32)
@@ -150,18 +158,38 @@ def molecular_complex_to_atom_array(complex_: Any) -> AtomArray:
     return array
 
 
+def check_residue_name(residue_name: str) -> None:
+    """Raise unless *residue_name* fits a residue name: one to five characters."""
+    if not isinstance(residue_name, str) or not 1 <= len(residue_name) <= 5:
+        raise ValueError(
+            f"{residue_name!r} cannot be a residue name, which holds one to five "
+            "characters"
+        )
+
+
 def rename_ligand_residues(atoms: AtomArray, residue_name: str) -> AtomArray:
-    """Relabel non-polymer residues, returning a copy.
+    """Give every hetero residue *residue_name*, returning a copy.
 
     ESMFold2's generic ``LIG`` is not the caller's residue name, and anything
     that matches ligands by name -- Rosetta params, a metric that selects the
     ligand chain -- needs the two sides to agree.
+
+    **Every** hetero residue: ESMFold2 marks each non-polymer chain hetero and
+    nothing else (a modified polymer residue is not), so an ion or a cofactor
+    beside the ligand is renamed with it. This is for an output whose hetero
+    residues are all one molecule. For several, relabel chain by chain.
+
+    Raises:
+        ValueError: a name a residue name cannot hold -- empty, or longer than
+            its five characters. Truncating it would hand back a name the
+            caller never gave, which then matches nothing.
     """
+    check_residue_name(residue_name)
     result = atoms.copy()
     mask = np.asarray(result.hetero, dtype=bool)
     if mask.any():
         res_name = np.asarray(result.res_name, dtype="U5").copy()
-        res_name[mask] = residue_name[:5]
+        res_name[mask] = residue_name
         result.set_annotation("res_name", res_name)
     return result
 
@@ -175,7 +203,8 @@ def result_to_atom_array(
 
     Args:
         result: what ``ESMFold2InputBuilder.fold`` returned.
-        ligand_residue_name: relabel non-polymer residues to this name.
+        ligand_residue_name: give every hetero residue this name; see
+            :func:`rename_ligand_residues` for what "every" includes.
     """
     atoms = molecular_complex_to_atom_array(result.complex)
     if ligand_residue_name is not None:

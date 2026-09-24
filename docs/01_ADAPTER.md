@@ -280,7 +280,19 @@ happen to match. In one observed case that turned 19 correct ligand atoms into
 
 So `G` reads `MolecularComplex`'s flat per-atom arrays directly. It is faithful
 because nothing is inferred that the model did not report, and it raises rather
-than returning a partial structure if any atom is claimed by no token span.
+than build anything if the token spans do not partition the atoms: an atom
+claimed by no span would vanish, one claimed by two would be handed silently to
+the later token, and a span claiming none would drop a residue that
+`result.complex.plddt` still counts. The polymer/ligand split is the model's own
+hetero flags, never a CCD lookup.
+
+`ligand_residue_name` — on `result_to_atom_array`, and on `fold_atom_array`,
+which passes it through — gives **every** hetero residue the caller's name in
+place of ESMFold2's `LIG`. ESMFold2 marks each non-polymer chain hetero and
+nothing else, so an ion or cofactor beside the ligand is renamed with it: the
+option is for an output whose hetero residues are all one molecule. For
+several, convert without it and relabel chain by chain. A name longer than a
+residue name's five characters raises rather than being truncated.
 
 ## The report
 

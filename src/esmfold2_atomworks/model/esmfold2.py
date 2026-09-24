@@ -341,6 +341,7 @@ class AtomWorksESMFold2:
         *,
         chain_info: dict | None = None,
         config: FoldingConfig | None = None,
+        ligand_residue_name: str | None = None,
         adapter_kwargs: dict[str, Any] | None = None,
         **overrides: Any,
     ) -> tuple[AtomArray, Any]:
@@ -367,23 +368,46 @@ class AtomWorksESMFold2:
             -- with no opt-in. For a structure that carries no ``chain_type``,
             ``adapter_kwargs={"chain_kinds": {...}}`` says what each chain is.
 
+        Args:
+            ligand_residue_name: the residue name to give every hetero residue
+                of the returned structure. ESMFold2 writes ``LIG`` on a ligand
+                it was given as SMILES -- the model's label, not the caller's --
+                and anything that matches ligands by name, from a parameter file
+                to atom correspondence between two structures, needs the
+                caller's. **Every** hetero residue means every non-polymer
+                chain, an ion or cofactor beside the ligand included, so this is
+                for an output whose hetero residues are all one molecule. For
+                several, omit it and relabel chain by chain. Checked before the
+                fold: a name longer than a residue name's five characters
+                raises rather than being truncated.
+
         Returns:
             ``(atom_array, result)`` -- the structure, and the native result
             beside it so that confidence values remain available without being
-            smuggled through annotations.
+            smuggled through annotations. With ``num_diffusion_samples > 1``,
+            a list of each, and every sample is relabelled.
         """
         from esmfold2_atomworks.data.atomworks_to_esm import (
             atom_array_to_structure_prediction_input,
         )
-        from esmfold2_atomworks.data.molecular_complex import result_to_atom_array
+        from esmfold2_atomworks.data.molecular_complex import (
+            check_residue_name,
+            result_to_atom_array,
+        )
 
+        if ligand_residue_name is not None:
+            check_residue_name(ligand_residue_name)
         spi = atom_array_to_structure_prediction_input(
             atoms, chain_info=chain_info, **(adapter_kwargs or {})
         )
         result = self.fold(spi, config=config, **overrides)
+
+        def structure(one: Any) -> AtomArray:
+            return result_to_atom_array(one, ligand_residue_name=ligand_residue_name)
+
         if isinstance(result, list):
-            return [result_to_atom_array(r) for r in result], result
-        return result_to_atom_array(result), result
+            return [structure(r) for r in result], result
+        return structure(result), result
 
     def provenance(self) -> dict[str, str]:
         return {

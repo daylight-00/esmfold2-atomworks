@@ -19,22 +19,44 @@ AlphaFold's B-factor column. Scale at the point of display, not here.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from types import MappingProxyType
 from typing import Any
 
 import numpy as np
 
-__all__ = ["NON_POLYMER", "fold_metrics"]
+__all__ = [
+    "NON_POLYMER",
+    "SCALAR_METRIC_SOURCES",
+    "fold_metrics",
+    "plddt_per_residue",
+    "plddt_per_token",
+]
 
 #: How ``MolecularComplexMetadata.entity_lookup`` spells a non-polymer entity.
 #: The other value is ``"polymer"``.
 NON_POLYMER = "non-polymer"
 
-#: Scalar fields of the result, mapped to their metric names.
-_SCALAR_SOURCES = {
-    "esm.ptm": "ptm",
-    "esm.iptm": "iptm",
-    "esm.mean_plddt": "plddt",
-}
+#: Scalar fields of the result, mapped to the metric names they are emitted as.
+#:
+#: Public so that a consumer can check the namespace without copying the table:
+#: a copy diverges, and a key that stops being emitted then looks exactly like a
+#: legitimately absent metric. Read-only, because :func:`fold_metrics` reads it
+#: and a consumer's edit would change what it emits for everyone. *Scalar*
+#: rather than "all metrics": :func:`fold_metrics` also emits conditional ones
+#: that are not read off a single field -- the cross-entity PAE and the pLDDT
+#: split.
+#:
+#: ``esm.mean_plddt`` is the mean of ``result.plddt``, which is **token** space:
+#: an atomized ligand weighs in once per atom, not once as a residue. See
+#: :func:`plddt_per_token`.
+SCALAR_METRIC_SOURCES: Mapping[str, str] = MappingProxyType(
+    {
+        "esm.ptm": "ptm",
+        "esm.iptm": "iptm",
+        "esm.mean_plddt": "plddt",
+    }
+)
 
 
 def _as_array(value: Any) -> np.ndarray | None:
@@ -60,7 +82,7 @@ def _scalar(value: Any) -> float | None:
 def fold_metrics(result: Any) -> dict[str, float]:
     """Namespaced confidence values for one prediction."""
     metrics: dict[str, float] = {}
-    for key, attribute in _SCALAR_SOURCES.items():
+    for key, attribute in SCALAR_METRIC_SOURCES.items():
         value = _scalar(getattr(result, attribute, None))
         if value is not None:
             metrics[key] = value
@@ -172,3 +194,32 @@ def _plddt_split(result: Any) -> dict[str, float]:
             float(plddt[entity_id == entity].mean()) for entity in ligand_entities
         ),
     }
+
+
+def plddt_per_token(result: Any) -> np.ndarray | None:
+    """pLDDT in **model-token** space, or None.
+
+    One value per token the model scored. A ligand is atomized, so it
+    contributes one token per atom, and a modified residue one per atom too.
+    This is ``result.plddt``, the axis every other per-token field -- PAE,
+    ``entity_id`` -- is indexed by, and the one ``esm.mean_plddt`` averages.
+    """
+    return _as_array(getattr(result, "plddt", None))
+
+
+def plddt_per_residue(result: Any) -> np.ndarray | None:
+    """pLDDT in collapsed **residue** space, or None.
+
+    One value per output residue, each the mean of that residue's tokens, and a
+    non-polymer chain collapsed into one residue (``esm/models/esmfold2/output.py``).
+    This is ``result.complex.plddt``: the axis of the residues of the
+    ``AtomArray`` that :func:`~esmfold2_atomworks.data.molecular_complex.result_to_atom_array`
+    returns, in their order.
+
+    **The two axes differ in length whenever a ligand or a modified residue is
+    present.** A 112-residue protein with a 19-atom ligand gives 131 tokens and
+    113 residues. Indexing one with the other is silently wrong on exactly the
+    systems this package exists for, and right on a plain monomer, where the two
+    coincide -- which is why each has a name.
+    """
+    return _as_array(getattr(getattr(result, "complex", None), "plddt", None))

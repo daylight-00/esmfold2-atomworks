@@ -99,8 +99,15 @@ method and leaving the parent half-initialised.
 - **pLDDT is on 0–1**, not 0–100. Scale at display time.
 - `result.plddt` is in model-token space; `result.complex.plddt` is in collapsed
   residue space. A ligand chain collapses to **one** output residue, so the two
-  have different lengths whenever a ligand or modified residue is present. Do
-  not index one with the other.
+  have different lengths whenever a ligand or modified residue is present — a
+  112-residue protein with a 19-atom ligand gives 131 tokens and 113 residues.
+  Do not index one with the other. `metrics.plddt_per_token(result)` and
+  `metrics.plddt_per_residue(result)` name the two, and the residue axis is the
+  axis of the residues `result_to_atom_array` returns.
+- `esm.mean_plddt` is the mean of `result.plddt`, so it is a **token-space**
+  mean: an atomized ligand counts once per atom, not once as a residue.
+  `metrics.SCALAR_METRIC_SOURCES` is the read-only table of the scalar metrics
+  and the fields they are read from.
 - `pair_chains_iptm` is **asymmetric**. There is no single "the" pair ipTM;
   `metrics.py` emits the min and mean over off-diagonal entries and names them
   for what they are.

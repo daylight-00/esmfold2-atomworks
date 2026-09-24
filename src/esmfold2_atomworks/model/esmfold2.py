@@ -33,7 +33,9 @@ anything to it; each is asserted or surfaced below rather than left as folklore.
    effect is a real trap, so :meth:`fold` names them.
 3. **pLDDT is on 0--1, not 0--100**, and ``result.plddt`` (model tokens) is a
    different length from ``result.complex.plddt`` (collapsed residues) whenever
-   a ligand or modified residue is present. Do not index one with the other.
+   a ligand or modified residue is present. Do not index one with the other;
+   :func:`esmfold2_atomworks.metrics.plddt_per_token` and
+   :func:`~esmfold2_atomworks.metrics.plddt_per_residue` name the two.
 """
 
 from __future__ import annotations

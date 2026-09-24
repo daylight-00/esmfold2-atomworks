@@ -201,18 +201,11 @@ def _accepted_degradations(report: Any) -> dict[str, Any]:
     Opting in says a degradation is acceptable; it does not say which structure
     it happened to. Recording it per output is what makes the permissive run
     auditable afterwards -- the JSON beside each CIF says what was dropped or
-    approximated for that one. Empty when nothing was.
+    approximated for that one, keyed by the same names the caller opted in
+    with. Empty when nothing was.
     """
-    happened = {
-        "dropped_chains": [
-            chain for chain, reason in report.dropped if reason != "water"
-        ],
-        "unresolved_covalent_bonds": list(report.unresolved_covalent_bonds),
-        "inferred_chain_kinds": list(report.inferred_chain_kinds),
-        "unplaceable_modifications": list(report.unplaceable_modifications),
-    }
-    happened = {key: value for key, value in happened.items() if value}
-    return {"adapter.degradations": happened} if happened else {}
+    accepted = report.accepted_degradations()
+    return {"adapter.degradations": accepted} if accepted else {}
 
 
 def _canonicalize_inputs(inputs: Any) -> dict[str, Any]:

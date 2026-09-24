@@ -31,6 +31,10 @@ useful output is the failure list, not the pass rate.
 ([02_PARITY.md](02_PARITY.md)), but the alignments in those tests are
 constructed directly. Composing AtomWorks' own MSA loader into
 `pre_transforms` and re-checking would close the last step of that path.
+Whatever the loader attaches must bind ([01](01_ADAPTER.md#declarations-must-bind)):
+an alignment is accepted only for a protein chain and only with the folded
+sequence as its query row, so an RNA alignment — ESMFold2 has no input for one —
+has to be left out rather than passed through.
 
 ## Missing for training
 

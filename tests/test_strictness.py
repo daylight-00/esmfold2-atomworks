@@ -27,6 +27,15 @@ from esmfold2_foundry.data.atomworks_to_esm import (
 # -- the table itself --------------------------------------------------------
 
 
+#: ``allow_*`` keywords of the adapter that are *not* degradations, and why.
+NOT_DEGRADATIONS = {
+    # A CCD code that came through atomworks.io.parse has been reconciled
+    # against the dictionary, so using it is D-004's default rather than an
+    # approximation; setting this False makes the adapter stricter, not looser.
+    "allow_undeclared_ccd_ligands",
+}
+
+
 @pytest.mark.offline
 def test_every_degradation_has_an_opt_in_that_defaults_to_strict():
     """The structural guard: a new degradation cannot be added half-way.
@@ -40,6 +49,27 @@ def test_every_degradation_has_an_opt_in_that_defaults_to_strict():
         keyword = f"allow_{name}"
         assert keyword in parameters, f"{name}: the adapter has no {keyword}"
         assert parameters[keyword].default is False, f"{keyword} is not strict"
+
+
+@pytest.mark.offline
+def test_every_permissive_keyword_is_a_registered_degradation():
+    """The other direction: an ``allow_*`` cannot bypass the registry.
+
+    Without it, an ``allow_something=False`` added to the adapter but not to
+    DEGRADATIONS passes the check above -- and is then unreachable from every
+    path that takes names (pipeline, engine, CLI), and unrecorded when used.
+    """
+    parameters = inspect.signature(atom_array_to_structure_prediction_input).parameters
+    permissive = {name for name in parameters if name.startswith("allow_")}
+    registered = {f"allow_{name}" for name in DEGRADATIONS}
+    assert permissive - NOT_DEGRADATIONS == registered
+    assert NOT_DEGRADATIONS <= permissive, "an exemption outlived its keyword"
+
+
+@pytest.mark.offline
+def test_every_degradation_says_where_its_acceptance_is_recorded():
+    """Otherwise a new degradation would raise and opt in, yet never be recorded."""
+    assert AdapterReport()._degradations().keys() == DEGRADATIONS.keys()
 
 
 @pytest.mark.offline
@@ -167,18 +197,6 @@ def test_a_chain_with_no_annotation_at_all_says_so(ccd):
     assert report.dropped == []
 
 
-# -- empty sequence ----------------------------------------------------------
-
-
-def test_an_empty_override_in_a_multichain_structure_is_not_a_silent_drop(parsed, ccd):
-    """Alone it would fail anyway, with nothing left to fold; beside others it would vanish."""
-    atoms, chain_info = parsed("hemoglobin")
-    with pytest.raises(ValueError, match="empty override"):
-        atom_array_to_structure_prediction_input(
-            atoms, chain_info=chain_info, sequences={"B": ""}
-        )
-
-
 # -- every public path can express the policy -------------------------------
 
 
@@ -229,7 +247,18 @@ def test_the_engine_records_what_it_accepted_per_output():
     degraded.dropped.append(("X", "unsupported chain_type 1"))
     degraded.unplaceable_modifications.append("A")
     recorded = _accepted_degradations(degraded)["adapter.degradations"]
-    assert recorded == {"dropped_chains": ["X"], "unplaceable_modifications": ["A"]}
+    # Keyed by the names the caller opted in with.
+    assert recorded == {"unsupported_chains": ["X"], "unplaceable_modifications": ["A"]}
+
+
+def test_the_cli_help_names_every_degradation():
+    """It is written out, to keep ``--help`` free of imports; this keeps it whole."""
+    pytest.importorskip("typer")
+    from esmfold2_foundry.cli import fold
+
+    help_text = inspect.signature(fold).parameters["allow"].default.help
+    missing = [name for name in DEGRADATIONS if name not in help_text]
+    assert not missing, f"--allow help omits {missing}"
 
 
 def test_the_cli_refuses_an_unknown_opt_in_before_loading_anything():

@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from biotite.structure import AtomArray
 
 __all__ = [
+    "ChainDeclarationError",
     "CovalentBondResolutionError",
     "InferredChainKindError",
     "LigandIdentityError",
@@ -51,6 +52,18 @@ class UnsupportedChainError(ValueError):
     confident prediction of a smaller system, with nothing saying a chain went
     missing. Water is the exception -- it is dropped under the explicit
     ``drop_water`` policy.
+    """
+
+
+class ChainDeclarationError(ValueError):
+    """A per-chain declaration that would not reach exactly the chain it names.
+
+    ``sequences``, ``msas`` and ``ligands`` are statements about particular
+    chains. One that names no chain, names a chain of a kind it cannot apply
+    to, or contradicts another declaration would otherwise be ignored or
+    misapplied: the caller believes something was applied that the model never
+    sees. That is an invalid request rather than an approximation, so unlike
+    the degradations there is no opt-in.
     """
 
 

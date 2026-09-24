@@ -181,27 +181,30 @@ def test_an_unpairable_hit_stays_unpaired(parsed, ccd, gold_document):
     assert differs_at == [POS_UNSHARED]
 
 
-def test_swapping_the_alignments_between_chains_is_detectable(
-    parsed, ccd, gold_document
-):
+def test_alignments_are_looked_up_by_chain_id(parsed, ccd, gold_document):
     """Guards the wiring: the chains must not be interchangeable.
 
     If the adapter routed alignments by position rather than by chain id, or
-    dropped them, the parity test above would still pass. This is what makes it
-    mean something.
+    dropped them, the parity test above would still pass. Chains A and C carry
+    the same sequence, so each of two different alignments binds to either:
+    swapping them must change the input, and the order they are declared in
+    must not. (Swapping alpha's and beta's alignments is refused outright --
+    see tests/test_declarations.py.)
     """
-    msa_a, msa_b = _heteromer_msas(gold_document)
+    alpha = gold_document("hemoglobin")["chains"][0]["sequence"]
+    first = _msa(alpha, [(_mutate(alpha, POS_SHARED), 1001)])
+    second = _msa(alpha, [(_mutate(alpha, POS_UNSHARED), 2002)])
     atoms, chain_info = parsed("hemoglobin")
 
-    correct = featurize(
-        atom_array_to_structure_prediction_input(
-            atoms, chain_info=chain_info, msas={"A": msa_a, "B": msa_b}
+    def features(msas):
+        return featurize(
+            atom_array_to_structure_prediction_input(
+                atoms, chain_info=chain_info, msas=msas
+            )
         )
-    )
-    swapped = featurize(
-        atom_array_to_structure_prediction_input(
-            atoms, chain_info=chain_info, msas={"A": msa_b, "B": msa_a}
-        )
-    )
-    diff = compare_features(correct, swapped)
-    assert not diff.ok, "swapping the two chains' alignments changed nothing"
+
+    declared = features({"A": first, "C": second})
+    swapped = compare_features(declared, features({"A": second, "C": first}))
+    assert not swapped.ok, "swapping the two chains' alignments changed nothing"
+    reordered = compare_features(declared, features({"C": second, "A": first}))
+    assert reordered.identical, reordered.report()

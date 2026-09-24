@@ -91,6 +91,12 @@ detect **raises** by default and is accepted only by naming it
 `AdapterReport` and, on the engine path, in each output's metadata. Dropping
 water is an explicit policy (`drop_water`), not a degradation.
 
+The same holds for what the caller declares. A sequence override, an MSA or a
+ligand identity that would not reach the chain it names — a typo, a chain of the
+wrong kind, an alignment built for another sequence — is refused
+(`ChainDeclarationError`): ignoring it is the same failure seen from the
+caller's side.
+
 ### D-006 — A metric the model did not produce stays absent
 
 Never defaulted to `0.0`. A fabricated zero reads downstream as a real

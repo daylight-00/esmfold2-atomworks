@@ -33,6 +33,7 @@ See :mod:`esmfold2_foundry.data.spec`.
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -40,6 +41,7 @@ import numpy as np
 
 from esmfold2_foundry.data.spec import (
     GENERIC_LIGAND_NAMES,
+    ChainDeclarationError,
     CovalentBondResolutionError,
     InferredChainKindError,
     LigandIdentityError,
@@ -237,6 +239,28 @@ class AdapterReport:
     #: Chains whose kind was inferred from ``is_polymer`` for want of a
     #: ``chain_type`` -- populated only when that was explicitly allowed.
     inferred_chain_kinds: list[str] = field(default_factory=list)
+
+    def accepted_degradations(self) -> dict[str, list[str]]:
+        """What each degradation accepted by name actually hit.
+
+        Keyed like :data:`DEGRADATIONS` -- the same names a caller opts in
+        with -- and empty when nothing was accepted. Water is not listed:
+        dropping it is a policy, not a degradation.
+        """
+        return {name: hit for name, hit in self._degradations().items() if hit}
+
+    def _degradations(self) -> dict[str, list[str]]:
+        # One entry per DEGRADATIONS name, empty or not. tests/test_strictness.py
+        # holds the two to the same keys, so a degradation cannot be added
+        # without saying where its acceptance is recorded.
+        return {
+            "unsupported_chains": [
+                chain for chain, reason in self.dropped if reason != "water"
+            ],
+            "unresolved_covalent_bonds": list(self.unresolved_covalent_bonds),
+            "inferred_chain_kind": list(self.inferred_chain_kinds),
+            "unplaceable_modifications": list(self.unplaceable_modifications),
+        }
 
     def dropped_summary(self) -> str:
         if not self.dropped:
@@ -533,8 +557,10 @@ def atom_array_to_structure_prediction_input(
             that were never resolved. Without it, unmodelled residues are
             simply absent from the sequence, which folds a different molecule.
         ligands: declared identities for non-polymer chains, keyed by chain id
-            (or a tuple, keyed by each spec's own ``chain_id``).
-        msas: per-chain ``MSA`` objects, attached to the matching protein chain.
+            (or a tuple, keyed by each spec's own ``chain_id``). A key must
+            equal its spec's ``chain_id``, and a chain has at most one spec.
+        msas: per-chain ``MSA`` objects for protein chains, each with the
+            sequence being folded there as its query row.
         sequences: per-chain sequences that override what the structure says.
             This is the design path -- fold *this* sequence on *that* system.
         allow_undeclared_ccd_ligands: when a non-polymer chain has no declared
@@ -567,8 +593,13 @@ def atom_array_to_structure_prediction_input(
         ``StructurePredictionInput`` ready for ``ESMFold2InputBuilder``.
 
     Raises:
+        ChainDeclarationError: a sequence override, MSA or ligand spec that
+            would not reach exactly the chain it names.
         LigandIdentityError: a non-polymer chain whose identity cannot be
             established without guessing.
+
+    Every degradation in :data:`DEGRADATIONS` also raises its own error unless
+    it is accepted by name.
     """
     from esm.models.esmfold2.types import (
         DNAInput,
@@ -579,11 +610,12 @@ def atom_array_to_structure_prediction_input(
 
     rep = report if report is not None else AdapterReport()
     spec_by_chain = _index_ligand_specs(ligands)
-    msas = msas or {}
-    sequences = sequences or {}
+    msas = _by_chain("msas", msas)
+    sequences = _by_chain("sequences", sequences)
 
     records = chain_records(atoms, chain_info=chain_info, chain_key=chain_key)
     rep.chains = records
+    _check_declarations(records, sequences=sequences, msas=msas, ligands=spec_by_chain)
 
     labels = np.asarray(atoms.get_annotation(chain_key)).astype(str)
     inputs: list[Any] = []
@@ -630,14 +662,11 @@ def atom_array_to_structure_prediction_input(
         if record.is_polymer:
             sequence = sequences.get(chain_id, record.sequence or "")
             if not sequence:
-                # Only reachable through an empty override: a chain with
-                # residues always yields a sequence. Dropping it would fold a
-                # smaller system than the caller described, so it is refused.
-                source = "override" if chain_id in sequences else "sequence"
+                # An empty override is refused with the other declarations, and
+                # a chain with residues always yields a sequence; kept so that
+                # an empty sequence can never quietly drop a chain.
                 raise ValueError(
-                    f"chain {chain_id!r} has an empty {source}; folding would omit "
-                    "the chain. Supply a sequence, or remove the chain from the "
-                    "structure if it is meant to be absent."
+                    f"chain {chain_id!r} has an empty sequence; folding would omit it"
                 )
 
             rep.sequence_source[chain_id] = (
@@ -900,12 +929,199 @@ def _modifications_for(
     return mods
 
 
+# --------------------------------------------------------------------------
+# Declarations
+# --------------------------------------------------------------------------
+
+
 def _index_ligand_specs(
-    ligands: dict[str, LigandSpec] | tuple[LigandSpec, ...],
+    ligands: Mapping[Any, LigandSpec] | Iterable[LigandSpec] | None,
 ) -> dict[str, LigandSpec]:
-    if isinstance(ligands, dict):
-        return dict(ligands)
-    return {spec.chain_id: spec for spec in ligands}
+    """``chain_id -> LigandSpec``, refusing a declaration that contradicts itself.
+
+    In the mapping form the key and the spec both name a chain, and they must
+    name the same one; otherwise the spec is applied to the key's chain while
+    describing another. In either form a chain has one identity, so a second
+    spec for it is refused rather than resolved as last-one-wins.
+    """
+    if not ligands:
+        return {}
+    if isinstance(ligands, Mapping):
+        pairs = [(str(key), spec) for key, spec in ligands.items()]
+    else:
+        pairs = [(None, spec) for spec in ligands]
+
+    index: dict[str, LigandSpec] = {}
+    for key, spec in pairs:
+        if not isinstance(spec, LigandSpec):
+            raise TypeError(f"ligands must hold LigandSpec, not {type(spec).__name__}")
+        chain = str(spec.chain_id)
+        if key is not None and key != chain:
+            raise ChainDeclarationError(
+                f"ligands[{key!r}] is a LigandSpec for chain {chain!r}. The key and "
+                "the spec must name the same chain, or the spec would be applied "
+                "to one chain while describing another."
+            )
+        if chain in index:
+            raise ChainDeclarationError(
+                f"chain {chain!r} is declared by two LigandSpecs. A chain has one "
+                "identity, and the second would silently replace the first."
+            )
+        index[chain] = spec
+    return index
+
+
+def _by_chain(what: str, declared: Mapping[Any, Any] | None) -> dict[str, Any]:
+    """*declared* keyed by ``str`` chain id, as the structure's own labels are.
+
+    A key that is not a string -- ``1`` for chain ``"1"``, as a config file can
+    produce -- would otherwise match no chain and be ignored.
+    """
+    if not declared:
+        return {}
+    by_chain: dict[str, Any] = {}
+    for key, value in declared.items():
+        chain = str(key)
+        if chain in by_chain:
+            raise ChainDeclarationError(f"{what} declares chain {chain!r} twice")
+        by_chain[chain] = value
+    return by_chain
+
+
+def _check_declarations(
+    records: list[ChainRecord],
+    *,
+    sequences: dict[str, Any],
+    msas: dict[str, Any],
+    ligands: dict[str, LigandSpec],
+) -> None:
+    """Refuse any declaration that would not reach the chain it names.
+
+    Each of *sequences*, *msas* and *ligands* is a statement about one chain,
+    and each is read only by chains of particular kinds. Anything else is
+    passed over by the conversion without a trace: an override for a chain
+    that is not there folds the structure's own sequence, an MSA on a
+    nucleic-acid chain leaves the protein it was meant for in single-sequence
+    mode, a ligand identity on a polymer chain is never read. Checked before
+    anything is converted, so the error names the declaration rather than a
+    symptom of it.
+    """
+    by_id = {record.chain_id: record for record in records}
+
+    for chain, sequence in sequences.items():
+        record = _bind(
+            by_id,
+            chain,
+            "a sequence override",
+            ("protein", "dna", "rna"),
+            "a protein, DNA or RNA chain",
+        )
+        if not sequence:
+            raise ChainDeclarationError(
+                f"chain {chain!r} has an empty override; folding would omit the "
+                "chain. Supply a sequence, or remove the chain from the structure "
+                "if it is meant to be absent."
+            )
+        if record.kind == "protein" and any(mark in sequence for mark in ":|"):
+            # clean_esmfold2_input, which every fold passes through, splits a
+            # protein sequence at these marks into chains `<id>_0`, `<id>_1`.
+            raise ChainDeclarationError(
+                f"the sequence override for chain {chain!r} contains a chain break "
+                f"(':' or '|'). Upstream splits a protein sequence there into "
+                f"separate chains ({chain}_0, {chain}_1, ...), so chain {chain!r} "
+                "would no longer be folded as one chain under its own id. An "
+                "override describes one chain; several chains must be separate "
+                "chains of the structure."
+            )
+
+    for chain, msa in msas.items():
+        record = _bind(
+            by_id,
+            chain,
+            "an MSA",
+            ("protein",),
+            "a protein chain (ESMFold2 reads MSAs for protein chains only)",
+        )
+        if msa is not None:
+            _check_msa_binds(chain, msa, sequences.get(chain) or record.sequence or "")
+
+    for chain in ligands:
+        _bind(by_id, chain, "a LigandSpec", ("ligand",), "a non-polymer chain")
+
+
+def _bind(
+    by_id: dict[str, ChainRecord],
+    chain: str,
+    what: str,
+    kinds: tuple[str, ...],
+    applies_to: str,
+) -> ChainRecord:
+    record = by_id.get(chain)
+    if record is None:
+        present = ", ".join(repr(chain_id) for chain_id in by_id)
+        raise ChainDeclarationError(
+            f"{what} is declared for chain {chain!r}, but the structure has no such "
+            f"chain (it has {present}), so it would be silently ignored."
+        )
+    if record.kind not in kinds:
+        inferred = (
+            " (inferred from is_polymer, for want of a chain_type)"
+            if record.kind_is_inferred
+            else ""
+        )
+        raise ChainDeclarationError(
+            f"{what} is declared for chain {chain!r}, whose kind is "
+            f"{record.kind!r}{inferred}; it applies only to {applies_to}, so it "
+            "would be silently ignored."
+        )
+    return record
+
+
+def _check_msa_binds(chain_id: str, msa: Any, sequence: str) -> None:
+    """An MSA binds to a chain only if its query row is the sequence folded there.
+
+    Upstream does not check. ``construct_paired_msa`` clamps each residue's
+    column to the alignment's width, so an alignment built for another sequence
+    -- the other chain of a heteromer, a construct with a different tag, the
+    parent of a design -- is used anyway, column by column, and its first row
+    contradicts the residues the model is given.
+    """
+    query = getattr(msa, "query", None)
+    if not isinstance(query, str):
+        raise TypeError(
+            f"the MSA for chain {chain_id!r} is a {type(msa).__name__}, not an "
+            "esm.utils.msa.MSA"
+        )
+    # Aligned columns only: a3m insertions (lowercase, '.') occupy no column.
+    aligned = "".join(ch for ch in query if not (ch == "." or ch.islower()))
+    if aligned == sequence:
+        return
+
+    if len(aligned) != len(sequence):
+        consequence = (
+            "every residue past its end would read its last column"
+            if len(aligned) < len(sequence)
+            else "its trailing columns would be dropped"
+        )
+        detail = (
+            f"it has {len(aligned)} aligned columns for a {len(sequence)}-residue "
+            f"chain, and ESMFold2 clamps each residue to the alignment's width, so "
+            f"{consequence}"
+        )
+    else:
+        differ = [i for i, (a, b) in enumerate(zip(aligned, sequence)) if a != b]
+        first = differ[0]
+        detail = (
+            f"its query row differs from the folded sequence at {len(differ)} of "
+            f"{len(sequence)} positions (first at {first}: {aligned[first]!r} vs "
+            f"{sequence[first]!r})"
+        )
+    raise ChainDeclarationError(
+        f"the MSA for chain {chain_id!r} is aligned to a different sequence than "
+        f"the one being folded: {detail}. Build it with the folded sequence as its "
+        "query row; to fold a design against its parent's alignment, replace the "
+        "query row with the design."
+    )
 
 
 def _spec_from_ccd_annotation(

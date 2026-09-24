@@ -15,7 +15,7 @@ itself is untouched.
 | sequence | `chain_info[c]["processed_entity_canonical_sequence"]` | D-003 |
 | modifications | `chain_info[c]["res_name"]`, aligned 1:1 with the canonical sequence | D-007 |
 | ligand identity | a declared `LigandSpec`, else a verified CCD code | D-004 |
-| MSA | passed in per chain | — |
+| MSA | passed in per protein chain; binds only if its query row is the folded sequence | D-005 |
 
 `ChainType` → ESMFold2 input class:
 
@@ -120,13 +120,18 @@ esmfold2-foundry fold input.cif --allow inferred_chain_kind
 
 A misspelt name raises rather than being ignored — an opt-in that silently did
 nothing would leave a caller believing a run was permissive, or strict, when it
-was not. `tests/test_strictness.py` checks the table is complete: every entry
-must be an adapter keyword that defaults to `False`.
+was not. `tests/test_strictness.py` checks the table in both directions: every
+entry must be an adapter keyword that defaults to `False`, and every `allow_*`
+keyword of the adapter must be an entry — bar `allow_undeclared_ccd_ligands`,
+which is on by default because using a parsed CCD code is D-004's rule rather
+than an approximation. A third check makes each entry say where its acceptance
+is recorded.
 
 Opting in says a degradation is acceptable, not which structure it hit. The
 engine therefore records, per output, what actually happened under
-`adapter.degradations` in the JSON beside each CIF; direct callers pass an
-`AdapterReport` through `adapter_kwargs={"report": report}`.
+`adapter.degradations` in the JSON beside each CIF, keyed by the same names;
+direct callers pass an `AdapterReport` through `adapter_kwargs={"report": report}`
+and read `report.accepted_degradations()`.
 
 Two refusals have no opt-in, because there is nothing reasonable to proceed
 with; and water is not a degradation but a policy with its own switch:
@@ -134,7 +139,7 @@ with; and water is not a degradation but a policy with its own switch:
 | situation | behaviour |
 |---|---|
 | ligand labelled `LIG`/`UNL`/`UNK`, or a name absent from the CCD | **raises** `LigandIdentityError`; declare a `LigandSpec` |
-| an empty sequence override | **raises** `ValueError`; the chain would otherwise vanish |
+| a declaration that does not bind ([below](#declarations-must-bind)) | **raises** `ChainDeclarationError` |
 | water | dropped under the explicit `drop_water` policy (`drop_water=False` refuses instead) |
 
 **The boundary of the policy.** It acts on what the adapter can establish.
@@ -154,6 +159,32 @@ rather than filtering it out, so the decision belongs to the caller. An earlier
 version filtered inside detection, which put such bonds beyond the strict check
 entirely — an unsupported chain and a real bond to it could both vanish in
 silence.
+
+## Declarations must bind
+
+`sequences`, `msas` and `ligands` are statements about particular chains, and
+the conversion reads each only for chains of particular kinds. One that names
+another chain — or none — would be passed over without a trace, and the fold
+would come back as though it had been applied. So each is checked before
+conversion starts, and one that does not bind raises `ChainDeclarationError`:
+
+| declaration | binds only if | otherwise |
+|---|---|---|
+| `sequences[c]` | `c` is a protein, DNA or RNA chain, the override is not empty, and a protein override has no chain break (`:` or `\|`) | ignored in favour of the structure's own sequence; the chain omitted; or split by upstream into chains `c_0`, `c_1` |
+| `msas[c]` | `c` is a protein chain, and the alignment's query row is the sequence folded there | ignored, leaving the protein in single-sequence mode; or clamped into place |
+| `ligands[c]` | `c` is a non-polymer chain, a mapping key equals its spec's `chain_id`, and no other spec names `c` | never read; applied to one chain while describing another; or replaced, the last one winning |
+
+The MSA rule is the one upstream cannot enforce for itself. `construct_paired_msa`
+clamps each residue's column to the alignment's width, so an alignment built for
+another sequence — the other chain of a heteromer, a construct with a different
+tag, the parent of a design — is used column by column with no error, and its
+first row contradicts the residues the model is given. To fold a design against
+its parent's alignment on purpose, make the design the alignment's query row.
+
+Keys are compared as strings, as the structure's own labels are, so a key `1`
+binds to chain `"1"` instead of silently matching nothing. These are invalid
+requests rather than approximations, so unlike `DEGRADATIONS` there is no
+opt-in.
 
 ## What `F` refuses
 

@@ -358,7 +358,10 @@ class FoundryESMFold2:
             ``adapter_kwargs={"allow_<name>": True}``; the names are
             :data:`esmfold2_foundry.data.atomworks_to_esm.DEGRADATIONS`. To see
             what happened under an opt-in, pass an ``AdapterReport`` as
-            ``adapter_kwargs={"report": report}`` and read it afterwards.
+            ``adapter_kwargs={"report": report}`` and read
+            ``report.accepted_degradations()`` afterwards. A sequence override,
+            MSA or ``LigandSpec`` passed the same way must bind to the chain it
+            names, or it raises ``ChainDeclarationError`` -- with no opt-in.
 
         Returns:
             ``(atom_array, result)`` -- the structure, and the native result

@@ -80,6 +80,7 @@ rather than known-good.
 | covalent bond | carried and placed; changes `token_bonds` and nothing else. Backbone adjacency judged by residue order, so an insertion-coded peptide bond is not declared; an unplaceable bond raises |
 | MSA, single chain | exact feature parity against a hand-written input |
 | MSA, paired heteromer | pairing verified by row content, not just shape |
+| MSA binding | refused unless the query row is the folded sequence, which upstream would clamp into place; lookup by chain id verified by swapping alignments between identical chains |
 | DNA | branch covered (`mol_type` 1, duplex) |
 | RNA | branch covered (`mol_type` 2) |
 | protein–nucleic complex | branch covered (`mol_type` {0, 1}) |

@@ -27,7 +27,9 @@ ruff check src tests && ruff format --check src tests
   approximate part of the input goes into `atomworks_to_esm.DEGRADATIONS`,
   raises by default, and is accepted only by name; `tests/test_strictness.py`
   then enforces the rest. Recording it in `AdapterReport` alone is not enough —
-  `fold_atom_array` returns no report.
+  `fold_atom_array` returns no report. A declaration that would not reach the
+  chain it names (`sequences`/`msas`/`ligands`) raises `ChainDeclarationError`,
+  with no opt-in.
 
 ## When changing the adapter
 

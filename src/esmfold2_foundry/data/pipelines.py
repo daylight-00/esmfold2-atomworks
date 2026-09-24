@@ -47,6 +47,12 @@ class StructurePredictionInputTransform(Transform):
     does for anything parsed by ``atomworks.io``. Without it, sequences fall
     back to the residues actually present -- a weaker guarantee, for the reason
     given in :func:`~esmfold2_foundry.data.atomworks_to_esm.sequence_of_chain`.
+
+    Declarations bind as they do in the adapter. ``data["msas"]`` must hold
+    alignments for protein chains only, each with the folded sequence as its
+    query row. ``ligands`` names chains of *one* structure, so it is only
+    meaningful for a single structure -- across a dataset the same chain id
+    names different molecules.
     """
 
     def __init__(

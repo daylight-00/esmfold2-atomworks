@@ -14,42 +14,29 @@ biotite 1.4.0. Two of those pins constrain the interpreter:
 
 `.python-version` therefore selects 3.12 for `uv sync`. Installed that way —
 CPython 3.12, the PyPI releases of all three upstreams, torch 2.11 on CPU — the
-full test suite passes, feature parity and the Foundry contract tests included.
+suite passes, feature parity and the Foundry contract tests included, given
+AtomWorks' test structures: they come with an atomworks checkout rather than
+with the package, and without them the tests that read them skip.
 
 The published parity results were produced in a different, pinned environment:
 Python 3.14 and torch 2.14, with the upstreams as source trees at the revisions
 in `UPSTREAM.lock`. It is defined, and its choices explained, under
 [`reproducibility/`](../reproducibility/README.md).
 
-## Where the ESMFold2 module lives depends on the `esm` version
+## The ESMFold2 module
 
-This moved, and the two layouts are incompatible:
+esm ≥ 3.4 ships it: `esm.models.esmfold2.model.EsmFold2Model`, loaded with
+`from_pretrained(..., device=...)`. `doctor` checks that it is importable,
+because the input pipeline imports perfectly well without any model module, so
+a missing one would otherwise surface late.
 
-| `esm` | the `nn.Module` | class name | device |
-|---|---|---|---|
-| **≥ 3.4** | in `esm` itself, `esm.models.esmfold2.model` | `EsmFold2Model` | `from_pretrained(..., device=...)` |
-| **≤ 3.3** | in a **fork of `transformers`**, no longer published | `ESMFold2Model` | `.to(device)` after loading |
+Two things about esm 3.4 worth knowing:
 
-`load_native_model_class()` resolves either, and `AtomWorksESMFold2.provenance()`
-records which one was used — results are only comparable within one of them.
-Both paths are exercised: feature parity and GPU folding have each been run
-against the esm ≥ 3.4 packaging and against the `transformers` fork, with the
-same results.
-`doctor` reports it too, because the input pipeline imports perfectly well
-without any model module, so a missing one surfaces late otherwise.
-
-The fork esm ≤ 3.3 relied on is no longer published. ESMFold2 has since moved
-into Hugging Face `transformers` ≥ 5.16, which cannot share an environment with
-esm 3.4 — esm requires `transformers<5` — so esm ≥ 3.4 is the packaging to
-install.
-
-Two knock-on effects of the 3.4 move:
-
-- `esm.models.esmfold2.__init__` now imports the whole model stack eagerly,
+- `esm.models.esmfold2.__init__` imports the whole model stack eagerly,
   which pulls in `huggingface_hub`, `safetensors` and `accelerate`. This repo
   imports from the **leaf modules** (`.types`, `.processor`, `.prepare_input`,
-  `.conformers`) instead — stable in both versions, and it keeps the CPU-only
-  parity path from loading the model stack at all.
+  `.conformers`) instead, which keeps the CPU-only parity path from loading
+  the model stack at all.
 - esm 3.4 pins `torch>=2.11,<2.12`, which is why an ordinary install gets
   torch 2.11. The reference environment runs 2.14 by consuming esm as a source
   tree instead.
@@ -63,6 +50,14 @@ folding models.
 The CCD dictionary (~50k entries, ~9 s) is loaded once per process into
 module-global state in `esm.models.esmfold2.conformers`. It is **not
 thread-safe**, which is why `AtomWorksESMFold2.__init__` warms it.
+
+**Historically**, esm ≤ 3.3 shipped only the input pipeline, and the module
+lived in a fork of `transformers` (`ESMFold2Model`, moved with `.to(device)`
+after loading). `load_native_model_class()` still recognises that layout, and
+parity was verified against it while it was published; it no longer is.
+ESMFold2 has since also moved into Hugging Face `transformers` ≥ 5.16, which
+cannot share an environment with esm 3.4 (esm requires `transformers<5`).
+`AtomWorksESMFold2.provenance()` records which packaging produced a result.
 
 ## Provenance: `UPSTREAM.lock`
 
@@ -78,7 +73,7 @@ rebuild the reference environment is described in
 ## Checks
 
 ```bash
-esmfold2-atomworks doctor    # where the upstreams come from, imports, weights, a real parity check
+esmfold2-atomworks doctor    # where the upstreams come from, imports, weights, parity
 pytest -q                    # the same, as assertions
 ```
 

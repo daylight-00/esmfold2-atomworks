@@ -139,8 +139,8 @@ as a real difference — or to mistake a real difference for scatter.
 
 ## Non-goals, for now
 
-- **Rewriting the architecture.** Both AtomWorks and the Biohub fork are
-  explicitly mid-cleanup (AtomWorks' README says so). A full rewrite would spend
-  its first months chasing upstream API changes.
+- **Rewriting the architecture.** Both upstreams move fast — AtomWorks' README
+  calls it mid-cleanup, and the ESMFold2 module has changed homes twice. A full
+  rewrite would spend its first months chasing upstream API changes.
 - **Training the released model.** It cannot be trained; see
   [03_MODEL.md](03_MODEL.md) §Gradients.

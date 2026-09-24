@@ -1,8 +1,7 @@
 """Console entry point: ``esmfold2-atomworks <command>``.
 
-Follows Foundry's ``models/<model>/src/<model>/cli.py`` pattern -- a small typer
-app whose commands import their heavy dependencies lazily, so that ``--help`` and
-argument errors do not pay for torch.
+A small typer app whose commands import their heavy dependencies lazily, so
+that ``--help`` and argument errors do not pay for torch.
 """
 
 from __future__ import annotations

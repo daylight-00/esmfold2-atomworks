@@ -41,7 +41,7 @@ measured rather than assumed ([docs/02](docs/02_PARITY.md)).
 pip install -e .                 # esm and atomworks resolve like any dependency
 pip install -e ".[foundry]"      # optional: training through Foundry (Python 3.12)
 
-esmfold2-atomworks doctor        # imports, weights + a real parity check
+esmfold2-atomworks doctor        # imports, weights; parity given AtomWorks' test data
 pytest -q                        # CPU only, no GPU and no weights needed
 
 esmfold2-atomworks parity structures/*.cif        # survey a corpus
@@ -89,28 +89,27 @@ test; the strictness policy is laid out in
 src/esmfold2_atomworks/
   data/                 the adapter, the reverse adapter, the AtomWorks pipeline, labels
   model/                AtomWorksESMFold2 — holds the native module
-  inference/            engine, BaseInferenceEngine-shaped
+  inference/            engine: one resident model, many structures
   parity/               feature and output comparison
   metrics.py  paths.py  doctor.py  cli.py
   training/             optional Foundry integration: FabricTrainer subclass
-configs/                optional Foundry integration: Hydra configs, shaped like models/rfd3/configs
+configs/                optional Foundry integration: Hydra configs
 tests/                  parity and adapter tests; CPU-only by default
 docs/                   the design record — read docs/README.md first
 ```
 
 Nothing outside `training/` and `configs/` imports Foundry, and
-`tests/test_core_boundary.py` holds it to that. Those two keep Foundry's
-model-package conventions, so an upstream integration stays thin: moving the
-package into `foundry/models/` is six edits to Foundry's root `pyproject.toml`,
-a checkpoint-registry entry and a docs symlink
-([docs/06](docs/06_FOUNDRY_INTEGRATION.md)). Those contracts are checked
-against the pinned Foundry by `tests/test_foundry_integration.py`.
+`tests/test_core_boundary.py` holds it to that. The optional integration is
+described in [docs/06](docs/06_FOUNDRY_INTEGRATION.md).
 
 ## Environments
 
 `pip install -e .` is all the package needs: `esm` and `atomworks` are ordinary
 dependencies, resolved from PyPI (Python ≥ 3.12; the `foundry` extra needs 3.12,
-as rc-foundry does). Installed that way the full test suite passes — see
+as rc-foundry does). The structure-based tests, feature parity among them,
+read AtomWorks' test structures, which come with an atomworks checkout rather
+than with the package: given those, the suite passes against the PyPI releases
+of the upstreams, and without them those tests skip. See
 [docs/04](docs/04_ENVIRONMENT.md).
 
 The published parity results were produced in one pinned reference
@@ -118,10 +117,6 @@ environment: Python 3.14, torch 2.14, and the upstreams as source trees at the
 revisions in `UPSTREAM.lock`. [`reproducibility/`](reproducibility/README.md)
 defines it (`uv sync --project reproducibility`, then
 `source reproducibility/env.sh`). It is not needed for ordinary use.
-
-esm ≥ 3.4 ships the ESMFold2 `nn.Module` itself. The adapter also resolves the
-`transformers` fork that esm ≤ 3.3 used, though that fork is no longer
-published; `doctor` reports which one is in use.
 
 ## License
 

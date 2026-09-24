@@ -2,8 +2,8 @@
 
 ``python -m esmfold2_atomworks.doctor`` (or ``esmfold2-atomworks doctor``)
 reports where the upstreams come from, checks the imports and the weights, and
-runs a real parity check, printing what is wrong rather than failing later
-inside a fold. ``tests/test_environment.py`` asserts the same things.
+runs a real parity check when AtomWorks' test structures are available,
+printing what is wrong rather than failing later inside a fold. ``tests/test_environment.py`` asserts the same things.
 
 Only a missing import or a failed parity check is a failure. Source trees,
 ``UPSTREAM.lock`` and AtomWorks' test structures belong to the reference
@@ -218,7 +218,12 @@ def check_adapter() -> bool:
 
 def main() -> int:
     print(f"esmfold2-atomworks doctor (python {sys.version.split()[0]})")
-    print(f"  repo: {paths.REPO_ROOT}")
+    # REPO_ROOT is a checkout's root; from an installed wheel it points above
+    # site-packages, which is no place worth printing.
+    if (paths.REPO_ROOT / "pyproject.toml").is_file():
+        print(f"  repo: {paths.REPO_ROOT}")
+    else:
+        print(f"  package: {Path(__file__).resolve().parent}")
     results = [
         check_source_trees(),
         check_upstream_revisions(),

@@ -112,9 +112,9 @@ def pythonpath_entries() -> list[Path]:
 def config_dir() -> Path:
     """The Hydra config directory, in whichever layout is present.
 
-    The configs live at the repo root in a source checkout (mirroring
-    ``foundry/models/<name>/configs``) and inside the package once installed,
-    because ``pkg://esmfold2_atomworks.configs`` has to resolve there. Callers
+    The configs live at the repo root in a source checkout and inside the
+    package once installed, because ``pkg://esmfold2_atomworks.configs`` has to
+    resolve there. Callers
     that compose configs should ask here rather than assuming one of the two::
 
         with initialize_config_dir(config_dir=str(config_dir()), version_base="1.3"):

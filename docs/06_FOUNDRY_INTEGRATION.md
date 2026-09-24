@@ -36,7 +36,9 @@ esmfold2-atomworks/              foundry/models/esmfold2/
 └── docs/             <────────> └── docs/
 ```
 
-Moving it in is a move plus a handful of registrations. It is its own
+Its lint and test settings (`[tool.ruff]`, `[tool.pytest.ini_options]`)
+follow Foundry's as well, so moving it in needs no reformat — just the move and
+a handful of registrations. It is its own
 repository because the core has value without Foundry at all — anything that
 has an `AtomArray` can fold it with ESMFold2 — and because vendoring it into a
 fast-moving upstream would couple this project's history to theirs.

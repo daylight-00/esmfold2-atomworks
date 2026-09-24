@@ -6,13 +6,14 @@ whatever trains or serves it -- the optional Foundry integration in
 :mod:`esmfold2_atomworks.training`, or anything else -- works with the native
 module rather than a reimplementation.
 
-Which module that is depends on the ``esm`` version -- up to 3.3 it lived in a
-fork of ``transformers``, from 3.4 it is in ``esm`` itself under a slightly
-different name. :func:`load_native_model_class` resolves both.
+The module ships in ``esm`` >= 3.4. Up to 3.3 it lived in a fork of
+``transformers``, under a slightly different name; :func:`load_native_model_class`
+still recognises that layout, though the fork is no longer published.
 
-The reason for the indirection is not ceremony. Both AtomWorks and the Biohub
-fork are explicitly mid-cleanup -- AtomWorks' README says so outright -- so a
-full rewrite would spend its first months chasing upstream API changes, and any
+The reason for the indirection is not ceremony. Both upstreams move fast --
+AtomWorks' README calls it mid-cleanup, and the ESMFold2 module has changed
+homes twice -- so a full rewrite would spend its first months chasing upstream
+API changes, and any
 subtle divergence would show up as a model that runs, reports plausible
 confidence, and is quietly wrong. Wrapping keeps the weights and the numerics
 exactly as published, and leaves one named seam per component.

@@ -12,8 +12,8 @@ build on this repository keep their own.
   reference inputs ([02_PARITY.md](02_PARITY.md)).
 - **Output parity on a GPU**, as a controlled comparison against the model's own
   run-to-run scatter.
-- **Both ESMFold2 packagings** (esm ≤ 3.3 via the `transformers` fork, esm ≥ 3.4
-  in-package), verified on CPU and GPU.
+- **esm ≥ 3.4**, verified on CPU and GPU — as was the esm ≤ 3.3 `transformers`
+  fork while it was still published.
 - **Inference**: engine, CLI, configs, AtomWorks round trip.
 - **Covalent bonds** carried across, with indices read back from the tokenizer.
 - **MSA** transfer and cross-chain pairing by `key=<taxid>`.

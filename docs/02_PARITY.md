@@ -63,8 +63,10 @@ pytest tests/test_feature_parity.py -q      # CPU, no weights
 esmfold2-atomworks doctor                    # same check on 2hhb, plus the environment
 ```
 
-Both pass in an ordinary install and in the pinned reference environment the
-published numbers come from ([`reproducibility/`](../reproducibility/README.md)).
+Both read AtomWorks' test structures, which come with an atomworks checkout
+beside this repository. Given those, they pass in an ordinary install as well
+as in the pinned reference environment the published numbers come from
+([`reproducibility/`](../reproducibility/README.md)).
 
 ## Coverage
 

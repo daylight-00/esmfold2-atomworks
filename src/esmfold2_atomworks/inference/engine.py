@@ -1,22 +1,10 @@
-"""Inference engine for ESMFold2, shaped like Foundry's.
+"""Inference engine: one resident ESMFold2, many AtomWorks structures.
 
-It mirrors ``foundry.inference_engines.base.BaseInferenceEngine`` -- the same
-``initialize`` / ``run`` / ``__call__`` / context-manager surface, and the same
-"one resident model, many requests" lifecycle -- but it does **not** subclass it.
-
-The reason is concrete rather than stylistic. ``BaseInferenceEngine.__init__``
-resolves ``ckpt_path`` against Foundry's checkpoint registry, loads a ``.pt``
-whose payload carries the training ``cfg``, and then builds its inference
-pipeline out of ``cfg.datasets.val``'s first dataset. ESMFold2 has none of
-that: its weights are a HuggingFace repository of safetensors plus a
-``config.json``, its ESMC backbone is a second repository fetched separately,
-and its "pipeline" is ``prepare_esmfold2_input``, which takes no config.
-Inheriting would mean overriding every method that touches a checkpoint and
-leaving the parent's attributes half-initialised.
-
-Matching the interface keeps the call sites identical; registering an
-``esmfold2`` entry in Foundry's checkpoint registry is the remaining step for
-``ckpt_path=esmfold2`` to resolve, and is described in docs/06.
+``initialize`` loads the model once; ``run`` (also ``__call__``) folds a path, a
+list of paths, an ``AtomArray`` or a mapping of them, and writes CIF plus
+metrics when given an ``out_dir``. The surface matches Foundry's
+``BaseInferenceEngine``, so call sites read the same, but nothing here imports
+Foundry; why it does not subclass it is in docs/03.
 """
 
 from __future__ import annotations

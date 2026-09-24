@@ -3,7 +3,7 @@
 docs/06 describes the integration and the Foundry contracts it relies on, but
 description is not verification: every claim in it is about a repository that
 moves independently of this one. These tests check the claims against the
-installed Foundry, so that "Foundry-shaped" becomes "Foundry-compatible".
+Foundry being imported, so that "Foundry-shaped" becomes "Foundry-compatible".
 
 They do **not** modify the Foundry checkout. Copying this package into it and
 editing its ``pyproject.toml`` would verify the same things while leaving a

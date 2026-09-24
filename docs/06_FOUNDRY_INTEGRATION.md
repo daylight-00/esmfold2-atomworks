@@ -11,8 +11,9 @@ against both the pinned Foundry checkout and the rc-foundry 0.2.0 release; its
 repository contracts, which read a checkout's own files, against the pinned
 checkout.
 
-> Everything on this page is **verified against Foundry's current integration
-> contracts** by `tests/test_foundry_integration.py`, in two kinds. The
+> Everything on this page is **verified against the Foundry integration
+> contracts this project is tested against**, by
+> `tests/test_foundry_integration.py`, in two kinds. The
 > *runtime* contracts are checked against the Foundry that is imported: the
 > trainer really subclasses `FabricTrainer` with no abstract method left and
 > matching signatures, the engine really offers `BaseInferenceEngine`'s

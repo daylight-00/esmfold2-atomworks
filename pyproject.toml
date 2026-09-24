@@ -1,6 +1,6 @@
 [project]
 name = "esmfold2-atomworks"
-version = "0.1.0"
+version = "0.2.0"
 description = "ESMFold2 on AtomWorks structures, with native ESMFold2 feature semantics preserved exactly"
 readme = "README.md"
 license = "MIT"

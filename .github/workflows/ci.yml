@@ -51,7 +51,7 @@ jobs:
 
   packaging:
     # The configs live at the repo root and must land inside the package in the
-    # wheel, or `pkg://esmfold2_foundry.configs` fails for anyone who installs
+    # wheel, or `pkg://esmfold2_atomworks.configs` fails for anyone who installs
     # rather than clones. A source checkout cannot reveal that, so this builds
     # and installs for real. Needs only hatchling and hydra-core.
     runs-on: ubuntu-latest
@@ -78,15 +78,19 @@ jobs:
           python-version: "3.14"
       # UPSTREAM.lock is what makes an "exact parity" claim reproducible, so a
       # malformed one should fail loudly rather than be discovered later.
-      - name: UPSTREAM.lock parses and names every tree
+      # The required trees must be recorded; foundry, which only the optional
+      # integration needs, is checked when present.
+      - name: UPSTREAM.lock parses and names every required tree
         run: |
           python - <<'PY'
           import sys
           sys.path.insert(0, "src")
-          from esmfold2_foundry import paths
+          from esmfold2_atomworks import paths
           locked = paths.read_upstream_lock(paths.REPO_ROOT / "UPSTREAM.lock")
-          missing = [t for t in paths.LOCKED_TREES if t not in locked]
+          missing = [t for t in paths.REQUIRED_TREES if t not in locked]
           assert not missing, f"UPSTREAM.lock is missing {missing}"
+          unknown = [t for t in locked if t not in paths.LOCKED_TREES]
+          assert not unknown, f"UPSTREAM.lock names unknown trees {unknown}"
           for tree, entry in locked.items():
               commit = entry.get("commit", "")
               assert len(commit) == 40, f"{tree}: {commit!r} is not a full SHA"

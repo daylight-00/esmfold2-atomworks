@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import pytest
 
-from esmfold2_foundry.data.atomworks_to_esm import (
+from esmfold2_atomworks.data.atomworks_to_esm import (
     AdapterReport,
     atom_array_to_structure_prediction_input,
     chain_records,
 )
-from esmfold2_foundry.data.spec import LigandIdentityError, LigandSpec
+from esmfold2_atomworks.data.spec import LigandIdentityError, LigandSpec
 
 
 def _kinds(records) -> dict[str, str]:

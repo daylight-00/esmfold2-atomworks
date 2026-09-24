@@ -1,6 +1,6 @@
 {
   "_provenance": "PDB 2HHB - human deoxyhaemoglobin, a2b2 with 4 haem",
-  "_note": "Frozen snapshot. Generated once from atomworks parse() output (chain_info / chain_type), NOT from the esmfold2_foundry adapter, and checked in so it cannot follow a change in adapter behaviour.",
+  "_note": "Frozen snapshot. Generated once from atomworks parse() output (chain_info / chain_type), NOT from this package's adapter, and checked in so it cannot follow a change in adapter behaviour.",
   "_source_file": "2hhb.cif.gz",
   "chains": [
     {

@@ -2,20 +2,33 @@
 
 ## What this project is
 
-> **ESMFold2 made AtomWorks-compatible and Foundry-trainable.**
+> **ESMFold2 on AtomWorks structures, with native ESMFold2 feature semantics
+> preserved exactly.**
 
-Not "ESMFold2 ported to Foundry". The difference is the whole plan. A port
-starts by rewriting an architecture; this starts by making an existing,
-published, working model reachable from AtomWorks data, and proves that the
-reachable version is the same model.
+Not a port. A port starts by rewriting an architecture; this makes an existing,
+published, working model reachable from AtomWorks — the representation it is
+fed from and returned to — and proves that the reachable version is the same
+model. The whole promise fits in one sentence:
 
-The first milestone is therefore not an architecture change. It is:
+> Given the same biological system, using an AtomWorks structure through this
+> adapter must produce the same ESMFold2 features as constructing the
+> equivalent native ESMFold2 input directly.
 
 ```
+AtomWorks structure  ─F─>  StructurePredictionInput  ──>  ESMFold2's own input path
+
 ESMFold2(I_native)  ==  ESMFold2(F(A_AtomWorks))
 ```
 
-That milestone is **met** — see [02_PARITY.md](02_PARITY.md).
+That milestone is **met** — see [02_PARITY.md](02_PARITY.md). It involves no
+training framework, and neither does the rest of the core: the adapter and its
+reverse, the AtomWorks data pipeline, the supervision labels, the model
+wrapper, the inference engine and the CLI.
+
+Foundry is one supported integration on top of that core: training,
+configuration and checkpointing on Foundry's trainer, without changing the
+native model ([06_FOUNDRY_INTEGRATION.md](06_FOUNDRY_INTEGRATION.md)). It keeps
+Foundry's model-package conventions, so an upstream integration stays thin.
 
 ## Decisions
 
@@ -130,4 +143,4 @@ as a real difference — or to mistake a real difference for scatter.
   explicitly mid-cleanup (AtomWorks' README says so). A full rewrite would spend
   its first months chasing upstream API changes.
 - **Training the released model.** It cannot be trained; see
-  [03_FOUNDRY_INTEGRATION.md](03_FOUNDRY_INTEGRATION.md) §Gradients.
+  [03_MODEL.md](03_MODEL.md) §Gradients.

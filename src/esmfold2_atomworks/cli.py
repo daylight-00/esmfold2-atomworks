@@ -1,4 +1,4 @@
-"""Console entry point: ``esmfold2-foundry <command>``.
+"""Console entry point: ``esmfold2-atomworks <command>``.
 
 Follows Foundry's ``models/<model>/src/<model>/cli.py`` pattern -- a small typer
 app whose commands import their heavy dependencies lazily, so that ``--help`` and
@@ -13,7 +13,7 @@ import typer
 
 app = typer.Typer(
     add_completion=False,
-    help="AtomWorks-compatible, Foundry-trainable ESMFold2.",
+    help="ESMFold2 on AtomWorks structures, with native ESMFold2 feature semantics preserved exactly.",
     no_args_is_help=True,
 )
 
@@ -21,7 +21,7 @@ app = typer.Typer(
 @app.command()
 def doctor() -> None:
     """Check that every source tree, weight directory and import resolves."""
-    from esmfold2_foundry.doctor import main
+    from esmfold2_atomworks.doctor import main
 
     raise typer.Exit(code=main())
 
@@ -34,9 +34,9 @@ def parity(
 ) -> None:
     """Check that the adapter featurizes a structure like a hand-written input.
 
-    Runs on CPU and needs no weights. This is the Phase 1 milestone check.
+    Runs on CPU and needs no weights. This is the core milestone check.
     """
-    from esmfold2_foundry.parity.run import run_feature_parity
+    from esmfold2_atomworks.parity.run import run_feature_parity
 
     failures = run_feature_parity(structures, seed=seed, verbose=verbose)
     raise typer.Exit(code=1 if failures else 0)
@@ -69,7 +69,7 @@ def fold(
     accepted is recorded per structure under ``adapter.degradations`` in the
     JSON written beside each CIF.
     """
-    from esmfold2_foundry.inference.engine import ESMFold2InferenceEngine
+    from esmfold2_atomworks.inference.engine import ESMFold2InferenceEngine
 
     engine = ESMFold2InferenceEngine(
         weights,

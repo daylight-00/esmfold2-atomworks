@@ -4,16 +4,17 @@
 # manager (see docs/04_ENVIRONMENT.md), so nothing else records which revision
 # produced a given result. This project's central claim is *exact* parity, which
 # makes that gap worse here than it would be for an ordinary wrapper: a reader a
-# month from now cloning three moving repositories has no way to reproduce
-# today's numbers without this file.
+# month from now cloning moving repositories has no way to reproduce today's
+# numbers without this file. esm and atomworks are required; foundry is
+# recorded because the optional integration was verified against it.
 #
-# `esmfold2-foundry doctor` compares these against the trees it finds and
+# `esmfold2-atomworks doctor` compares these against the trees it finds and
 # reports any drift. Drift is reported, never enforced -- the adapter is
 # deliberately version-tolerant (it supports both ESMFold2 packagings), so a
 # newer tree is a thing to re-verify, not a thing to refuse.
 #
-# To re-pin after verifying against newer trees:
-#   esmfold2-foundry doctor --write-lock
+# To re-pin after verifying against newer trees, update each entry by hand:
+#   git -C <tree> rev-parse HEAD
 
 [esm]
 repo = https://github.com/Biohub/esm

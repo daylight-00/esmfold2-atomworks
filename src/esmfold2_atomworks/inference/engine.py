@@ -16,7 +16,7 @@ leaving the parent's attributes half-initialised.
 
 Matching the interface keeps the call sites identical; registering an
 ``esmfold2`` entry in Foundry's checkpoint registry is the remaining step for
-``ckpt_path=esmfold2`` to resolve, and is described in docs/03.
+``ckpt_path=esmfold2`` to resolve, and is described in docs/06.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self
 
-from esmfold2_foundry.model.esmfold2 import FoldingConfig, FoundryESMFold2
+from esmfold2_atomworks.model.esmfold2 import AtomWorksESMFold2, FoldingConfig
 
 if TYPE_CHECKING:
     from biotite.structure import AtomArray
@@ -87,7 +87,7 @@ class ESMFold2InferenceEngine:
         self.load_esmc = load_esmc
         self.chunk_size = chunk_size
         self.verbose = verbose
-        from esmfold2_foundry.data.atomworks_to_esm import allow_kwargs
+        from esmfold2_atomworks.data.atomworks_to_esm import allow_kwargs
 
         # Validated at construction: a misspelt name must fail before the model
         # loads, not after minutes of weight download.
@@ -100,14 +100,14 @@ class ESMFold2InferenceEngine:
             lm_mask_pct=lm_mask_pct,
             seed=seed,
         )
-        self._model: FoundryESMFold2 | None = None
+        self._model: AtomWorksESMFold2 | None = None
 
     # -- lifecycle ---------------------------------------------------------
 
     def initialize(self) -> Self:
         """Load the model. Idempotent, so ``run`` can call it unconditionally."""
         if self._model is None:
-            self._model = FoundryESMFold2(
+            self._model = AtomWorksESMFold2(
                 self.ckpt_path,
                 device=self.device,
                 load_esmc=self.load_esmc,
@@ -118,7 +118,7 @@ class ESMFold2InferenceEngine:
         return self
 
     @property
-    def model(self) -> FoundryESMFold2:
+    def model(self) -> AtomWorksESMFold2:
         if self._model is None:
             self.initialize()
         assert self._model is not None
@@ -149,8 +149,8 @@ class ESMFold2InferenceEngine:
         Returns:
             One :class:`ESMFold2Output` per input, in input order.
         """
-        from esmfold2_foundry.data.atomworks_to_esm import AdapterReport
-        from esmfold2_foundry.metrics import fold_metrics
+        from esmfold2_atomworks.data.atomworks_to_esm import AdapterReport
+        from esmfold2_atomworks.metrics import fold_metrics
 
         self.initialize()
         named = _canonicalize_inputs(inputs)

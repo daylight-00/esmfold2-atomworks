@@ -1,6 +1,6 @@
 """Source coordinates must land on the model's atom axis, correctly and honestly.
 
-This is the supervision half of "Foundry-trainable": the pipeline otherwise
+This is the supervision half of training on AtomWorks data: the pipeline otherwise
 carries inputs only, and `feats["gt_coords"]` is not the source structure -- it
 is built from the prediction input and is zeros at inference.
 
@@ -14,13 +14,13 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from esmfold2_foundry.data.atomworks_to_esm import (
+from esmfold2_atomworks.data.atomworks_to_esm import (
     _residue_index_map,
     atom_array_to_structure_prediction_input,
     chain_records,
 )
-from esmfold2_foundry.data.labels import structure_labels
-from esmfold2_foundry.parity.compare import featurize
+from esmfold2_atomworks.data.labels import structure_labels
+from esmfold2_atomworks.parity.compare import featurize
 
 
 def _labels(atoms, chain_info):
@@ -116,7 +116,7 @@ def test_a_deleted_side_chain_becomes_unmatched_rather_than_wrong(parsed, ccd):
 
 
 def test_the_pipeline_can_attach_labels(parsed, ccd):
-    from esmfold2_foundry.data.pipelines import build_esmfold2_pipeline
+    from esmfold2_atomworks.data.pipelines import build_esmfold2_pipeline
 
     atoms, chain_info = parsed("lysozyme")
     pipeline = build_esmfold2_pipeline(is_inference=False, seed=0, attach_labels=True)
@@ -130,7 +130,7 @@ def test_the_pipeline_can_attach_labels(parsed, ccd):
 
 def test_labels_are_off_by_default(parsed, ccd):
     """Inference does not need them and they are not free."""
-    from esmfold2_foundry.data.pipelines import build_esmfold2_pipeline
+    from esmfold2_atomworks.data.pipelines import build_esmfold2_pipeline
 
     atoms, chain_info = parsed("lysozyme")
     out = build_esmfold2_pipeline(is_inference=False, seed=0)(
@@ -141,7 +141,7 @@ def test_labels_are_off_by_default(parsed, ccd):
 
 def test_a_coverage_floor_can_be_required(parsed, ccd):
     """A silently-unmatched structure is worse than a refused one."""
-    from esmfold2_foundry.data.pipelines import AttachStructureLabels
+    from esmfold2_atomworks.data.pipelines import AttachStructureLabels
 
     atoms, chain_info = parsed("lysozyme")
     spi = atom_array_to_structure_prediction_input(atoms, chain_info=chain_info)
@@ -170,7 +170,7 @@ def test_label_skipped_chains_survives_the_pipeline(parsed, ccd):
     Reporting a skipped chain into a dict that is then filtered away is the
     same as not reporting it at all.
     """
-    from esmfold2_foundry.data.pipelines import build_esmfold2_pipeline
+    from esmfold2_atomworks.data.pipelines import build_esmfold2_pipeline
 
     atoms, chain_info = parsed("lysozyme")
     out = build_esmfold2_pipeline(is_inference=False, seed=0, attach_labels=True)(

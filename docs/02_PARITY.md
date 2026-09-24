@@ -17,7 +17,7 @@ structure:
 
 ## Corpus survey
 
-`esmfold2-foundry parity` over every structure in the AtomWorks test corpus:
+`esmfold2-atomworks parity` over every structure in the AtomWorks test corpus:
 
 ```
 [ok ] 6lyz.bcif                           all 29 tensors identical
@@ -61,7 +61,7 @@ Reproduce with:
 ```bash
 source env.sh
 pytest tests/test_feature_parity.py -q      # ~30 s, CPU, no weights
-esmfold2-foundry doctor                      # same check on 2hhb, plus the environment
+esmfold2-atomworks doctor                    # same check on 2hhb, plus the environment
 ```
 
 ## Coverage

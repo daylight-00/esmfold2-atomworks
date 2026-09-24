@@ -24,17 +24,23 @@ SOURCE_TREE_LAYOUT: dict[str, tuple[str, ...]] = {
     "esm": ("esm",),
     "atomworks": ("atomworks", "src"),
     "foundry": ("foundry", "src"),
-    "mpnn": ("foundry", "models", "mpnn", "src"),
 }
 
+#: The trees the core needs: ESMFold2 itself, and the AtomWorks structures it
+#: is fed from. Foundry backs the optional training integration (``training/``
+#: and ``configs/``) and nothing else, so a workspace without it is complete
+#: for everything the adapter, the model wrapper and the engine do.
+REQUIRED_TREES = ("esm", "atomworks")
+OPTIONAL_TREES = ("foundry",)
+
 #: Directories whose presence identifies a candidate ``DESIGN_ROOT``.
-_MARKERS = ("esm", "atomworks", "foundry")
+_MARKERS = REQUIRED_TREES
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _discover_design_root(start: Path) -> Path:
-    """The nearest ancestor of *start* holding every source tree.
+    """The nearest ancestor of *start* holding every required source tree.
 
     Falls back to ``start.parent`` -- the layout when the trees are staged but
     incomplete. ``doctor`` then reports exactly which one is missing, which is a
@@ -108,7 +114,7 @@ def config_dir() -> Path:
 
     The configs live at the repo root in a source checkout (mirroring
     ``foundry/models/<name>/configs``) and inside the package once installed,
-    because ``pkg://esmfold2_foundry.configs`` has to resolve there. Callers
+    because ``pkg://esmfold2_atomworks.configs`` has to resolve there. Callers
     that compose configs should ask here rather than assuming one of the two::
 
         with initialize_config_dir(config_dir=str(config_dir()), version_base="1.3"):
@@ -128,13 +134,14 @@ def config_dir() -> Path:
     raise FileNotFoundError(
         f"no Hydra configs at {packaged} or {source}. In an installed package "
         "this means the wheel was built without the force-include that maps "
-        "configs/ to esmfold2_foundry/configs; see pyproject.toml."
+        "configs/ to esmfold2_atomworks/configs; see pyproject.toml."
     )
 
 
-#: Trees whose revision is recorded in ``UPSTREAM.lock``. ``mpnn`` lives inside
-#: the foundry tree, so it is covered by foundry's entry.
-LOCKED_TREES = ("esm", "atomworks", "foundry")
+#: Trees whose revision ``UPSTREAM.lock`` records. The required trees must be
+#: recorded; the optional one is recorded when the integration was verified
+#: against it.
+LOCKED_TREES = (*REQUIRED_TREES, *OPTIONAL_TREES)
 
 UPSTREAM_LOCK = REPO_ROOT / "UPSTREAM.lock"
 

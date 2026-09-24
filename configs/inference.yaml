@@ -6,7 +6,7 @@
 # where the rest of the files carry it.
 hydra:
   searchpath:
-    - pkg://esmfold2_foundry.configs
+    - pkg://esmfold2_atomworks.configs
 
 defaults:
   - inference_engine: esmfold2

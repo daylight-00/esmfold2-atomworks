@@ -1,6 +1,6 @@
 """This package actually plugs into the Foundry it is pinned against.
 
-docs/03 describes how to drop the package into ``foundry/models/esmfold2/`` in
+docs/06 describes how to drop the package into ``foundry/models/esmfold2/`` in
 detail, but description is not verification: every claim in it is about a
 repository that moves independently of this one. These tests check the claims
 against the installed Foundry, so that "Foundry-shaped" becomes
@@ -20,7 +20,7 @@ import inspect
 import pytest
 import tomllib
 
-from esmfold2_foundry import paths
+from esmfold2_atomworks import paths
 
 foundry_trainers = pytest.importorskip("foundry.trainers.fabric")
 foundry_engines = pytest.importorskip("foundry.inference_engines.base")
@@ -28,7 +28,7 @@ foundry_engines = pytest.importorskip("foundry.inference_engines.base")
 
 def test_our_trainer_is_a_concrete_fabric_trainer():
     """Subclassing is the contract; leaving an abstract method is the failure."""
-    from esmfold2_foundry.training.trainer import ESMFold2Trainer
+    from esmfold2_atomworks.training.trainer import ESMFold2Trainer
 
     assert issubclass(ESMFold2Trainer, foundry_trainers.FabricTrainer)
     assert not getattr(ESMFold2Trainer, "__abstractmethods__", frozenset()), (
@@ -38,7 +38,7 @@ def test_our_trainer_is_a_concrete_fabric_trainer():
 
 def test_our_trainer_matches_the_abstract_signatures():
     """A renamed parameter upstream would break the call, not the subclass check."""
-    from esmfold2_foundry.training.trainer import ESMFold2Trainer
+    from esmfold2_atomworks.training.trainer import ESMFold2Trainer
 
     base = foundry_trainers.FabricTrainer
     for name in ("training_step", "validation_step"):
@@ -51,7 +51,7 @@ def test_our_trainer_matches_the_abstract_signatures():
 
 def test_our_engine_offers_the_base_engine_surface():
     """Deliberately not a subclass (docs/03), so the surface is checked instead."""
-    from esmfold2_foundry.inference.engine import ESMFold2InferenceEngine
+    from esmfold2_atomworks.inference.engine import ESMFold2InferenceEngine
 
     base = foundry_engines.BaseInferenceEngine
     for name in ("initialize", "run", "forward", "__call__", "__enter__", "__exit__"):
@@ -60,7 +60,7 @@ def test_our_engine_offers_the_base_engine_surface():
 
 
 def test_the_checkpoint_registry_takes_the_fields_docs_03_claims():
-    """docs/03 tells the reader to add a RegisteredCheckpoint(url, filename, description)."""
+    """docs/06 tells the reader to add a RegisteredCheckpoint(url, filename, description)."""
     registry = pytest.importorskip("foundry.inference_engines.checkpoint_registry")
 
     assert isinstance(registry.REGISTERED_CHECKPOINTS, dict)
@@ -76,7 +76,7 @@ def _foundry_pyproject() -> dict:
 
 
 def test_the_registration_points_docs_03_names_still_exist():
-    """Every table docs/03 tells the reader to edit must be there to edit.
+    """Every table docs/06 tells the reader to edit must be there to edit.
 
     Upstream added two of these after this package was written; if it adds a
     third, the instructions go stale silently.
@@ -93,7 +93,7 @@ def test_the_registration_points_docs_03_names_still_exist():
 
 
 def test_models_are_registered_in_the_root_pyproject_not_their_own():
-    """The premise of docs/03: CONTRIBUTING describes per-model pyprojects, the repo has none."""
+    """The premise of docs/06: CONTRIBUTING describes per-model pyprojects, the repo has none."""
     pyproject = _foundry_pyproject()
     packages = pyproject["tool"]["hatch"]["build"]["targets"]["wheel"]["packages"]
     assert any(entry.startswith("models/") for entry in packages), packages
@@ -101,7 +101,7 @@ def test_models_are_registered_in_the_root_pyproject_not_their_own():
     models_dir = paths.SOURCE_TREES["foundry"].parent / "models"
     stray = sorted(p for p in models_dir.glob("*/pyproject.toml"))
     assert not stray, (
-        f"a model now carries its own pyproject ({stray}); docs/03 says the repo "
+        f"a model now carries its own pyproject ({stray}); docs/06 says the repo "
         "registers models centrally and should be revisited"
     )
 
@@ -114,7 +114,7 @@ def test_the_data_pipeline_config_instantiates(parsed, ccd):
     node = OmegaConf.load(paths.config_dir() / "data" / "atomworks_inference.yaml")
     # `defaults` is Hydra's composition key and is not part of instantiate().
     node.pop("defaults", None)
-    node._target_ = "esmfold2_foundry.data.pipelines.build_esmfold2_pipeline"
+    node._target_ = "esmfold2_atomworks.data.pipelines.build_esmfold2_pipeline"
 
     pipeline = hydra.utils.instantiate(node, _recursive_=False)
 

@@ -1,6 +1,6 @@
 """``AtomWorks AtomArray`` -> ``ESMFold2 StructurePredictionInput``.
 
-This is Phase 1 of the port, and the only thing the first milestone needs: with
+This is the core of the package, and all the parity milestone needs: with
 it, any AtomWorks-sourced example -- PDB, AFDB, a synthetic dimer, a PLINDER
 protein-ligand pair -- can be folded by the *unmodified* ESMFold2, and the
 result compared against what the native path produces.
@@ -23,12 +23,12 @@ that runs, reports plausible confidence, and is wrong. ``StructurePredictionInpu
 is the declarative layer *above* both -- chains, sequences, ligand identities --
 so converting there lets ESMFold2's own ``prepare_esmfold2_input`` build the
 tensors it expects. Parity then becomes checkable rather than hoped for
-(``esmfold2_foundry.parity``).
+(``esmfold2_atomworks.parity``).
 
 **What is deliberately not inferred.** Chain classification comes from
 AtomWorks' own ``chain_type`` annotation, and ligand identity from an explicit
 declaration or a CCD code that is verified, never from a residue-name guess.
-See :mod:`esmfold2_foundry.data.spec`.
+See :mod:`esmfold2_atomworks.data.spec`.
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from esmfold2_foundry.data.spec import (
+from esmfold2_atomworks.data.spec import (
     GENERIC_LIGAND_NAMES,
     ChainDeclarationError,
     CovalentBondResolutionError,
@@ -757,11 +757,11 @@ def _attach_covalent_bonds(
     Short-circuits before doing any work when the structure has no such bond,
     which is the common case: resolving them costs one extra featurization,
     because the atom indices ESM wants are positions in the tokenizer's own
-    per-residue ordering (see :mod:`esmfold2_foundry.data.bonds`).
+    per-residue ordering (see :mod:`esmfold2_atomworks.data.bonds`).
     """
     from esm.models.esmfold2.types import StructurePredictionInput
 
-    from esmfold2_foundry.data.bonds import (
+    from esmfold2_atomworks.data.bonds import (
         covalent_bond_candidates,
         resolve_covalent_bonds,
     )

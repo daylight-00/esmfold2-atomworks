@@ -24,10 +24,10 @@ from __future__ import annotations
 
 import pytest
 
-from esmfold2_foundry.data.atomworks_to_esm import (
+from esmfold2_atomworks.data.atomworks_to_esm import (
     atom_array_to_structure_prediction_input,
 )
-from esmfold2_foundry.parity.compare import (
+from esmfold2_atomworks.parity.compare import (
     MODEL_CONSUMED_FEATURES,
     compare_features,
     featurize,

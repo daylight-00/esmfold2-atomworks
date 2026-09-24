@@ -8,7 +8,7 @@ Run against an *installed* package, not a source checkout::
     /tmp/env/bin/python scripts/check_packaging.py
 
 The failure this exists to catch is invisible from a source tree: the configs
-sit at the repo root, `pkg://esmfold2_foundry.configs` expects them inside the
+sit at the repo root, `pkg://esmfold2_atomworks.configs` expects them inside the
 package, and nothing in a normal test run notices that the wheel shipped
 without them.
 
@@ -24,10 +24,10 @@ import sys
 from pathlib import Path
 
 EXPECTED_TARGETS = {
-    "model/esmfold2.yaml": "esmfold2_foundry.model.esmfold2.FoundryESMFold2",
-    "data/atomworks.yaml": "esmfold2_foundry.data.pipelines.build_esmfold2_pipeline",
+    "model/esmfold2.yaml": "esmfold2_atomworks.model.esmfold2.AtomWorksESMFold2",
+    "data/atomworks.yaml": "esmfold2_atomworks.data.pipelines.build_esmfold2_pipeline",
     "inference_engine/esmfold2.yaml": (
-        "esmfold2_foundry.inference.engine.ESMFold2InferenceEngine"
+        "esmfold2_atomworks.inference.engine.ESMFold2InferenceEngine"
     ),
 }
 
@@ -36,7 +36,7 @@ def main(require_installed: bool = True) -> int:
     from hydra import compose, initialize_config_dir
     from omegaconf import OmegaConf
 
-    from esmfold2_foundry import paths
+    from esmfold2_atomworks import paths
 
     package_dir = Path(paths.__file__).resolve().parent
     if require_installed and "site-packages" not in str(package_dir):

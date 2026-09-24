@@ -23,7 +23,7 @@ expected to share this package. Two consequences for the design:
 * **Nothing is centred, aligned or normalised.** Those belong to the objective.
 
 Alignment is by name: ESMFold2's atom ordering is decoded from its own
-featurization (see :mod:`esmfold2_foundry.data.bonds` for why it is read back
+featurization (see :mod:`esmfold2_atomworks.data.bonds` for why it is read back
 rather than re-derived) and matched against the source by
 ``(chain, residue index, atom name)``.
 """

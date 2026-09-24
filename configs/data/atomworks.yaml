@@ -4,13 +4,13 @@
 # finally given. A crop applied after the featurizer would be ignored; a crop
 # applied before changes the molecule being folded, which is what training wants
 # and evaluation usually does not.
-_target_: esmfold2_foundry.data.pipelines.build_esmfold2_pipeline
+_target_: esmfold2_atomworks.data.pipelines.build_esmfold2_pipeline
 
 is_inference: false
 seed: null             # null -> per-example SMILES conformer variation (augmentation)
 allow_undeclared_ccd_ligands: true
 emit_modifications: true
 # Degradations to accept by name instead of raising. Empty = strict. See
-# esmfold2_foundry.data.atomworks_to_esm.DEGRADATIONS for the names.
+# esmfold2_atomworks.data.atomworks_to_esm.DEGRADATIONS for the names.
 allow: []
 pre_transforms: []

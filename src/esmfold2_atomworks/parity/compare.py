@@ -4,7 +4,7 @@ The milestone this repo is built around is::
 
     ESMFold2(I_native) ~= ESMFold2(F(A))
 
-where ``F`` is :func:`~esmfold2_foundry.data.atomworks_to_esm.atom_array_to_structure_prediction_input`.
+where ``F`` is :func:`~esmfold2_atomworks.data.atomworks_to_esm.atom_array_to_structure_prediction_input`.
 It is checked at two levels, and the cheaper one is by far the more useful:
 
 **Feature parity** (:func:`compare_features`) compares the 29 tensors that

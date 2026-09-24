@@ -19,12 +19,12 @@ from __future__ import annotations
 
 import numpy as np
 
-from esmfold2_foundry.data.atomworks_to_esm import (
+from esmfold2_atomworks.data.atomworks_to_esm import (
     AdapterReport,
     _residue_index_map,
     chain_records,
 )
-from esmfold2_foundry.data.bonds import covalent_bond_candidates
+from esmfold2_atomworks.data.bonds import covalent_bond_candidates
 
 
 def _chain_with_insertion_codes():
@@ -193,10 +193,10 @@ def test_an_unplaceable_bond_raises_rather_than_folding_disconnected(parsed, ccd
     """
     import pytest
 
-    from esmfold2_foundry.data.atomworks_to_esm import (
+    from esmfold2_atomworks.data.atomworks_to_esm import (
         atom_array_to_structure_prediction_input,
     )
-    from esmfold2_foundry.data.spec import CovalentBondResolutionError
+    from esmfold2_atomworks.data.spec import CovalentBondResolutionError
 
     atoms, chain_info = parsed("hemoglobin")
     bonded = _bond_to_a_residue_outside_the_model(atoms)
@@ -206,7 +206,7 @@ def test_an_unplaceable_bond_raises_rather_than_folding_disconnected(parsed, ccd
 
 
 def test_the_caller_can_opt_into_the_disconnected_reading(parsed, ccd):
-    from esmfold2_foundry.data.atomworks_to_esm import (
+    from esmfold2_atomworks.data.atomworks_to_esm import (
         AdapterReport,
         atom_array_to_structure_prediction_input,
     )

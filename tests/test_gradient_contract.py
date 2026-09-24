@@ -23,7 +23,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from esmfold2_foundry.model.esmfold2 import GRADIENT_GATE, FoundryESMFold2
+from esmfold2_atomworks.model.esmfold2 import GRADIENT_GATE, AtomWorksESMFold2
 
 
 def _stub(config_type: str) -> SimpleNamespace:
@@ -43,8 +43,8 @@ def test_the_gate_is_named_after_the_upstream_condition():
 def test_release_checkpoint_never_produces_gradients():
     stub = _stub("release")
     for inputs in ({}, {GRADIENT_GATE: object()}):
-        assert not FoundryESMFold2.will_produce_gradients(stub, inputs)
-    assert "inference_mode" in FoundryESMFold2.explain_gradient_status(stub, {})
+        assert not AtomWorksESMFold2.will_produce_gradients(stub, inputs)
+    assert "inference_mode" in AtomWorksESMFold2.explain_gradient_status(stub, {})
 
 
 @pytest.mark.offline
@@ -52,9 +52,11 @@ def test_experimental_checkpoint_alone_is_not_enough():
     """The precise mistake this contract exists to prevent."""
     stub = _stub("experimental")
     assert stub.supports_soft_sequence_design is True
-    assert not FoundryESMFold2.will_produce_gradients(stub, {"res_type": object()})
+    assert not AtomWorksESMFold2.will_produce_gradients(stub, {"res_type": object()})
 
-    explanation = FoundryESMFold2.explain_gradient_status(stub, {"res_type": object()})
+    explanation = AtomWorksESMFold2.explain_gradient_status(
+        stub, {"res_type": object()}
+    )
     assert GRADIENT_GATE in explanation
     assert "no gradients" in explanation
 
@@ -63,9 +65,9 @@ def test_experimental_checkpoint_alone_is_not_enough():
 def test_experimental_plus_soft_sequence_is_enough():
     stub = _stub("experimental")
     inputs = {GRADIENT_GATE: object()}
-    assert FoundryESMFold2.will_produce_gradients(stub, inputs)
+    assert AtomWorksESMFold2.will_produce_gradients(stub, inputs)
     assert (
-        FoundryESMFold2.explain_gradient_status(stub, inputs) == "gradients available"
+        AtomWorksESMFold2.explain_gradient_status(stub, inputs) == "gradients available"
     )
 
 
@@ -73,7 +75,7 @@ def test_experimental_plus_soft_sequence_is_enough():
 def test_a_none_valued_gate_does_not_count():
     """``res_type_soft=None`` is how upstream spells "off"."""
     stub = _stub("experimental")
-    assert not FoundryESMFold2.will_produce_gradients(stub, {GRADIENT_GATE: None})
+    assert not AtomWorksESMFold2.will_produce_gradients(stub, {GRADIENT_GATE: None})
 
 
 @pytest.mark.gpu
@@ -94,11 +96,11 @@ def test_gradients_actually_reach_the_design_logits(parsed, ccd):
             "the gradient integration test"
         )
 
-    from esmfold2_foundry.data.atomworks_to_esm import (
+    from esmfold2_atomworks.data.atomworks_to_esm import (
         atom_array_to_structure_prediction_input,
     )
 
-    model = FoundryESMFold2(weights)
+    model = AtomWorksESMFold2(weights)
     assert model.supports_soft_sequence_design, (
         f"{weights} is not an experimental checkpoint "
         f"(config.type={getattr(model.config, 'type', None)!r})"

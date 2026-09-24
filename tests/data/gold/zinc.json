@@ -1,6 +1,6 @@
 {
   "_provenance": "PDB 4Q8N - protein with a zinc ion",
-  "_note": "Frozen snapshot. Generated once from atomworks parse() output (chain_info / chain_type), NOT from the esmfold2_foundry adapter, and checked in so it cannot follow a change in adapter behaviour.",
+  "_note": "Frozen snapshot. Generated once from atomworks parse() output (chain_info / chain_type), NOT from this package's adapter, and checked in so it cannot follow a change in adapter behaviour.",
   "_source_file": "test_cif_loading_4q8n.cif.gz",
   "chains": [
     {

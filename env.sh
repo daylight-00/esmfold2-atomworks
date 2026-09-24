@@ -1,24 +1,24 @@
 #!/usr/bin/env bash
-# esmfold2-foundry environment.
+# esmfold2-atomworks environment.
 #   source env.sh
 #
-# The heavy research trees (esm, atomworks, foundry) are consumed as SOURCE, not
-# as pip packages: their pyproject metadata pins python<3.13, torch<2.8 and
-# biotite==1.4.0, which would drag this environment backwards. See
-# docs/04_ENVIRONMENT.md.
+# The research trees are consumed as SOURCE, not as pip packages: their
+# pyproject metadata pins python<3.13, torch<2.8 and biotite==1.4.0, which would
+# drag this environment backwards. esm and atomworks are required; foundry is
+# needed only by the optional Foundry integration. See docs/04_ENVIRONMENT.md.
 
 EF_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export EF_ROOT
 
 # ---------------------------------------------------------------- source trees
 # DESIGN_ROOT is DISCOVERED, never hardcoded: walk up from this repo until a
-# directory holds all three source trees. That keeps the same env.sh correct
+# directory holds both required source trees. That keeps the same env.sh correct
 # from the repo itself, from a git worktree (which sits several levels deeper),
 # and after the tree is reorganized again -- which has already happened twice.
 if [ -z "${DESIGN_ROOT:-}" ]; then
     _ef_dir="${EF_ROOT}"
     while [ "${_ef_dir}" != "/" ]; do
-        if [ -d "${_ef_dir}/esm" ] && [ -d "${_ef_dir}/atomworks" ] && [ -d "${_ef_dir}/foundry" ]; then
+        if [ -d "${_ef_dir}/esm" ] && [ -d "${_ef_dir}/atomworks" ]; then
             DESIGN_ROOT="${_ef_dir}"
             break
         fi
@@ -31,7 +31,8 @@ if [ -z "${DESIGN_ROOT:-}" ]; then
 fi
 export DESIGN_ROOT
 
-export PYTHONPATH="${DESIGN_ROOT}/foundry/models/mpnn/src:${PYTHONPATH:-}"
+# Optional: only the Foundry integration imports it, and an absent entry is
+# harmless.
 export PYTHONPATH="${DESIGN_ROOT}/foundry/src:${PYTHONPATH:-}"
 export PYTHONPATH="${DESIGN_ROOT}/atomworks/src:${PYTHONPATH:-}"
 export PYTHONPATH="${DESIGN_ROOT}/esm:${PYTHONPATH:-}"

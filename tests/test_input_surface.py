@@ -15,13 +15,13 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from esmfold2_foundry.data.atomworks_to_esm import (
+from esmfold2_atomworks.data.atomworks_to_esm import (
     AdapterReport,
     atom_array_to_structure_prediction_input,
     chain_records,
 )
-from esmfold2_foundry.data.spec import LigandIdentityError, LigandSpec
-from esmfold2_foundry.parity.compare import compare_features, featurize
+from esmfold2_atomworks.data.spec import LigandIdentityError, LigandSpec
+from esmfold2_atomworks.parity.compare import compare_features, featurize
 
 # esm/models/esmfold2/constants.py
 MOL_TYPE_PROTEIN, MOL_TYPE_DNA, MOL_TYPE_RNA, MOL_TYPE_NONPOLYMER = 0, 1, 2, 3

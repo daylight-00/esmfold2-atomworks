@@ -1,7 +1,8 @@
 # 05 — What is not done yet
 
 This project is scoped to one thing: making the published ESMFold2 reachable
-from AtomWorks data and usable as a Foundry model, faithfully. What follows is
+from AtomWorks structures, faithfully — with Foundry as one optional training
+backend. What follows is
 what that scope still lacks — not a research plan. Downstream projects that
 build on this repository keep their own.
 
@@ -18,12 +19,12 @@ build on this repository keep their own.
 - **MSA** transfer and cross-chain pairing by `key=<taxid>`.
 - **Nucleic acid and SMILES branches** covered.
 - **Packaged configs** compose from an installed wheel (checked in CI).
-- **Foundry integration** verified against the pinned checkout, not just
+- **Optional Foundry integration** verified against the pinned checkout, not just
   described.
 
 ## Missing for inference completeness
 
-**Corpus coverage.** `esmfold2-foundry parity <dir>/*.cif` over a larger set,
+**Corpus coverage.** `esmfold2-atomworks parity <dir>/*.cif` over a larger set,
 to enumerate the chain types and ligands the adapter cannot yet express. The
 useful output is the failure list, not the pass rate.
 
@@ -80,7 +81,7 @@ torch.set_grad_enabled(res_type_soft is not None)   # experimental.py
 ```
 
 Loading the experimental checkpoint is therefore necessary and **not**
-sufficient. `FoundryESMFold2.will_produce_gradients(inputs)` checks the real
+sufficient. `AtomWorksESMFold2.will_produce_gradients(inputs)` checks the real
 condition and `explain_gradient_status(inputs)` says which half is missing;
 `tests/test_gradient_contract.py` asserts both, and — given a GPU and the
 experimental checkpoint — that a structural objective really does move soft
@@ -95,6 +96,6 @@ belong in a base class.
 Rewriting ESMFold2 module by module in Foundry idiom. See `D-001` and the
 non-goals in [00_SCOPE.md](00_SCOPE.md). Components get separated when something
 concrete needs them separated, one at a time, each behind a parity check —
-`FoundryESMFold2` exposes `.esmc`, `.folding_trunk` and `.structure_head` as
+`AtomWorksESMFold2` exposes `.esmc`, `.folding_trunk` and `.structure_head` as
 named seams so that such a change is an implementation change rather than a
 change to every call site.

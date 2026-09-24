@@ -16,8 +16,8 @@ import inspect
 
 import pytest
 
-from esmfold2_foundry.data import spec
-from esmfold2_foundry.data.atomworks_to_esm import (
+from esmfold2_atomworks.data import spec
+from esmfold2_atomworks.data.atomworks_to_esm import (
     DEGRADATIONS,
     AdapterReport,
     allow_kwargs,
@@ -203,7 +203,7 @@ def test_a_chain_with_no_annotation_at_all_says_so(ccd):
 def test_the_pipeline_is_strict_and_accepts_names(ccd):
     """Otherwise its error would name a remedy the pipeline cannot pass."""
     pytest.importorskip("atomworks.ml.transforms.base")
-    from esmfold2_foundry.data.pipelines import build_esmfold2_pipeline
+    from esmfold2_atomworks.data.pipelines import build_esmfold2_pipeline
 
     example = {"example_id": "dna", "atom_array": _dna_without_chain_type()}
     with pytest.raises(Exception, match="chain_type"):
@@ -217,7 +217,7 @@ def test_the_pipeline_is_strict_and_accepts_names(ccd):
 
 def test_a_misspelt_pipeline_opt_in_fails_at_build_time():
     pytest.importorskip("atomworks.ml.transforms.base")
-    from esmfold2_foundry.data.pipelines import build_esmfold2_pipeline
+    from esmfold2_atomworks.data.pipelines import build_esmfold2_pipeline
 
     with pytest.raises(ValueError, match="unknown degradation"):
         build_esmfold2_pipeline(is_inference=True, allow=["inferred_chain_kinds"])
@@ -225,7 +225,7 @@ def test_a_misspelt_pipeline_opt_in_fails_at_build_time():
 
 def test_the_engine_validates_its_policy_before_loading_a_model():
     """A typo must fail in milliseconds, not after the weights download."""
-    from esmfold2_foundry.inference.engine import ESMFold2InferenceEngine
+    from esmfold2_atomworks.inference.engine import ESMFold2InferenceEngine
 
     engine = ESMFold2InferenceEngine(allow=["unsupported_chains"])
     assert engine.adapter_policy == {"allow_unsupported_chains": True}
@@ -237,7 +237,7 @@ def test_the_engine_validates_its_policy_before_loading_a_model():
 
 def test_the_engine_records_what_it_accepted_per_output():
     """An opt-in says a degradation is acceptable, not which structure it hit."""
-    from esmfold2_foundry.inference.engine import _accepted_degradations
+    from esmfold2_atomworks.inference.engine import _accepted_degradations
 
     clean = AdapterReport()
     clean.dropped.append(("W", "water"))  # policy, not a degradation
@@ -254,7 +254,7 @@ def test_the_engine_records_what_it_accepted_per_output():
 def test_the_cli_help_names_every_degradation():
     """It is written out, to keep ``--help`` free of imports; this keeps it whole."""
     pytest.importorskip("typer")
-    from esmfold2_foundry.cli import fold
+    from esmfold2_atomworks.cli import fold
 
     help_text = inspect.signature(fold).parameters["allow"].default.help
     missing = [name for name in DEGRADATIONS if name not in help_text]
@@ -263,7 +263,7 @@ def test_the_cli_help_names_every_degradation():
 
 def test_the_cli_refuses_an_unknown_opt_in_before_loading_anything():
     typer_testing = pytest.importorskip("typer.testing")
-    from esmfold2_foundry.cli import app
+    from esmfold2_atomworks.cli import app
 
     result = typer_testing.CliRunner().invoke(
         app, ["fold", "missing.cif", "--allow", "bogus"]

@@ -1,4 +1,4 @@
-"""Fixtures for esmfold2-foundry tests.
+"""Fixtures for esmfold2-atomworks tests.
 
 Structures come from the AtomWorks checkout rather than being copied in. They
 are the same files AtomWorks tests against, so a parse-behaviour change upstream
@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from esmfold2_foundry import paths
+from esmfold2_atomworks import paths
 
 #: Structures used across the parity tests, by short name.
 FIXTURES: dict[str, str] = {
@@ -89,7 +89,7 @@ def gold_structure_prediction_input(name: str):
 
     This is the **independent** side of the parity comparison. It is built from
     a checked-in file and never touches
-    :mod:`esmfold2_foundry.data.atomworks_to_esm`, so a systematic mistake in
+    :mod:`esmfold2_atomworks.data.atomworks_to_esm`, so a systematic mistake in
     the adapter -- mapping a ligand to the wrong CCD code, say -- cannot be
     copied into the thing the adapter is compared against.
     """

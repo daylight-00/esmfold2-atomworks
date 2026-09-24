@@ -1,6 +1,6 @@
 """The environment this repo assumes, as assertions.
 
-Same checks as ``esmfold2-foundry doctor``, so a broken environment fails here
+Same checks as ``esmfold2-atomworks doctor``, so a broken environment fails here
 rather than deep inside a fold.
 """
 
@@ -10,7 +10,7 @@ import importlib.util
 
 import pytest
 
-from esmfold2_foundry import paths
+from esmfold2_atomworks import paths
 
 
 def test_design_root_is_discovered_not_assumed():
@@ -19,22 +19,42 @@ def test_design_root_is_discovered_not_assumed():
     A worktree sits several levels below the repo, so ``REPO_ROOT.parent`` would
     resolve into ``.claude/worktrees`` and every source tree would vanish.
     """
-    for marker in ("esm", "atomworks", "foundry"):
+    for marker in paths.REQUIRED_TREES:
         assert (paths.DESIGN_ROOT / marker).is_dir(), (
             f"{marker} not found under DESIGN_ROOT={paths.DESIGN_ROOT}"
         )
 
 
-@pytest.mark.parametrize("module", ["esm", "atomworks", "foundry", "mpnn"])
-def test_source_tree_exists(module):
+@pytest.mark.parametrize("module", paths.REQUIRED_TREES)
+def test_required_source_tree_exists(module):
     assert paths.SOURCE_TREES[module].is_dir()
 
 
-@pytest.mark.parametrize(
-    "module", ["numpy", "torch", "biotite", "atomworks", "esm", "foundry"]
-)
+@pytest.mark.parametrize("module", ["numpy", "torch", "biotite", "atomworks", "esm"])
 def test_module_importable(module):
     assert importlib.util.find_spec(module) is not None
+
+
+def test_foundry_is_not_required():
+    """The core is AtomWorks <-> ESMFold2; Foundry backs one optional integration."""
+    assert "foundry" in paths.OPTIONAL_TREES
+    assert "foundry" not in paths.REQUIRED_TREES
+
+
+def test_doctor_passes_a_workspace_without_foundry(monkeypatch, tmp_path, capsys):
+    """Absent is reported, not failed: the adapter needs nothing from Foundry."""
+    from esmfold2_atomworks import doctor
+
+    monkeypatch.setitem(paths.SOURCE_TREES, "foundry", tmp_path / "absent")
+    importable = doctor._importable
+    monkeypatch.setattr(
+        doctor, "_importable", lambda module: module != "foundry" and importable(module)
+    )
+
+    assert doctor.check_source_trees()
+    assert doctor.check_imports()
+    assert doctor.check_upstream_revisions()
+    assert "FAIL" not in capsys.readouterr().out
 
 
 def test_a_native_model_class_is_importable():
@@ -44,7 +64,7 @@ def test_a_native_model_class_is_importable():
     it is in ``esm`` itself. The input pipeline imports fine without either, so
     this is worth asserting separately.
     """
-    from esmfold2_foundry.doctor import _find_model_module
+    from esmfold2_atomworks.doctor import _find_model_module
 
     found, detail = _find_model_module()
     assert found, detail

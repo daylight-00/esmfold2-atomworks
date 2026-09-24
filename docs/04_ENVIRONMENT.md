@@ -4,16 +4,15 @@ Python **3.14**. `source env.sh` before anything.
 
 ## Source trees, not packages
 
-`esm`, `atomworks` and `foundry` are consumed as **source** on `PYTHONPATH`
-rather than installed, because their metadata pins `python<3.13`, `torch<2.8`
+`esm` and `atomworks` — and `foundry`, for the optional integration — are
+consumed as **source** on `PYTHONPATH` rather than installed, because their metadata pins `python<3.13`, `torch<2.8`
 and `biotite==1.4.0`, which would hold the whole environment back:
 
 | module | expected location |
 |---|---|
 | `esm` | `$DESIGN_ROOT/esm` |
 | `atomworks` | `$DESIGN_ROOT/atomworks/src` |
-| `foundry` | `$DESIGN_ROOT/foundry/src` |
-| `mpnn` | `$DESIGN_ROOT/foundry/models/mpnn/src` |
+| `foundry` | `$DESIGN_ROOT/foundry/src` — only for the optional Foundry integration |
 
 `pyproject.toml` therefore declares the **union of those trees' runtime
 imports**, not the trees. When a tree grows a new import, add it to the matching
@@ -24,14 +23,14 @@ Clone them next to this repo:
 ```bash
 git clone https://github.com/Biohub/esm
 git clone https://github.com/RosettaCommons/atomworks
-git clone https://github.com/RosettaCommons/foundry
+git clone https://github.com/RosettaCommons/foundry     # optional: the Foundry integration
 git clone <this repo>
 ```
 
 ## `DESIGN_ROOT` is discovered, never hardcoded
 
 Both `env.sh` and `paths.py` walk **up** from the repo until they find a
-directory holding `esm/`, `atomworks/` and `foundry/`. A fixed
+directory holding `esm/` and `atomworks/`. A fixed
 `REPO_ROOT.parent` is wrong from a git worktree, which sits several levels
 deeper. Set `DESIGN_ROOT` explicitly when the trees live somewhere else.
 
@@ -47,7 +46,7 @@ This moved, and the two layouts are incompatible:
 | **≥ 3.4** | in `esm` itself, `esm.models.esmfold2.model` | `EsmFold2Model` | `from_pretrained(..., device=...)` |
 | **≤ 3.3** | in a **fork of `transformers`** | `ESMFold2Model` | `.to(device)` after loading |
 
-`load_native_model_class()` resolves either, and `FoundryESMFold2.provenance()`
+`load_native_model_class()` resolves either, and `AtomWorksESMFold2.provenance()`
 records which one was used — results are only comparable within one of them.
 Both paths are exercised: feature parity and GPU folding have each been run
 against the esm ≥ 3.4 packaging and against the `transformers` fork, with the
@@ -80,7 +79,7 @@ folding models.
 
 The CCD dictionary (~50k entries, ~9 s) is loaded once per process into
 module-global state in `esm.models.esmfold2.conformers`. It is **not
-thread-safe**, which is why `FoundryESMFold2.__init__` warms it.
+thread-safe**, which is why `AtomWorksESMFold2.__init__` warms it.
 
 ## Pinning: `UPSTREAM.lock`
 
@@ -97,6 +96,9 @@ upstream revisions
   [ok  ] foundry    b02eed6a6bdf: matches lock (0.1.0)
 ```
 
+Without the Foundry tree its line reads `[ -- ] foundry: absent; needed only for
+the optional Foundry integration`, and nothing fails.
+
 Drift is **reported, never enforced**. The adapter is deliberately
 version-tolerant — it supports both ESMFold2 packagings — so a newer tree is
 something to re-verify and re-pin, not something to refuse. Refusing would also
@@ -106,7 +108,7 @@ make `doctor` useless on the day an upstream releases.
 
 ```bash
 uv sync && source env.sh
-esmfold2-foundry doctor        # trees, revisions, imports, weights, a real parity check
+esmfold2-atomworks doctor      # trees, revisions, imports, weights, a real parity check
 pytest -q                      # the same, as assertions
 ```
 
@@ -117,7 +119,7 @@ source trees plus torch and a CCD download, which is minutes of setup for a
 check that is run locally and recorded in [02_PARITY.md](02_PARITY.md); the
 `offline` subset runs in well under a second.
 
-Everything needed for Phase 1 — the adapter, the pipeline, feature parity,
+Everything in the core — the adapter, the pipeline, feature parity,
 `doctor` — runs on **CPU in well under a minute** and needs no weights. That is
 a deliberate property, not a coincidence: see [02_PARITY.md](02_PARITY.md).
 

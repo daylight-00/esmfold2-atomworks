@@ -1,9 +1,12 @@
 """Verify that the environment this repo assumes is actually present.
 
-``python -m esmfold2_foundry.doctor`` (or ``esmfold2-foundry doctor``) checks the
+``python -m esmfold2_atomworks.doctor`` (or ``esmfold2-atomworks doctor``) checks the
 source trees, the weights and the imports, and prints what is wrong rather than
 failing later inside a fold. ``tests/test_environment.py`` asserts the same
 things.
+
+Foundry is optional -- it backs the training integration and nothing else -- so
+its absence is reported, never counted as a failure.
 """
 
 from __future__ import annotations
@@ -12,7 +15,7 @@ import importlib
 import importlib.util
 import sys
 
-from esmfold2_foundry import paths
+from esmfold2_atomworks import paths
 
 
 def _check(label: str, ok: bool, detail: str = "") -> bool:
@@ -21,24 +24,41 @@ def _check(label: str, ok: bool, detail: str = "") -> bool:
     return ok
 
 
+def _optional(label: str, detail: str) -> None:
+    print(f"  [ -- ] {label}: {detail}")
+
+
+_ONLY_FOR_FOUNDRY = "absent; needed only for the optional Foundry integration"
+
+
 def check_source_trees() -> bool:
     print(f"source trees (DESIGN_ROOT = {paths.DESIGN_ROOT})")
     ok = True
     for module, tree in paths.SOURCE_TREES.items():
+        if module in paths.OPTIONAL_TREES and not tree.is_dir():
+            _optional(f"{module:10s} {tree}", _ONLY_FOR_FOUNDRY)
+            continue
         ok &= _check(f"{module:10s} {tree}", tree.is_dir())
     return ok
+
+
+def _importable(module: str) -> bool:
+    try:
+        return importlib.util.find_spec(module) is not None
+    except (ImportError, ValueError):
+        return False
 
 
 def check_imports() -> bool:
     print("imports")
     ok = True
-    for module in ("numpy", "torch", "biotite", "atomworks", "esm", "foundry"):
-        spec = None
-        try:
-            spec = importlib.util.find_spec(module)
-        except (ImportError, ValueError):
-            spec = None
-        ok &= _check(module, spec is not None)
+    for module in ("numpy", "torch", "biotite", "atomworks", "esm"):
+        ok &= _check(module, _importable(module))
+    for module in paths.OPTIONAL_TREES:
+        if _importable(module):
+            _check(module, True, "optional")
+        else:
+            _optional(module, _ONLY_FOR_FOUNDRY)
 
     # The model module is packaged differently across esm versions, and its
     # absence is a distinct and easily-missed failure -- the input pipeline
@@ -80,6 +100,9 @@ def check_upstream_revisions() -> bool:
         return True
 
     for tree in paths.LOCKED_TREES:
+        if tree in paths.OPTIONAL_TREES and not paths.SOURCE_TREES[tree].is_dir():
+            _optional(f"{tree:10s}", _ONLY_FOR_FOUNDRY)
+            continue
         want = locked.get(tree, {})
         pinned = want.get("commit")
         actual = paths.tree_revision(tree)
@@ -116,7 +139,7 @@ def check_weights() -> bool:
 def check_adapter() -> bool:
     """Exercise the adapter end to end on CPU, without weights.
 
-    This is the check that matters most: it is the Phase 1 milestone in
+    This is the check that matters most: it is the core milestone in
     miniature, and it fails for every reason the others do plus a few of its
     own.
     """
@@ -125,7 +148,7 @@ def check_adapter() -> bool:
     if not fixture.exists():
         return _check("feature parity", False, f"fixture missing: {fixture}")
     try:
-        from esmfold2_foundry.parity.run import parity_for_structure
+        from esmfold2_atomworks.parity.run import parity_for_structure
 
         outcome = parity_for_structure(fixture)
     except Exception as error:  # noqa: BLE001
@@ -134,7 +157,7 @@ def check_adapter() -> bool:
 
 
 def main() -> int:
-    print(f"esmfold2-foundry doctor (python {sys.version.split()[0]})")
+    print(f"esmfold2-atomworks doctor (python {sys.version.split()[0]})")
     print(f"  repo: {paths.REPO_ROOT}")
     results = [
         check_source_trees(),

@@ -21,10 +21,10 @@ import io
 import numpy as np
 import pytest
 
-from esmfold2_foundry.data.atomworks_to_esm import (
+from esmfold2_atomworks.data.atomworks_to_esm import (
     atom_array_to_structure_prediction_input,
 )
-from esmfold2_foundry.parity.compare import compare_features, featurize
+from esmfold2_atomworks.parity.compare import compare_features, featurize
 
 GAP = 1  # MSA_GAP_TOKEN_ID
 #: Positions mutated in the synthetic hits, so a row can be identified by the

@@ -17,12 +17,12 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from esmfold2_foundry.data.atomworks_to_esm import (
+from esmfold2_atomworks.data.atomworks_to_esm import (
     AdapterReport,
     atom_array_to_structure_prediction_input,
 )
-from esmfold2_foundry.data.bonds import covalent_bond_candidates
-from esmfold2_foundry.parity.compare import compare_features, featurize
+from esmfold2_atomworks.data.bonds import covalent_bond_candidates
+from esmfold2_atomworks.parity.compare import compare_features, featurize
 
 
 def _with_proximal_histidine_bond(atoms):
@@ -142,7 +142,7 @@ def test_a_bond_to_an_omitted_chain_is_not_filtered_away(parsed, ccd):
 
 
 def test_an_unsupported_chain_raises_before_it_can_go_missing(parsed, ccd):
-    from esmfold2_foundry.data.spec import UnsupportedChainError
+    from esmfold2_atomworks.data.spec import UnsupportedChainError
 
     atoms, chain_info = parsed("hemoglobin")
     with pytest.raises(UnsupportedChainError, match="silently omit it"):
@@ -153,7 +153,7 @@ def test_an_unsupported_chain_raises_before_it_can_go_missing(parsed, ccd):
 
 def test_a_bond_to_an_omitted_chain_still_raises_once_the_drop_is_accepted(parsed, ccd):
     """The two policies are independent: accepting the drop is not accepting the bond."""
-    from esmfold2_foundry.data.spec import CovalentBondResolutionError
+    from esmfold2_atomworks.data.spec import CovalentBondResolutionError
 
     atoms, chain_info = parsed("hemoglobin")
     report = AdapterReport()

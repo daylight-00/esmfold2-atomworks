@@ -1,7 +1,7 @@
 """The Hydra configs must be findable in both layouts.
 
 Configs live at the repo root in a source checkout and inside the package once
-installed, because ``pkg://esmfold2_foundry.configs`` resolves there. These
+installed, because ``pkg://esmfold2_atomworks.configs`` resolves there. These
 tests cover the source side; ``scripts/check_packaging.py`` covers the
 installed side and runs in CI against a real wheel, which is the only place the
 packaging failure is visible.
@@ -13,13 +13,13 @@ import pytest
 import tomllib
 from omegaconf import OmegaConf
 
-from esmfold2_foundry import paths
+from esmfold2_atomworks import paths
 
 EXPECTED_GROUP_TARGETS = {
-    "model/esmfold2.yaml": "esmfold2_foundry.model.esmfold2.FoundryESMFold2",
-    "data/atomworks.yaml": "esmfold2_foundry.data.pipelines.build_esmfold2_pipeline",
+    "model/esmfold2.yaml": "esmfold2_atomworks.model.esmfold2.AtomWorksESMFold2",
+    "data/atomworks.yaml": "esmfold2_atomworks.data.pipelines.build_esmfold2_pipeline",
     "inference_engine/esmfold2.yaml": (
-        "esmfold2_foundry.inference.engine.ESMFold2InferenceEngine"
+        "esmfold2_atomworks.inference.engine.ESMFold2InferenceEngine"
     ),
 }
 
@@ -49,9 +49,9 @@ def test_the_wheel_is_told_to_ship_the_configs():
     force_include = pyproject["tool"]["hatch"]["build"]["targets"]["wheel"][
         "force-include"
     ]
-    assert force_include.get("configs") == "esmfold2_foundry/configs", (
+    assert force_include.get("configs") == "esmfold2_atomworks/configs", (
         "pyproject must map configs/ into the package, or an installed wheel "
-        "cannot resolve pkg://esmfold2_foundry.configs"
+        "cannot resolve pkg://esmfold2_atomworks.configs"
     )
 
 
@@ -76,4 +76,4 @@ def test_searchpath_names_only_resolvable_packages():
     """Hydra warns on every compose for a searchpath it cannot resolve."""
     node = OmegaConf.load(paths.config_dir() / "inference.yaml")
     searchpath = list(node.hydra.searchpath)
-    assert searchpath == ["pkg://esmfold2_foundry.configs"], searchpath
+    assert searchpath == ["pkg://esmfold2_atomworks.configs"], searchpath

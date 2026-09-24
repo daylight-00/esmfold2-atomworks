@@ -80,8 +80,8 @@ Three decisions worth knowing:
   `token_bonds` edge that an ordinary chain never has, because upstream adds no
   token bond for a standard residue's backbone at all. `100/SG – 100A/SG` is a
   disulphide and is declared; `100/C – 100B/N` skips a residue and is declared.
-- **Indices are read back from the tokenizer**, not re-derived — see
-  [03](03_FOUNDRY_INTEGRATION.md) and `data/bonds.py` for why.
+- **Indices are read back from the tokenizer**, not re-derived — `data/bonds.py`
+  says why.
 - **An unplaceable bond raises.** Dropping it folds a connected system as though
   it were disconnected, and the direct `fold_atom_array` path returns no report,
   so nothing would tell the caller. `allow_unresolved_covalent_bonds=True` opts
@@ -115,7 +115,7 @@ build_esmfold2_pipeline(is_inference=False, allow=["inferred_chain_kind"])
 ESMFold2InferenceEngine(allow=["inferred_chain_kind"])
 ```
 ```bash
-esmfold2-foundry fold input.cif --allow inferred_chain_kind
+esmfold2-atomworks fold input.cif --allow inferred_chain_kind
 ```
 
 A misspelt name raises rather than being ignored — an opt-in that silently did

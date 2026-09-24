@@ -14,13 +14,13 @@ import io
 
 import pytest
 
-from esmfold2_foundry.data.atomworks_to_esm import (
+from esmfold2_atomworks.data.atomworks_to_esm import (
     _by_chain,
     _check_msa_binds,
     _index_ligand_specs,
     atom_array_to_structure_prediction_input,
 )
-from esmfold2_foundry.data.spec import ChainDeclarationError, LigandSpec
+from esmfold2_atomworks.data.spec import ChainDeclarationError, LigandSpec
 
 
 def _msa(query: str, hits: tuple[str, ...] = ()):

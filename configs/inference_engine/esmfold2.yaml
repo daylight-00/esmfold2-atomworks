@@ -8,4 +8,4 @@ defaults:
   - base
   - _self_
 
-_target_: esmfold2_foundry.inference.engine.ESMFold2InferenceEngine
+_target_: esmfold2_atomworks.inference.engine.ESMFold2InferenceEngine

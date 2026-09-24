@@ -30,11 +30,11 @@ import os
 
 import pytest
 
-from esmfold2_foundry import paths
-from esmfold2_foundry.data.atomworks_to_esm import (
+from esmfold2_atomworks import paths
+from esmfold2_atomworks.data.atomworks_to_esm import (
     atom_array_to_structure_prediction_input,
 )
-from esmfold2_foundry.parity.compare import compare_results
+from esmfold2_atomworks.parity.compare import compare_results
 
 pytestmark = pytest.mark.gpu
 
@@ -68,13 +68,13 @@ def model():
             "set EF_ALLOW_DOWNLOAD=1 to fetch them from the Hub"
         )
 
-    from esmfold2_foundry.model.esmfold2 import FoundryESMFold2
+    from esmfold2_atomworks.model.esmfold2 import AtomWorksESMFold2
 
-    return FoundryESMFold2()
+    return AtomWorksESMFold2()
 
 
 def _native_counterpart(spi, chain_info):  # retained for ad-hoc use
-    from esmfold2_foundry.parity.run import _native_counterpart as build
+    from esmfold2_atomworks.parity.run import _native_counterpart as build
 
     return build(spi, chain_info)
 
@@ -109,7 +109,7 @@ def test_adapted_input_folds_within_the_models_own_scatter(
     bookkeeping, not sampling, and a mismatch there would make every coordinate
     comparison meaningless rather than merely noisy.
     """
-    from esmfold2_foundry.model.esmfold2 import FoldingConfig
+    from esmfold2_atomworks.model.esmfold2 import FoldingConfig
 
     atoms, chain_info = parsed(fixture)
     adapted = atom_array_to_structure_prediction_input(atoms, chain_info=chain_info)
@@ -129,8 +129,8 @@ def test_adapted_input_folds_within_the_models_own_scatter(
 
 
 def test_fold_atom_array_round_trips_to_a_structure(parsed, model):
-    """The whole Phase 1 loop: AtomArray in, AtomArray out, nothing lost."""
-    from esmfold2_foundry.model.esmfold2 import FoldingConfig
+    """The whole round trip: AtomArray in, AtomArray out, nothing lost."""
+    from esmfold2_atomworks.model.esmfold2 import FoldingConfig
 
     atoms, chain_info = parsed("hemoglobin")
     structure, result = model.fold_atom_array(
@@ -153,7 +153,7 @@ def test_the_sampler_is_not_bitwise_reproducible(parsed, model):
     the absolute-tolerance check they were written to replace. This records the
     assumption so that a future deterministic build fails loudly here instead.
     """
-    from esmfold2_foundry.model.esmfold2 import FoldingConfig
+    from esmfold2_atomworks.model.esmfold2 import FoldingConfig
 
     atoms, chain_info = parsed("lysozyme")
     spi = atom_array_to_structure_prediction_input(atoms, chain_info=chain_info)

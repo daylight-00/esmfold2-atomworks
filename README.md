@@ -1,9 +1,12 @@
-# esmfold2-foundry
+# esmfold2-atomworks
 
-**ESMFold2, made AtomWorks-compatible and Foundry-trainable.**
+**ESMFold2 on AtomWorks structures, with native ESMFold2 feature semantics
+preserved exactly.**
 
-Not a rewrite of ESMFold2 in Foundry idiom. The native model is held intact and
-made reachable from AtomWorks data — then proved to be the same model.
+Not a rewrite. The published model is held intact, fed from and returned to
+AtomWorks structures — then proved to be the same model. An optional Foundry
+integration adds training, configuration and checkpointing on Foundry's
+trainer, without changing the native model.
 
 ```
 AtomWorks AtomArray ──adapter──> ESMFold2 (unmodified) ──adapter──> AtomWorks AtomArray
@@ -13,13 +16,13 @@ AtomWorks AtomArray ──adapter──> ESMFold2 (unmodified) ──adapter─�
 
 ## Status
 
-| phase | state |
+| part | state |
 |---|---|
-| **1 — AtomWorks ↔ ESMFold2 adapter** | done; feature parity exact on 5 fixtures |
-| **2 — ESMFold2 as a Foundry model** | wrapper, pipeline, inference engine, configs, CLI |
-| **3 — training** | trainer contract wired, supervision targets available; the objective is the caller's ([docs/05](docs/05_ROADMAP.md)) |
+| **AtomWorks ↔ ESMFold2** — adapter and its reverse, AtomWorks pipeline, supervision labels | done; feature parity exact on 5 fixtures |
+| **Inference** — model wrapper, engine, CLI | done; output parity within the model's own scatter on a GPU |
+| **Foundry integration** (optional) — trainer, Hydra configs, registration | contracts verified against the pinned Foundry; the objective is the caller's ([docs/05](docs/05_ROADMAP.md)) |
 
-The Phase 1 milestone is met: for monomer, multimer, metal, cofactor and
+The core milestone is met: for monomer, multimer, metal, cofactor and
 modified-residue systems, the input the adapter derives from a structure
 featurizes to **the same 29 tensors** as an independently frozen reference
 input. Featurization is a pure function **at a fixed seed**, so that
@@ -36,19 +39,19 @@ measured rather than assumed ([docs/02](docs/02_PARITY.md)).
 
 ```bash
 source env.sh
-esmfold2-foundry doctor              # trees, imports, weights + a real parity check
+esmfold2-atomworks doctor            # trees, imports, weights + a real parity check
 pytest -q                            # ~30 s, CPU, no GPU and no weights needed
 
-esmfold2-foundry parity structures/*.cif          # survey a corpus
-esmfold2-foundry fold input.cif --out-dir runs/   # needs a GPU
+esmfold2-atomworks parity structures/*.cif        # survey a corpus
+esmfold2-atomworks fold input.cif --out-dir runs/ # needs a GPU
 ```
 
 ```python
 from atomworks.io import parse
-from esmfold2_foundry.model.esmfold2 import FoundryESMFold2
+from esmfold2_atomworks.model.esmfold2 import AtomWorksESMFold2
 
 parsed = parse("2hhb.cif.gz")
-model = FoundryESMFold2()
+model = AtomWorksESMFold2()
 structure, result = model.fold_atom_array(
     parsed["asym_unit"][0], chain_info=parsed["chain_info"]
 )
@@ -81,28 +84,31 @@ test; the strictness policy is laid out in
 ## Layout
 
 ```
-configs/                Hydra configs, shaped like models/rfd3/configs
-src/esmfold2_foundry/
-  data/                 the adapter, the reverse adapter, the AtomWorks pipeline
-  model/                FoundryESMFold2 — holds the native module
+src/esmfold2_atomworks/
+  data/                 the adapter, the reverse adapter, the AtomWorks pipeline, labels
+  model/                AtomWorksESMFold2 — holds the native module
   inference/            engine, BaseInferenceEngine-shaped
-  training/             FabricTrainer subclass
   parity/               feature and output comparison
   metrics.py  paths.py  doctor.py  cli.py
+  training/             optional Foundry integration: FabricTrainer subclass
+configs/                optional Foundry integration: Hydra configs, shaped like models/rfd3/configs
 tests/                  parity and adapter tests; CPU-only by default
 docs/                   the design record — read docs/README.md first
 ```
 
-It mirrors `foundry/models/<name>/` so it can be moved there unchanged; see
-[docs/03](docs/03_FOUNDRY_INTEGRATION.md) for what that needs: six edits to
-Foundry's root `pyproject.toml`, a checkpoint-registry entry and a docs
-symlink. Those contracts are checked against the pinned Foundry by
-`tests/test_foundry_integration.py`.
+Nothing outside `training/` and `configs/` imports Foundry, and
+`tests/test_core_boundary.py` holds it to that. Those two keep Foundry's
+model-package conventions, so an upstream integration stays thin: moving the
+package into `foundry/models/` is six edits to Foundry's root `pyproject.toml`,
+a checkpoint-registry entry and a docs symlink
+([docs/06](docs/06_FOUNDRY_INTEGRATION.md)). Those contracts are checked
+against the pinned Foundry by `tests/test_foundry_integration.py`.
 
 ## Requirements
 
-Python 3.14, and the `esm`, `atomworks` and `foundry` source trees beside this
-repo (discovered automatically — see [docs/04](docs/04_ENVIRONMENT.md)).
+Python 3.14, and the `esm` and `atomworks` source trees beside this repo
+(discovered automatically — see [docs/04](docs/04_ENVIRONMENT.md)); the
+`foundry` tree only for the Foundry integration.
 
 Where the ESMFold2 `nn.Module` comes from depends on the `esm` version — a
 `transformers` fork for esm ≤ 3.3, and `esm` itself from 3.4. Both are

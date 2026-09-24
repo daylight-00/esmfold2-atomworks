@@ -1,15 +1,15 @@
 """AtomWorks transform pipeline that emits ESMFold2 features.
 
-This is what lets a Foundry dataset -- PDB, AFDB, a distillation parquet, a
+This is what lets an AtomWorks dataset -- PDB, AFDB, a distillation parquet, a
 PLINDER protein-ligand corpus -- feed ESMFold2 without any of them knowing about
 each other. The pipeline is an ordinary ``atomworks.ml.transforms.Compose``, so
-it composes with the crop, filter and MSA transforms the other Foundry models
-already use.
+it composes with AtomWorks' crop, filter and MSA transforms -- the ones
+Foundry's models are built from too.
 
 **The featurizer is one transform, and it goes last.** ESMFold2 builds its own
 tensors from a ``StructurePredictionInput``; it does not consume AtomWorks'
 ``feats`` dict, because their conventions differ (see
-:mod:`esmfold2_foundry.data.atomworks_to_esm`). So the pipeline uses AtomWorks
+:mod:`esmfold2_atomworks.data.atomworks_to_esm`). So the pipeline uses AtomWorks
 for everything up to and including structure selection, then converts once, at
 the end. Transforms that write ``data["feats"]`` in AF3 terms --
 ``AggregateFeaturesLikeAF3`` and friends -- are deliberately not part of it;
@@ -21,7 +21,7 @@ and you fold the crop, which is usually what training wants and almost never
 what an evaluation wants.
 
 Importing this module requires ``atomworks.ml``. The adapter itself
-(:mod:`esmfold2_foundry.data.atomworks_to_esm`) does not, so a caller that only
+(:mod:`esmfold2_atomworks.data.atomworks_to_esm`) does not, so a caller that only
 wants ``AtomArray -> StructurePredictionInput`` need not pay for it.
 """
 
@@ -46,7 +46,7 @@ class StructurePredictionInputTransform(Transform):
     Reads ``chain_info`` from the example when the loader supplied it, which it
     does for anything parsed by ``atomworks.io``. Without it, sequences fall
     back to the residues actually present -- a weaker guarantee, for the reason
-    given in :func:`~esmfold2_foundry.data.atomworks_to_esm.sequence_of_chain`.
+    given in :func:`~esmfold2_atomworks.data.atomworks_to_esm.sequence_of_chain`.
 
     Declarations bind as they do in the adapter. ``data["msas"]`` must hold
     alignments for protein chains only, each with the folded sequence as its
@@ -65,7 +65,7 @@ class StructurePredictionInputTransform(Transform):
         allow: Any = (),
         **kwargs: Any,
     ) -> None:
-        from esmfold2_foundry.data.atomworks_to_esm import allow_kwargs
+        from esmfold2_atomworks.data.atomworks_to_esm import allow_kwargs
 
         super().__init__(**kwargs)
         self.ligands = ligands
@@ -80,7 +80,7 @@ class StructurePredictionInputTransform(Transform):
         check_contains_keys(data, ["atom_array"])
 
     def forward(self, data: dict[str, Any]) -> dict[str, Any]:
-        from esmfold2_foundry.data.atomworks_to_esm import (
+        from esmfold2_atomworks.data.atomworks_to_esm import (
             AdapterReport,
             atom_array_to_structure_prediction_input,
         )
@@ -135,7 +135,7 @@ class AttachStructureLabels(Transform):
 
     Opt-in, because inference does not need it and it is not free. It supplies
     supervision *targets* and deliberately no loss -- see
-    :mod:`esmfold2_foundry.data.labels` for why that split is where it is.
+    :mod:`esmfold2_atomworks.data.labels` for why that split is where it is.
 
     Must run after :class:`FeaturizeForESMFold2`, since the alignment is against
     the atom ordering that featurization produces.
@@ -149,12 +149,12 @@ class AttachStructureLabels(Transform):
         check_contains_keys(data, ["atom_array", "feats", "chain_infos"])
 
     def forward(self, data: dict[str, Any]) -> dict[str, Any]:
-        from esmfold2_foundry.data.atomworks_to_esm import (
+        from esmfold2_atomworks.data.atomworks_to_esm import (
             AdapterReport,
             _residue_index_map,
             chain_records,
         )
-        from esmfold2_foundry.data.labels import structure_labels
+        from esmfold2_atomworks.data.labels import structure_labels
 
         atoms = data["atom_array"]
         records = chain_records(atoms, chain_info=data.get("chain_info"))
@@ -204,7 +204,7 @@ def build_esmfold2_pipeline(
             for evaluation, where the same variation is noise.
         ligands: declared ligand identities, keyed by chain id.
         allow: degradations to accept by name -- see
-            :data:`esmfold2_foundry.data.atomworks_to_esm.DEGRADATIONS`. Empty
+            :data:`esmfold2_atomworks.data.atomworks_to_esm.DEGRADATIONS`. Empty
             by default, so every one of them raises.
         attach_labels: also emit ``data["labels"]`` -- the source coordinates on
             the model's atom axis, plus a mask. Supervision targets only; the

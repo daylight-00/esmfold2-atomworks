@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from esmfold2_foundry.data.atomworks_to_esm import (
+from esmfold2_atomworks.data.atomworks_to_esm import (
     atom_array_to_structure_prediction_input,
 )
-from esmfold2_foundry.parity.compare import compare_features, featurize
+from esmfold2_atomworks.parity.compare import compare_features, featurize
 
 pytest.importorskip("atomworks.ml.transforms.base")
 
@@ -18,7 +18,7 @@ def _example(parsed, name: str) -> dict:
 
 
 def test_pipeline_produces_features_and_decode_metadata(parsed, ccd):
-    from esmfold2_foundry.data.pipelines import build_esmfold2_pipeline
+    from esmfold2_atomworks.data.pipelines import build_esmfold2_pipeline
 
     pipeline = build_esmfold2_pipeline(is_inference=True, seed=0)
     out = pipeline(_example(parsed, "hemoglobin"))
@@ -32,7 +32,7 @@ def test_pipeline_produces_features_and_decode_metadata(parsed, ccd):
 
 def test_pipeline_matches_the_direct_adapter(parsed, ccd):
     """Going through Compose must not change the featurization."""
-    from esmfold2_foundry.data.pipelines import build_esmfold2_pipeline
+    from esmfold2_atomworks.data.pipelines import build_esmfold2_pipeline
 
     atoms, chain_info = parsed("hemoglobin")
     direct = featurize(
@@ -47,7 +47,7 @@ def test_pipeline_matches_the_direct_adapter(parsed, ccd):
 
 
 def test_inference_pipeline_keeps_the_input_structure(parsed, ccd):
-    from esmfold2_foundry.data.pipelines import build_esmfold2_pipeline
+    from esmfold2_atomworks.data.pipelines import build_esmfold2_pipeline
 
     out = build_esmfold2_pipeline(is_inference=True, seed=0)(
         _example(parsed, "lysozyme")
@@ -57,7 +57,7 @@ def test_inference_pipeline_keeps_the_input_structure(parsed, ccd):
 
 
 def test_training_pipeline_drops_the_structure(parsed, ccd):
-    from esmfold2_foundry.data.pipelines import build_esmfold2_pipeline
+    from esmfold2_atomworks.data.pipelines import build_esmfold2_pipeline
 
     out = build_esmfold2_pipeline(is_inference=False, seed=0)(
         _example(parsed, "lysozyme")

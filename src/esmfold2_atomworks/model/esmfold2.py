@@ -1,9 +1,10 @@
-"""The Foundry-facing ESMFold2 model.
+"""The ESMFold2 model wrapper.
 
-Phase 2 of the plan: ESMFold2 becomes a Foundry model **without its architecture
-being rewritten**. ``FoundryESMFold2`` holds the native ESMFold2 module and
-delegates to it; Foundry contributes the dataset, trainer, config, distributed
-execution, logging and checkpointing around it.
+ESMFold2, driven from AtomWorks **without its architecture being rewritten**.
+``AtomWorksESMFold2`` holds the native ESMFold2 module and delegates to it;
+whatever trains or serves it -- the optional Foundry integration in
+:mod:`esmfold2_atomworks.training`, or anything else -- works with the native
+module rather than a reimplementation.
 
 Which module that is depends on the ``esm`` version -- up to 3.3 it lived in a
 fork of ``transformers``, from 3.4 it is in ``esm`` itself under a slightly
@@ -23,7 +24,7 @@ anything to it; each is asserted or surfaced below rather than left as folklore.
    ``forward`` is ``@torch.inference_mode()`` and can never produce them. The
    experimental one gates autograd on ``res_type_soft`` being supplied, so
    loading it is necessary and not sufficient -- see
-   :meth:`FoundryESMFold2.will_produce_gradients`.
+   :meth:`AtomWorksESMFold2.will_produce_gradients`.
 2. **``fold()`` accepts sampler knobs the release model ignores.**
    ``noise_scale``, ``step_scale``, ``max_inference_sigma`` and ``early_exit``
    are forwarded into ``forward(**kwargs)`` and silently discarded; only
@@ -40,15 +41,15 @@ import warnings
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from esmfold2_foundry import paths
+from esmfold2_atomworks import paths
 
 if TYPE_CHECKING:
     from biotite.structure import AtomArray
 
 __all__ = [
     "GRADIENT_GATE",
+    "AtomWorksESMFold2",
     "FoldingConfig",
-    "FoundryESMFold2",
     "load_native_model_class",
 ]
 
@@ -136,7 +137,7 @@ class FoldingConfig:
         return kwargs
 
 
-class FoundryESMFold2:
+class AtomWorksESMFold2:
     """A resident ESMFold2, fed from AtomWorks and answering in AtomWorks terms.
 
     This is intentionally *not* an ``nn.Module`` subclass yet. Until something
@@ -344,7 +345,7 @@ class FoundryESMFold2:
     ) -> tuple[AtomArray, Any]:
         """Fold an AtomWorks structure and answer with one.
 
-        This is the whole Phase 1 loop in a single call::
+        This is the whole AtomWorks round trip in a single call::
 
             AtomArray -> StructurePredictionInput -> ESMFold2 -> AtomArray
 
@@ -356,7 +357,7 @@ class FoundryESMFold2:
             this path returns no report and a recorded-but-silent degradation
             would be invisible here. Accept one by name through
             ``adapter_kwargs={"allow_<name>": True}``; the names are
-            :data:`esmfold2_foundry.data.atomworks_to_esm.DEGRADATIONS`. To see
+            :data:`esmfold2_atomworks.data.atomworks_to_esm.DEGRADATIONS`. To see
             what happened under an opt-in, pass an ``AdapterReport`` as
             ``adapter_kwargs={"report": report}`` and read
             ``report.accepted_degradations()`` afterwards. A sequence override,
@@ -368,10 +369,10 @@ class FoundryESMFold2:
             beside it so that confidence values remain available without being
             smuggled through annotations.
         """
-        from esmfold2_foundry.data.atomworks_to_esm import (
+        from esmfold2_atomworks.data.atomworks_to_esm import (
             atom_array_to_structure_prediction_input,
         )
-        from esmfold2_foundry.data.molecular_complex import result_to_atom_array
+        from esmfold2_atomworks.data.molecular_complex import result_to_atom_array
 
         spi = atom_array_to_structure_prediction_input(
             atoms, chain_info=chain_info, **(adapter_kwargs or {})

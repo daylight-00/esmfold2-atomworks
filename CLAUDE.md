@@ -8,13 +8,16 @@ points at the things most easily got wrong.
 
 ```bash
 source env.sh                  # discovers DESIGN_ROOT, sets PYTHONPATH, activates a venv
-esmfold2-foundry doctor        # trees, imports, weights, and a real parity check
+esmfold2-atomworks doctor      # trees, imports, weights, and a real parity check
 pytest -q                      # ~30 s, CPU only, no weights needed
 ruff check src tests && ruff format --check src tests
 ```
 
-## The four rules most easily broken
+## The five rules most easily broken
 
+- **The core never imports Foundry.** Foundry backs the optional integration in
+  `training/` and `configs/`, and nothing else; `tests/test_core_boundary.py`
+  fails if any other module pulls it in.
 - **Convert at `StructurePredictionInput`, never at the tensors** (`D-001`).
   AtomWorks and ESMFold2 both featurize AF3-like and their conventions differ.
   Rebuilding one from the other yields a model that runs, reports plausible
@@ -44,7 +47,7 @@ paired run cannot separate an implementation difference from sampling scatter.
 
 ## Upstream facts that cost time to rediscover
 
-All are recorded with references in [docs/03](docs/03_FOUNDRY_INTEGRATION.md)
+All are recorded with references in [docs/03](docs/03_MODEL.md)
 and [docs/04](docs/04_ENVIRONMENT.md). The short list:
 
 - The ESMFold2 module is in a `transformers` fork for esm ≤ 3.3 and in `esm`

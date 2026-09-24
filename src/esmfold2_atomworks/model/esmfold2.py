@@ -99,9 +99,9 @@ def load_native_model_class() -> tuple[type, str]:
         return ESMFold2Model, "transformers-fork"
     except ImportError as error:
         raise ImportError(
-            "No ESMFold2 model class found. Either install esm >= 3.4 (which "
-            "ships the model), or, for esm <= 3.3, install the Biohub fork of "
-            "transformers that carries it. See docs/04_ENVIRONMENT.md."
+            "No ESMFold2 model class found. Install esm >= 3.4, which ships "
+            "the model. (esm <= 3.3 relied on a fork of transformers that is no "
+            "longer published.) See docs/04_ENVIRONMENT.md."
         ) from error
 
 

@@ -4,9 +4,10 @@ Foundry is not part of the core AtomWorks ↔ ESMFold2 contract. It provides one
 supported training and execution backend: the `FabricTrainer` subclass in
 `training/` and the Hydra configs in `configs/`. Nothing else in the package
 imports it — `tests/test_core_boundary.py` holds it to that — and a workspace
-without the Foundry tree is complete for everything else. Its imports are the
-`foundry` dependency group, installed with `uv sync --group foundry`; a plain
-`uv sync` leaves them out.
+without Foundry is complete for everything else. It is the package's `foundry`
+extra — `pip install -e ".[foundry]"`, which brings rc-foundry and so needs
+Python 3.12 — and a plain install leaves it out. The contract tests pass
+against both the pinned Foundry tree and the rc-foundry 0.2.0 release.
 
 > Everything on this page is **verified against Foundry's current integration
 > contracts** by
@@ -52,12 +53,8 @@ registry:
 
 ```toml
 [project.optional-dependencies]
-# esm >= 3.4 ships the ESMFold2 module itself and uses stock transformers.
-# For esm <= 3.3 the module lives in the Biohub fork instead:
-#   "transformers @ git+https://github.com/Biohub/transformers.git@main"
-# The two conflict, so pick one; load_native_model_class() resolves whichever
-# is installed. See docs/04_ENVIRONMENT.md.
-esmfold2 = ["esm>=3.4", "transformers>=4.57.6"]
+# esm >= 3.4 ships the ESMFold2 module itself. See docs/04_ENVIRONMENT.md.
+esmfold2 = ["esm>=3.4"]
 all = [..., "rc-foundry[esmfold2]"]        # optional: mpnn skips both of these
 
 [project.scripts]

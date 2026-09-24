@@ -38,9 +38,11 @@ measured rather than assumed ([docs/02](docs/02_PARITY.md)).
 ## Quickstart
 
 ```bash
-source env.sh
-esmfold2-atomworks doctor            # trees, imports, weights + a real parity check
-pytest -q                            # ~30 s, CPU, no GPU and no weights needed
+pip install -e .                 # esm and atomworks resolve like any dependency
+pip install -e ".[foundry]"      # optional: training through Foundry (Python 3.12)
+
+esmfold2-atomworks doctor        # imports, weights + a real parity check
+pytest -q                        # CPU only, no GPU and no weights needed
 
 esmfold2-atomworks parity structures/*.cif        # survey a corpus
 esmfold2-atomworks fold input.cif --out-dir runs/ # needs a GPU
@@ -104,16 +106,22 @@ a checkpoint-registry entry and a docs symlink
 ([docs/06](docs/06_FOUNDRY_INTEGRATION.md)). Those contracts are checked
 against the pinned Foundry by `tests/test_foundry_integration.py`.
 
-## Requirements
+## Environments
 
-Python 3.14, and the `esm` and `atomworks` source trees beside this repo
-(discovered automatically — see [docs/04](docs/04_ENVIRONMENT.md)). The
-Foundry integration additionally needs the `foundry` tree and the `foundry`
-dependency group (`uv sync --group foundry`).
+`pip install -e .` is all the package needs: `esm` and `atomworks` are ordinary
+dependencies, resolved from PyPI (Python ≥ 3.12; the `foundry` extra needs 3.12,
+as rc-foundry does). Installed that way the full test suite passes — see
+[docs/04](docs/04_ENVIRONMENT.md).
 
-Where the ESMFold2 `nn.Module` comes from depends on the `esm` version — a
-`transformers` fork for esm ≤ 3.3, and `esm` itself from 3.4. Both are
-supported; `doctor` reports which one is in use.
+The published parity results were produced in one pinned reference
+environment: Python 3.14, torch 2.14, and the upstreams as source trees at the
+revisions in `UPSTREAM.lock`. [`reproducibility/`](reproducibility/README.md)
+defines it (`uv sync --project reproducibility`, then
+`source reproducibility/env.sh`). It is not needed for ordinary use.
+
+esm ≥ 3.4 ships the ESMFold2 `nn.Module` itself. The adapter also resolves the
+`transformers` fork that esm ≤ 3.3 used, though that fork is no longer
+published; `doctor` reports which one is in use.
 
 ## License
 

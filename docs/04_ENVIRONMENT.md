@@ -1,49 +1,25 @@
 # 04 — Environment
 
-Python **3.14**. `source env.sh` before anything.
+## Installing
 
-## Source trees, not packages
+In a clone, `pip install -e .` installs the package and resolves `esm` and
+`atomworks` like any other dependency; `pip install -e ".[foundry]"` adds the
+Foundry integration. What a resolver picks follows the upstreams' own pins —
+at the time of writing esm 3.4.1.post1, atomworks 2.2.1, torch 2.11 and
+biotite 1.4.0. Two of those pins constrain the interpreter:
 
-`esm` and `atomworks` — and `foundry`, for the optional integration — are
-consumed as **source** on `PYTHONPATH` rather than installed, because their
-package metadata would hold the whole environment back: esm 3.4 pins
-`torch>=2.11,<2.12` while this project asks for `torch>=2.12`, and atomworks pins
-`biotite==1.4.0`, which has no cp314 wheel. Foundry's own pins conflict with
-nothing here, but it depends on atomworks and would bring that pin with it.
+- atomworks pins `biotite==1.4.0`, which has wheels for CPython 3.11–3.13 only;
+  on 3.14 it builds from source.
+- rc-foundry supports Python 3.12 only, and so does the `foundry` extra.
 
-| module | expected location |
-|---|---|
-| `esm` | `$DESIGN_ROOT/esm` |
-| `atomworks` | `$DESIGN_ROOT/atomworks/src` |
-| `foundry` | `$DESIGN_ROOT/foundry/src` — only for the optional Foundry integration |
+`.python-version` therefore selects 3.12 for `uv sync`. Installed that way —
+CPython 3.12, the PyPI releases of all three upstreams, torch 2.11 on CPU — the
+full test suite passes, feature parity and the Foundry contract tests included.
 
-`pyproject.toml` therefore declares the **union of those trees' runtime
-imports**, not the trees. When a tree grows a new import, add it to the matching
-dependency group — do not add the tree itself.
-
-`uv sync` installs the core: the `common`, `esm` and `atomworks` groups, plus
-`dev`. The Foundry integration's imports are a group of their own, added with
-`uv sync --group foundry`; it also covers what Foundry's own models import from
-the tree they share with it.
-
-Clone them next to this repo:
-
-```bash
-git clone https://github.com/Biohub/esm
-git clone https://github.com/RosettaCommons/atomworks
-git clone https://github.com/RosettaCommons/foundry     # optional: the Foundry integration
-git clone <this repo>
-```
-
-## `DESIGN_ROOT` is discovered, never hardcoded
-
-Both `env.sh` and `paths.py` walk **up** from the repo until they find a
-directory holding `esm/` and `atomworks/`. A fixed
-`REPO_ROOT.parent` is wrong from a git worktree, which sits several levels
-deeper. Set `DESIGN_ROOT` explicitly when the trees live somewhere else.
-
-`EF_VENV` points at an existing virtualenv to activate; otherwise `env.sh` uses
-this repo's own `.venv` when present.
+The published parity results were produced in a different, pinned environment:
+Python 3.14 and torch 2.14, with the upstreams as source trees at the revisions
+in `UPSTREAM.lock`. It is defined, and its choices explained, under
+[`reproducibility/`](../reproducibility/README.md).
 
 ## Where the ESMFold2 module lives depends on the `esm` version
 
@@ -52,7 +28,7 @@ This moved, and the two layouts are incompatible:
 | `esm` | the `nn.Module` | class name | device |
 |---|---|---|---|
 | **≥ 3.4** | in `esm` itself, `esm.models.esmfold2.model` | `EsmFold2Model` | `from_pretrained(..., device=...)` |
-| **≤ 3.3** | in a **fork of `transformers`** | `ESMFold2Model` | `.to(device)` after loading |
+| **≤ 3.3** | in a **fork of `transformers`**, no longer published | `ESMFold2Model` | `.to(device)` after loading |
 
 `load_native_model_class()` resolves either, and `AtomWorksESMFold2.provenance()`
 records which one was used — results are only comparable within one of them.
@@ -62,12 +38,10 @@ same results.
 `doctor` reports it too, because the input pipeline imports perfectly well
 without any model module, so a missing one surfaces late otherwise.
 
-For esm ≤ 3.3 install the fork with the `esm-legacy-model` group; it conflicts
-with stock `transformers`, so use one or the other:
-
-```bash
-uv sync --group esm-legacy-model
-```
+The fork esm ≤ 3.3 relied on is no longer published. ESMFold2 has since moved
+into Hugging Face `transformers` ≥ 5.16, which cannot share an environment with
+esm 3.4 — esm requires `transformers<5` — so esm ≥ 3.4 is the packaging to
+install.
 
 Two knock-on effects of the 3.4 move:
 
@@ -76,8 +50,9 @@ Two knock-on effects of the 3.4 move:
   imports from the **leaf modules** (`.types`, `.processor`, `.prepare_input`,
   `.conformers`) instead — stable in both versions, and it keeps the CPU-only
   parity path from loading the model stack at all.
-- esm 3.4 pins `torch>=2.11,<2.12` while this project asks for `torch>=2.12`.
-  Resolve that deliberately rather than letting a solver pick.
+- esm 3.4 pins `torch>=2.11,<2.12`, which is why an ordinary install gets
+  torch 2.11. The reference environment runs 2.14 by consuming esm as a source
+  tree instead.
 
 Weights come from a local mirror if one exists at `$EF_MODELS/ESMFold2`, and
 otherwise from the Hub id `biohub/ESMFold2`, downloaded on first use. The ESMC
@@ -89,36 +64,30 @@ The CCD dictionary (~50k entries, ~9 s) is loaded once per process into
 module-global state in `esm.models.esmfold2.conformers`. It is **not
 thread-safe**, which is why `AtomWorksESMFold2.__init__` warms it.
 
-## Pinning: `UPSTREAM.lock`
+## Provenance: `UPSTREAM.lock`
 
-The trees come from `PYTHONPATH`, so nothing else records *which* revision
-produced a given result — and this project's central claim is **exact** parity,
-which raises the bar for reproducibility well above an ordinary wrapper's.
-`UPSTREAM.lock` records the commit and version of each tree that the published
-parity numbers were verified against, and `doctor` compares them:
-
-```
-upstream revisions
-  [ok  ] esm        43b4548b8676: matches lock (3.4.1.post1)
-  [ok  ] atomworks  fcf7af8c127e: matches lock (2.2.1)
-  [ok  ] foundry    b02eed6a6bdf: matches lock (0.1.0)
-```
-
-Without the Foundry tree its line reads `[ -- ] foundry: absent; needed only for
-the optional Foundry integration`, and nothing fails.
-
-Drift is **reported, never enforced**. The adapter is deliberately
-version-tolerant — it supports both ESMFold2 packagings — so a newer tree is
-something to re-verify and re-pin, not something to refuse. Refusing would also
-make `doctor` useless on the day an upstream releases.
+`UPSTREAM.lock` records the upstream revisions — commit and version — that the
+published parity results were verified against. `doctor` compares what it finds
+with it: a source tree's commit in the reference environment, an installed
+package's version in an ordinary install. Drift is **reported, never
+enforced**: the adapter is deliberately version-tolerant, so a newer upstream is
+something to re-verify, not something to refuse. How the lock is used to
+rebuild the reference environment is described in
+[`reproducibility/`](../reproducibility/README.md).
 
 ## Checks
 
 ```bash
-uv sync && source env.sh
-esmfold2-atomworks doctor      # trees, revisions, imports, weights, a real parity check
-pytest -q                      # the same, as assertions
+esmfold2-atomworks doctor    # where the upstreams come from, imports, weights, a real parity check
+pytest -q                    # the same, as assertions
 ```
+
+`doctor` fails only on a missing import or a failed parity check. Source trees,
+`UPSTREAM.lock` and AtomWorks' test structures belong to the reference
+environment; an ordinary install has none of them and is reported as such. The
+parity check and most tests read structures from AtomWorks' test data
+(`atomworks/tests/data/io`), which comes with an atomworks source checkout
+beside this repository; without one they skip rather than fail.
 
 CI (`.github/workflows/ci.yml`) runs only what needs nothing but this
 repository: ruff; the `offline`-marked tests — the gold-fixture invariants and
@@ -135,15 +104,6 @@ a deliberate property, not a coincidence: see [02_PARITY.md](02_PARITY.md).
 
 ## Gotchas worth knowing
 
-- **`biotite` must satisfy both sides.** AtomWorks pins `==1.4.0`, but 1.4 has
-  no cp314 wheel, and biotite 1.7 moved `connect_via_residue_names` out of
-  `biotite.structure.bonds` — which `atomworks.io.utils.io_utils` imports by
-  that exact path. This project therefore pins `>=1.5,<1.7`. Do not widen it
-  without checking that import.
-- **AtomWorks 2.2.1 removed the upper bounds on its own dependencies**
-  (`torch`, `numpy`, `rdkit`, `pandas`, `pyarrow`). A resolve that inherits
-  those constraints is now unbounded, so pin them here rather than relying on
-  the tree.
 - **Importing `atomworks` monkey-patches biotite globally**, for every consumer
   in the process.
 - **`atomworks.io.parse` hydrogenates, and added hydrogens can carry NaN
@@ -151,15 +111,14 @@ a deliberate property, not a coincidence: see [02_PARITY.md](02_PARITY.md).
   codes, not input coordinates — but anything computing an RMSD downstream is.
 - **`chain_info` has no `processed_entity_canonical_sequence` for non-polymer
   chains.** Read it only for polymers; this repo does.
-- **GPU-only extras compile from source.** `flash` and `te` are excluded from
-  `default-groups` precisely so `uv sync` installs wheels only and builds
-  nothing. If you do install them, cap the build (`MAX_JOBS=8`) — an uncapped
+- **Optional accelerators compile from source.** `flash-attn` and
+  `transformer-engine` are not dependencies; ESMFold2 runs without them via
+  torch SDPA. If you install them, cap the build (`MAX_JOBS=8`) — an uncapped
   parallel compile will exhaust a shared machine.
-- **The prebuilt `flash-attn` cp314 wheel is ABI-incompatible with torch 2.14.**
-  ESMFold2 runs without it via torch SDPA; it is an optional acceleration path.
 
 ## GPU
 
 Only folding and output parity need a GPU; `scripts/parity_gpu.sbatch` is a
-Slurm template for it (set the partition and resource flags for your site).
+Slurm template for it (set the partition and resource flags for your site). It
+runs in the reference environment.
 Everything else in this repository runs on CPU.

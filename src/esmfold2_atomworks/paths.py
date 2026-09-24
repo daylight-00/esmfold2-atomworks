@@ -2,7 +2,7 @@
 
 Everything is overridable by environment variable so the same code runs from the
 repo, from a git worktree, and on a cluster where the trees are staged
-elsewhere. ``env.sh`` sets the same variables for the shell.
+elsewhere. ``reproducibility/env.sh`` sets the same variables for the shell.
 
 ``DESIGN_ROOT`` is *discovered* rather than fixed at ``REPO_ROOT.parent``: a git
 worktree lives several levels below the repo, so a fixed parent would resolve to
@@ -105,7 +105,7 @@ ESMFOLD2_WEIGHTS = ESMFold2Weights()
 
 
 def pythonpath_entries() -> list[Path]:
-    """The ``PYTHONPATH`` additions ``env.sh`` makes, in the same order."""
+    """The ``PYTHONPATH`` additions ``reproducibility/env.sh`` makes, in order."""
     return [*SOURCE_TREES.values(), REPO_ROOT / "src"]
 
 

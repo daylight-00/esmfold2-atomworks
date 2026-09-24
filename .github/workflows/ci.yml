@@ -7,7 +7,8 @@ name: ci
 # What runs here is everything that needs nothing but this repository, so it
 # stays fast enough to be worth having on every push.
 #
-# To run the full suite, see docs/04_ENVIRONMENT.md.
+# To run the full suite, see docs/04_ENVIRONMENT.md (an ordinary install) or
+# reproducibility/README.md (the pinned reference environment).
 
 on:
   push:
@@ -64,12 +65,20 @@ jobs:
           python-version: "3.14"
       - run: pip install build hydra-core
       - run: python -m build --wheel --outdir dist
+      # --no-deps: the wheel's dependencies are esm, atomworks and torch --
+      # minutes to install, and biotite 1.4.0 has no cp314 wheel -- while this
+      # job checks what is packaged. The next step checks that they resolve.
       - name: Install the wheel into a clean environment
         run: |
           python -m venv /tmp/wheelenv
-          /tmp/wheelenv/bin/pip install --quiet dist/*.whl hydra-core
+          /tmp/wheelenv/bin/pip install --quiet --no-deps dist/*.whl hydra-core
       - name: Packaged configs compose
         run: /tmp/wheelenv/bin/python scripts/check_packaging.py
+      - name: Declared dependencies resolve
+        run: |
+          pip install --quiet uv
+          uv pip compile pyproject.toml --extra foundry --python-version 3.12 \
+            --torch-backend cpu --quiet > /dev/null
 
   lockfile:
     runs-on: ubuntu-latest

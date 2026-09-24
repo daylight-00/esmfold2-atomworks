@@ -7,9 +7,10 @@ points at the things most easily got wrong.
 ## Setup
 
 ```bash
-source env.sh                  # discovers DESIGN_ROOT, sets PYTHONPATH, activates a venv
-esmfold2-atomworks doctor      # trees, imports, weights, and a real parity check
-pytest -q                      # ~30 s, CPU only, no weights needed
+pip install -e ".[foundry]"    # or the pinned reference environment:
+                               #   uv sync --project reproducibility && source reproducibility/env.sh
+esmfold2-atomworks doctor      # upstreams, imports, weights, and a real parity check
+pytest -q                      # CPU only, no weights needed
 ruff check src tests && ruff format --check src tests
 ```
 

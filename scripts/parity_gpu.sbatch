@@ -13,7 +13,8 @@
 # Submit from the repository root, adding whatever your site requires:
 #   sbatch --partition=<gpu-partition> scripts/parity_gpu.sbatch
 #
-# Set EF_VENV if the environment is not this repo's own .venv, and
+# Runs in the reference environment (reproducibility/). Set EF_VENV if it is
+# not the one `uv sync --project reproducibility` built, and
 # EF_ALLOW_DOWNLOAD=1 if there is no local weight mirror. Both propagate
 # through sbatch's default --export=ALL.
 
@@ -26,13 +27,13 @@ set -euo pipefail
 REPO="${SLURM_SUBMIT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 cd "${REPO}"
 
-if [ ! -f env.sh ]; then
+if [ ! -f reproducibility/env.sh ]; then
     echo "expected to run from the repository root; got ${REPO}" >&2
     exit 2
 fi
 
 # shellcheck disable=SC1091
-source env.sh
+source reproducibility/env.sh
 
 mkdir -p runs
 nvidia-smi --query-gpu=name,memory.used,memory.total --format=csv || true

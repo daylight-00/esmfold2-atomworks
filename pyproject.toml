@@ -5,36 +5,25 @@ description = "ESMFold2 on AtomWorks structures, with native ESMFold2 feature se
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
-requires-python = ">=3.14"
-
-# NOTE: esm, atomworks and foundry are deliberately NOT declared here. They are
-# consumed as source trees via PYTHONPATH (see env.sh) because installing them
-# as packages would pull this environment back: esm 3.4 pins torch>=2.11,<2.12
-# while this project asks for torch>=2.12, and atomworks pins biotite==1.4.0,
-# which has no cp314 wheel. Foundry's own pins conflict with nothing here, but
-# it depends on atomworks and would bring that pin with it. What IS declared
-# here is the union of their *runtime imports* plus this project's own
-# dependencies. When a source tree grows a new import, add it to the matching
-# dependency group -- do not add the tree itself. See docs/04_ENVIRONMENT.md.
+authors = [{ name = "daylight-00" }]
+requires-python = ">=3.12"
 dependencies = [
-    "pip",
-    "torch>=2.12",
+    # esm >= 3.4 ships the ESMFold2 module itself.
+    "esm>=3.4",
+    "atomworks>=2.2",
+    "biotite",
     "numpy",
-    "scipy",
-    "pandas",
-    "pyarrow",
-    "scikit-learn",
-    "rdkit",
-    # biotite 1.7 moved connect_via_residue_names out of biotite.structure.bonds,
-    # which atomworks.io.utils.io_utils imports by that path. atomworks pins
-    # ==1.4.0, but 1.4 has no cp314 wheel (only 1.5/1.6/1.7 do); 1.6 keeps the
-    # import path and is current.
-    "biotite>=1.5,<1.7",
-    "biopython",
-    "tqdm",
-    # The console script (esmfold2_atomworks.cli) imports it at module level.
+    "torch",
     "typer",
 ]
+
+[project.optional-dependencies]
+# Training through Foundry: training/ and configs/. rc-foundry supports
+# Python 3.12 only, so this extra does too.
+foundry = ["rc-foundry>=0.1"]
+
+[project.urls]
+Repository = "https://github.com/daylight-00/esmfold2-atomworks"
 
 [project.scripts]
 # Foundry registers every model's CLI in its single root pyproject; moved into
@@ -47,112 +36,7 @@ dev = [
     "pytest",
     "pytest-xdist",
     "ruff==0.16.6",
-    "ipykernel",
 ]
-# --- shared numerics / serialization used by the esm and atomworks trees ---
-common = [
-    "brotli",
-    "einops",
-    "zstd",
-    "zstandard",
-    "cuequivariance_ops_cu13",
-    "cuequivariance_ops_torch_cu13",
-    "cuequivariance_torch",
-]
-# --- imports required by the esm source tree ---
-# Where the ESMFold2 nn.Module lives depends on the esm version:
-#   esm <= 3.3  ships the input pipeline only; the module is in a FORK of
-#               transformers, which the `esm-legacy-model` group below provides.
-#   esm >= 3.4  ships the module itself and drops the fork, using stock
-#               transformers. It also imports huggingface_hub, safetensors and
-#               accelerate at package-import time, so they are listed here
-#               rather than left to be pulled in incidentally.
-# `load_native_model_class` resolves either, so both are supported.
-esm = [
-    "transformers>=4.57.6",
-    "huggingface_hub",
-    "safetensors",
-    "accelerate",
-    "cloudpathlib",
-    "msgpack_numpy",
-    "attrs",
-    "httpx",
-    "tenacity",
-    "ipywidgets",
-    "py3Dmol",
-    "pydssp",
-    "boto3",
-    "pygtrie",
-    "dna_features_viewer",
-]
-# --- imports required by the atomworks source tree ---
-atomworks = [
-    "jaxtyping",
-    "toolz",
-    "py3Dmol",
-    "pymol-remote",
-    "hydride",
-]
-# --- OPTIONAL: the Foundry integration (training/, configs/). Not a default
-#     group, so `uv sync` installs the core alone; add `--group foundry` to
-#     train through Foundry. These are the foundry tree's imports: its trainer
-#     and config stack, then what Foundry's own models import from that tree.
-foundry = [
-    "hydra-core",
-    "lightning",
-    "wandb",
-    "beartype",
-    "rich",
-    "rootutils",
-    "environs",
-    "python-dotenv",
-    # imported only by Foundry's own models (rf3, rfd3), which share its tree
-    "pydantic",
-    "loralib",
-    "opt_einsum",
-    "assertpy",
-    "cython",
-    "cytoolz",
-    "einx",
-    "dm-tree",
-]
-# --- OPT-IN, and only for esm <= 3.3. The fork carries the ESMFold2 module for
-#     versions of esm that do not ship it. It conflicts with the stock
-#     transformers pinned above, so install one or the other, never both.
-esm-legacy-model = [
-    "transformers @ git+https://github.com/Biohub/transformers.git@main",
-]
-# --- OPT-IN ONLY. An optional attention backend. A prebuilt wheel must match
-#     the installed torch exactly: one built against an earlier torch fails at
-#     import on a libtorch ABI symbol rather than at build time. ESMFold2 runs
-#     without it via the torch SDPA fallback.
-flash = [
-    "flash-attn",
-]
-# --- OPT-IN ONLY. Excluded from default-groups because there is often no wheel
-#     for the current interpreter, so this group COMPILES FROM SOURCE. Cap the
-#     build (MAX_JOBS=8) and run it on a machine you are allowed to saturate --
-#     an uncapped parallel compile will take a shared host down.
-te = [
-    "transformer-engine[pytorch]",
-    "ninja",
-    "nvidia-cuda-nvcc",
-    "nvidia-cuda-cccl",
-]
-
-[tool.uv]
-# Deliberately not "all". `foundry` is the optional integration, so `uv sync`
-# installs the AtomWorks <-> ESMFold2 core alone; `flash` and `te` are excluded
-# so that it installs wheels only and compiles nothing.
-default-groups = ["dev", "common", "esm", "atomworks"]
-
-[tool.uv.sources]
-torch = { index = "pytorch-cu132" }
-
-[[tool.uv.index]]
-name = "pytorch-cu132"
-url = "https://download.pytorch.org/whl/cu132"
-explicit = true
 
 [build-system]
 requires = ["hatchling"]
@@ -205,5 +89,5 @@ markers = [
     # Needs nothing but this repository -- no source trees, no torch, no
     # network. CI runs exactly these, which is what makes CI cheap enough to be
     # worth having (see .github/workflows/ci.yml).
-    "offline: runs without the esm/atomworks/foundry source trees",
+    "offline: runs without esm, atomworks or foundry installed",
 ]

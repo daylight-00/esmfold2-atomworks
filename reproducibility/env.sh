@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
-# esmfold2-atomworks environment.
-#   source env.sh
+# The reference environment: the one the published parity results were
+# produced in. Not needed to use the package -- `pip install -e .` is.
+#   uv sync --project reproducibility && source reproducibility/env.sh
 #
-# The research trees are consumed as SOURCE, not as pip packages, because their
-# package metadata would pull this environment back: esm pins torch<2.12, and
-# atomworks pins biotite==1.4.0, which has no cp314 wheel (Foundry depends on
-# atomworks, so installing it would bring that pin along). esm and atomworks
-# are required; foundry is needed only by the optional Foundry integration.
-# See docs/04_ENVIRONMENT.md.
+# The upstreams are consumed as SOURCE trees at the revisions in UPSTREAM.lock,
+# not as packages, because their package metadata would pull this environment
+# back: esm pins torch<2.12, and atomworks pins biotite==1.4.0, which has no
+# cp314 wheel (Foundry depends on atomworks, so installing it would bring that
+# pin along). esm and atomworks are required; foundry is needed only by the
+# optional Foundry integration. See reproducibility/README.md.
 
-EF_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# The repository root, one level above this file.
+EF_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export EF_ROOT
 
 # ---------------------------------------------------------------- source trees
@@ -53,15 +55,15 @@ export OPENBLAS_NUM_THREADS="${OPENBLAS_NUM_THREADS:-1}"
 export NUMEXPR_NUM_THREADS="${NUMEXPR_NUM_THREADS:-1}"
 
 # ---------------------------------------------------------------------- venv
-# EF_VENV points at an existing environment; otherwise this repo's own .venv is
-# used when present. Set EF_VENV to share one environment across several
-# projects that consume the same source trees. If neither exists and nothing is
-# already active, the current interpreter is left alone -- `doctor` then reports
-# which imports are missing.
+# EF_VENV points at an existing environment; otherwise the one
+# `uv sync --project reproducibility` builds is used when present. Set EF_VENV
+# to share one environment across several projects that consume the same source
+# trees. If neither exists and nothing is already active, the current
+# interpreter is left alone -- `doctor` then reports which imports are missing.
 if [ -n "${EF_VENV:-}" ] && [ -f "${EF_VENV}/bin/activate" ]; then
     # shellcheck disable=SC1091
     source "${EF_VENV}/bin/activate"
-elif [ -f "${EF_ROOT}/.venv/bin/activate" ]; then
+elif [ -f "${EF_ROOT}/reproducibility/.venv/bin/activate" ]; then
     # shellcheck disable=SC1091
-    source "${EF_ROOT}/.venv/bin/activate"
+    source "${EF_ROOT}/reproducibility/.venv/bin/activate"
 fi

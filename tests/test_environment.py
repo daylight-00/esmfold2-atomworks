@@ -7,12 +7,29 @@ rather than deep inside a fold.
 from __future__ import annotations
 
 import importlib.util
+from pathlib import Path
 
 import pytest
 
 from esmfold2_atomworks import paths
 
 
+def _uses_source_trees() -> bool:
+    """Whether esm comes from a source tree -- the reference environment -- or,
+    as in an ordinary install, from a package."""
+    spec = importlib.util.find_spec("esm")
+    if spec is None or spec.origin is None:
+        return False
+    return not {"site-packages", "dist-packages"} & set(Path(spec.origin).parts)
+
+
+reference_environment_only = pytest.mark.skipif(
+    not _uses_source_trees(),
+    reason="upstreams are installed packages here, not the reference source trees",
+)
+
+
+@reference_environment_only
 def test_design_root_is_discovered_not_assumed():
     """Discovery must find the real tree, including from a git worktree.
 
@@ -25,6 +42,7 @@ def test_design_root_is_discovered_not_assumed():
         )
 
 
+@reference_environment_only
 @pytest.mark.parametrize("module", paths.REQUIRED_TREES)
 def test_required_source_tree_exists(module):
     assert paths.SOURCE_TREES[module].is_dir()
@@ -79,3 +97,22 @@ def test_pythonpath_entries_are_reported_in_order():
     entries = paths.pythonpath_entries()
     assert entries[-1].name == "src"
     assert len(entries) == len(paths.SOURCE_TREES) + 1
+
+
+def test_doctor_passes_an_ordinary_install(monkeypatch, tmp_path, capsys):
+    """No source trees, no UPSTREAM.lock, no AtomWorks test data: nothing fails.
+
+    That is what `pip install` gives, and it is a complete installation -- those
+    three belong to the reference environment, not to the package.
+    """
+    from esmfold2_atomworks import doctor
+
+    for module in list(paths.SOURCE_TREES):
+        monkeypatch.setitem(paths.SOURCE_TREES, module, tmp_path / "trees" / module)
+    monkeypatch.setattr(paths, "UPSTREAM_LOCK", tmp_path / "UPSTREAM.lock")
+    monkeypatch.setattr(paths, "DESIGN_ROOT", tmp_path)
+
+    assert doctor.check_source_trees()
+    assert doctor.check_upstream_revisions()
+    assert doctor.check_adapter()
+    assert "FAIL" not in capsys.readouterr().out

@@ -1,19 +1,24 @@
 """Verify that the environment this repo assumes is actually present.
 
-``python -m esmfold2_atomworks.doctor`` (or ``esmfold2-atomworks doctor``) checks the
-source trees, the weights and the imports, and prints what is wrong rather than
-failing later inside a fold. ``tests/test_environment.py`` asserts the same
-things.
+``python -m esmfold2_atomworks.doctor`` (or ``esmfold2-atomworks doctor``)
+reports where the upstreams come from, checks the imports and the weights, and
+runs a real parity check, printing what is wrong rather than failing later
+inside a fold. ``tests/test_environment.py`` asserts the same things.
 
-Foundry is optional -- it backs the training integration and nothing else -- so
-its absence is reported, never counted as a failure.
+Only a missing import or a failed parity check is a failure. Source trees,
+``UPSTREAM.lock`` and AtomWorks' test structures belong to the reference
+environment (``reproducibility/``); an ordinary install has none of them, and
+is no less complete for it. Foundry is optional -- it backs the training
+integration and nothing else.
 """
 
 from __future__ import annotations
 
 import importlib
+import importlib.metadata
 import importlib.util
 import sys
+from pathlib import Path
 
 from esmfold2_atomworks import paths
 
@@ -31,15 +36,51 @@ def _optional(label: str, detail: str) -> None:
 _ONLY_FOR_FOUNDRY = "absent; needed only for the optional Foundry integration"
 
 
+#: The distribution that provides each upstream module when it is installed
+#: rather than put on PYTHONPATH as a source tree.
+_DISTRIBUTIONS = {"esm": "esm", "atomworks": "atomworks", "foundry": "rc-foundry"}
+
+
+def _origin(module: str) -> Path | None:
+    """Where *module* is imported from, or ``None`` if it is not importable."""
+    try:
+        spec = importlib.util.find_spec(module)
+    except (ImportError, ValueError):
+        return None
+    return Path(spec.origin).resolve() if spec and spec.origin else None
+
+
+def _installed_version(module: str) -> str | None:
+    try:
+        return importlib.metadata.version(_DISTRIBUTIONS[module])
+    except (KeyError, importlib.metadata.PackageNotFoundError):
+        return None
+
+
+def _from_source_tree(module: str, origin: Path) -> bool:
+    tree = paths.SOURCE_TREES.get(module)
+    return tree is not None and origin.is_relative_to(tree.resolve())
+
+
 def check_source_trees() -> bool:
-    print(f"source trees (DESIGN_ROOT = {paths.DESIGN_ROOT})")
-    ok = True
-    for module, tree in paths.SOURCE_TREES.items():
-        if module in paths.OPTIONAL_TREES and not tree.is_dir():
-            _optional(f"{module:10s} {tree}", _ONLY_FOR_FOUNDRY)
-            continue
-        ok &= _check(f"{module:10s} {tree}", tree.is_dir())
-    return ok
+    """Where each upstream comes from: a source tree, or an installed package.
+
+    Either is fine, so this never fails; the import check below is what
+    requires the modules to be there at all.
+    """
+    print(f"upstreams (DESIGN_ROOT = {paths.DESIGN_ROOT})")
+    for module in paths.SOURCE_TREES:
+        origin = _origin(module) if _importable(module) else None
+        if origin is None:
+            detail = _ONLY_FOR_FOUNDRY if module in paths.OPTIONAL_TREES else "absent"
+            _optional(f"{module:10s}", detail)
+        elif _from_source_tree(module, origin):
+            _check(f"{module:10s} source tree {paths.SOURCE_TREES[module]}", True)
+        elif (version := _installed_version(module)) is not None:
+            _check(f"{module:10s} installed package {version}", True)
+        else:
+            _check(f"{module:10s} {origin.parent}", True)
+    return True
 
 
 def _importable(module: str) -> bool:
@@ -82,7 +123,7 @@ def _find_model_module() -> tuple[bool, str]:
                 return True, detail
         except (ImportError, ValueError, ModuleNotFoundError):
             continue
-    return False, "install esm >= 3.4, or the Biohub transformers fork for esm <= 3.3"
+    return False, "install esm >= 3.4, which ships the model"
 
 
 def check_upstream_revisions() -> bool:
@@ -96,17 +137,31 @@ def check_upstream_revisions() -> bool:
     print("upstream revisions")
     locked = paths.read_upstream_lock()
     if not locked:
-        _check("UPSTREAM.lock", False, "missing; parity results are unanchored")
+        _optional(
+            "UPSTREAM.lock", "not found; it ships with the repository, not the package"
+        )
         return True
 
     for tree in paths.LOCKED_TREES:
-        if tree in paths.OPTIONAL_TREES and not paths.SOURCE_TREES[tree].is_dir():
-            _optional(f"{tree:10s}", _ONLY_FOR_FOUNDRY)
-            continue
+        origin = _origin(tree) if _importable(tree) else None
         want = locked.get(tree, {})
         pinned = want.get("commit")
-        actual = paths.tree_revision(tree)
         version = want.get("version", "?")
+        if origin is None:
+            detail = _ONLY_FOR_FOUNDRY if tree in paths.OPTIONAL_TREES else "absent"
+            _optional(f"{tree:10s}", detail)
+            continue
+        if not _from_source_tree(tree, origin):
+            # An installed package: its version is all there is to compare.
+            installed = _installed_version(tree)
+            detail = (
+                f"matches locked version ({version})"
+                if installed == version
+                else f"locked {version}; re-verify parity"
+            )
+            _check(f"{tree:10s} package {installed}", True, detail)
+            continue
+        actual = paths.tree_revision(tree)
         if actual is None:
             _check(f"{tree:10s} (not a git checkout)", True, f"locked {version}")
         elif pinned and actual == pinned:
@@ -146,7 +201,12 @@ def check_adapter() -> bool:
     print("adapter")
     fixture = paths.DESIGN_ROOT / "atomworks" / "tests" / "data" / "io" / "2hhb.cif.gz"
     if not fixture.exists():
-        return _check("feature parity", False, f"fixture missing: {fixture}")
+        _optional(
+            "feature parity",
+            "needs AtomWorks' test structures, which come with an atomworks "
+            "source checkout (see reproducibility/)",
+        )
+        return True
     try:
         from esmfold2_atomworks.parity.run import parity_for_structure
 

@@ -59,10 +59,12 @@ and four selenomethionines (`1a8o`).
 Reproduce with:
 
 ```bash
-source env.sh
-pytest tests/test_feature_parity.py -q      # ~30 s, CPU, no weights
+pytest tests/test_feature_parity.py -q      # CPU, no weights
 esmfold2-atomworks doctor                    # same check on 2hhb, plus the environment
 ```
+
+Both pass in an ordinary install and in the pinned reference environment the
+published numbers come from ([`reproducibility/`](../reproducibility/README.md)).
 
 ## Coverage
 

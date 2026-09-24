@@ -1,7 +1,7 @@
 # Upstream revisions this repository's parity claims were verified against.
 #
 # The source trees are consumed from PYTHONPATH rather than pinned by a package
-# manager (see reproducibility/README.md), so nothing else records which revision
+# manager (see README.md beside this file), so nothing else records which revision
 # produced a given result. This project's central claim is *exact* parity, which
 # makes that gap worse here than it would be for an ordinary wrapper: a reader a
 # month from now cloning moving repositories has no way to reproduce today's
@@ -11,8 +11,8 @@
 # `esmfold2-atomworks doctor` compares these against the trees it finds -- or,
 # in an ordinary install, against the installed packages' versions -- and
 # reports any drift. Drift is reported, never enforced -- the adapter is
-# deliberately version-tolerant (it supports both ESMFold2 packagings), so a
-# newer tree is a thing to re-verify, not a thing to refuse.
+# deliberately version-tolerant, so a newer tree is a thing to re-verify, not a
+# thing to refuse.
 #
 # To re-pin after verifying against newer trees, update each entry by hand:
 #   git -C <tree> rev-parse HEAD

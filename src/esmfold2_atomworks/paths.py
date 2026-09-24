@@ -143,7 +143,7 @@ def config_dir() -> Path:
 #: against it.
 LOCKED_TREES = (*REQUIRED_TREES, *OPTIONAL_TREES)
 
-UPSTREAM_LOCK = REPO_ROOT / "UPSTREAM.lock"
+UPSTREAM_LOCK = REPO_ROOT / "reproducibility" / "UPSTREAM.lock"
 
 
 def read_upstream_lock(path: Path | None = None) -> dict[str, dict[str, str]]:

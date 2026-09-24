@@ -20,7 +20,7 @@ AtomWorks AtomArray ──adapter──> ESMFold2 (unmodified) ──adapter─�
 |---|---|
 | **AtomWorks ↔ ESMFold2** — adapter and its reverse, AtomWorks pipeline, supervision labels | done; feature parity exact on 5 fixtures |
 | **Inference** — model wrapper, engine, CLI | done; output parity within the model's own scatter on a GPU |
-| **Foundry integration** (optional) — trainer, Hydra configs | integration contracts verified against the pinned Foundry and rc-foundry 0.2.0; the objective is the caller's ([docs/05](docs/05_ROADMAP.md)) |
+| **Foundry integration** (optional) — trainer, Hydra configs | contracts verified against the pinned Foundry checkout, the runtime ones also against rc-foundry 0.2.0; the objective is the caller's ([docs/05](docs/05_ROADMAP.md)) |
 
 The core milestone is met: for monomer, multimer, metal, cofactor and
 modified-residue systems, the input the adapter derives from a structure
@@ -113,7 +113,7 @@ of the upstreams, and without them those tests skip. See
 
 The published parity results were produced in one pinned reference
 environment: Python 3.14, torch 2.14, and the upstreams as source trees at the
-revisions in `UPSTREAM.lock`. [`reproducibility/`](reproducibility/README.md)
+revisions in `reproducibility/UPSTREAM.lock`. [`reproducibility/`](reproducibility/README.md)
 defines it (`uv sync --project reproducibility`, then
 `source reproducibility/env.sh`). It is not needed for ordinary use.
 

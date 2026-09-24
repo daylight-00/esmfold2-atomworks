@@ -6,18 +6,22 @@ supported training and execution backend: the `FabricTrainer` subclass in
 imports it — `tests/test_core_boundary.py` holds it to that — and a workspace
 without Foundry is complete for everything else. It is the package's `foundry`
 extra — `pip install -e ".[foundry]"`, which brings rc-foundry and so needs
-Python 3.12 — and a plain install leaves it out. The contract tests pass
-against both the pinned Foundry tree and the rc-foundry 0.2.0 release.
+Python 3.12 — and a plain install leaves it out. Its runtime contracts pass
+against both the pinned Foundry checkout and the rc-foundry 0.2.0 release; its
+repository contracts, which read a checkout's own files, against the pinned
+checkout.
 
 > Everything on this page is **verified against Foundry's current integration
-> contracts** by
-> `tests/test_foundry_integration.py`: the trainer really subclasses
-> `FabricTrainer` with no abstract method left and matching signatures, the
-> engine really offers `BaseInferenceEngine`'s surface, `RegisteredCheckpoint`
-> really takes the fields named below, all six registration tables really
-> exist, models really are registered centrally rather than per-model, and the
-> data-pipeline config really instantiates into a working pipeline. The tests
-> do not modify the Foundry checkout — they check each claim where it lives.
+> contracts** by `tests/test_foundry_integration.py`, in two kinds. The
+> *runtime* contracts are checked against the Foundry that is imported: the
+> trainer really subclasses `FabricTrainer` with no abstract method left and
+> matching signatures, the engine really offers `BaseInferenceEngine`'s
+> surface, `RegisteredCheckpoint` really takes the fields named below, and the
+> data-pipeline config really instantiates into a working pipeline. The
+> *repository* contracts read a Foundry checkout's own files — all six
+> registration tables really exist, and models really are registered centrally
+> rather than per-model — so they run only when that checkout is the Foundry
+> under test. The tests do not modify the Foundry checkout — they check each claim where it lives.
 > What they do *not* do is copy the package in, patch Foundry's `pyproject.toml`
 > and install the result; that would verify the same contracts while leaving a
 > dirty tree, and would need re-doing on every upstream release.

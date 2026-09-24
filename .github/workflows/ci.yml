@@ -100,7 +100,7 @@ jobs:
           import sys
           sys.path.insert(0, "src")
           from esmfold2_atomworks import paths
-          locked = paths.read_upstream_lock(paths.REPO_ROOT / "UPSTREAM.lock")
+          locked = paths.read_upstream_lock(paths.UPSTREAM_LOCK)
           missing = [t for t in paths.REQUIRED_TREES if t not in locked]
           assert not missing, f"UPSTREAM.lock is missing {missing}"
           unknown = [t for t in locked if t not in paths.LOCKED_TREES]

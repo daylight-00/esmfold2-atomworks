@@ -15,6 +15,7 @@ registration instructions by reading Foundry's own ``pyproject.toml``.
 from __future__ import annotations
 
 import inspect
+from pathlib import Path
 
 import pytest
 import tomllib
@@ -67,8 +68,24 @@ def test_the_checkpoint_registry_takes_the_fields_docs_06_claims():
     assert {"url", "filename", "description"} <= fields, fields
 
 
+def _foundry_checkout() -> Path:
+    """The Foundry source checkout -- provided it is the Foundry under test.
+
+    The repository contracts below read files only a checkout has: its root
+    ``pyproject.toml`` and its ``models/``. Beside an installed rc-foundry those
+    describe a different Foundry from the one the runtime tests above import,
+    so they skip rather than mix two versions in one run.
+    """
+    import foundry
+
+    tree = paths.SOURCE_TREES["foundry"].resolve()
+    if not Path(foundry.__file__).resolve().is_relative_to(tree):
+        pytest.skip("the Foundry under test is not the checkout these contracts read")
+    return tree.parent
+
+
 def _foundry_pyproject() -> dict:
-    path = paths.SOURCE_TREES["foundry"].parent / "pyproject.toml"
+    path = _foundry_checkout() / "pyproject.toml"
     if not path.exists():
         pytest.skip(f"no Foundry pyproject at {path}")
     return tomllib.loads(path.read_text())
@@ -97,7 +114,7 @@ def test_models_are_registered_in_the_root_pyproject_not_their_own():
     packages = pyproject["tool"]["hatch"]["build"]["targets"]["wheel"]["packages"]
     assert any(entry.startswith("models/") for entry in packages), packages
 
-    models_dir = paths.SOURCE_TREES["foundry"].parent / "models"
+    models_dir = _foundry_checkout() / "models"
     stray = sorted(p for p in models_dir.glob("*/pyproject.toml"))
     assert not stray, (
         f"a model now carries its own pyproject ({stray}); docs/06 says the repo "

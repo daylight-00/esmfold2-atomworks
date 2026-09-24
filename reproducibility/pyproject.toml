@@ -4,7 +4,7 @@
 # kept reproducible. See README.md in this directory.
 #
 # esm, atomworks and foundry are not listed. Here they are source trees at the
-# revisions recorded in ../UPSTREAM.lock, put on PYTHONPATH by env.sh, because
+# revisions recorded in UPSTREAM.lock, put on PYTHONPATH by env.sh, because
 # their package metadata would pull this environment back: esm 3.4 pins
 # torch>=2.11,<2.12 and atomworks pins biotite==1.4.0, which has no cp314 wheel.
 # (Foundry's own pins conflict with nothing here, but it depends on atomworks.)

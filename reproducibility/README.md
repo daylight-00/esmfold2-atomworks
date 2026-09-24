@@ -9,7 +9,7 @@ package, `pip install -e .` in the repository root is enough; see
 |---|---|
 | interpreter | CPython 3.14.6, linux x86_64 |
 | torch | 2.14.0, CUDA 13.2 |
-| esm, atomworks, foundry | source trees at the revisions in [`UPSTREAM.lock`](../UPSTREAM.lock), on `PYTHONPATH` |
+| esm, atomworks, foundry | source trees at the revisions in [`UPSTREAM.lock`](UPSTREAM.lock), on `PYTHONPATH` |
 | everything else | [`pyproject.toml`](pyproject.toml) pins what the trees and the package import; [`uv.lock`](uv.lock) pins the rest — 177 packages, each at the version that environment had |
 
 ## Rebuilding it
@@ -66,8 +66,9 @@ existing environment instead of the one `uv sync` builds.
 The trees come from `PYTHONPATH`, so nothing else records *which* revision
 produced a result — and exact parity raises the bar for that well above an
 ordinary wrapper's. `UPSTREAM.lock` records the commit and version of each tree.
-It sits at the repository root rather than here because it is provenance, not
-environment, and `doctor` compares against it:
+It sits beside `pyproject.toml` and `uv.lock` because the three define the
+environment together — the trees' revisions, and everything around them — and
+`doctor` compares against it:
 
 ```
 upstream revisions

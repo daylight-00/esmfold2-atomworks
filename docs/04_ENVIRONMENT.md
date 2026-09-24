@@ -20,7 +20,7 @@ with the package, and without them the tests that read them skip.
 
 The published parity results were produced in a different, pinned environment:
 Python 3.14 and torch 2.14, with the upstreams as source trees at the revisions
-in `UPSTREAM.lock`. It is defined, and its choices explained, under
+in `reproducibility/UPSTREAM.lock`. It is defined, and its choices explained, under
 [`reproducibility/`](../reproducibility/README.md).
 
 ## The ESMFold2 module
@@ -61,8 +61,8 @@ cannot share an environment with esm 3.4 (esm requires `transformers<5`).
 
 ## Provenance: `UPSTREAM.lock`
 
-`UPSTREAM.lock` records the upstream revisions — commit and version — that the
-published parity results were verified against. `doctor` compares what it finds
+`reproducibility/UPSTREAM.lock` records the upstream revisions — commit and
+version — that the published parity results were verified against. `doctor` compares what it finds
 with it: a source tree's commit in the reference environment, an installed
 package's version in an ordinary install. Drift is **reported, never
 enforced**: the adapter is deliberately version-tolerant, so a newer upstream is

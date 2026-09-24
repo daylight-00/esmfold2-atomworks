@@ -70,9 +70,12 @@ prediction of the wrong molecule:
 - a sequence is taken from the full entity record, not from the residues that
   happen to be modelled, so unresolved loops are not silently deleted;
 - a non-standard residue is declared by CCD code, not folded as its parent;
-- a sequence override, MSA or ligand declaration that does not bind to exactly
-  the chain it names — a typo, the wrong kind of chain, an alignment built for
-  another sequence — is an **error**, not a no-op;
+- a chain kind, sequence override, MSA or ligand declaration that does not bind
+  to exactly the chain it names — a typo, the wrong kind of chain, an alignment
+  built for another sequence — is an **error**, not a no-op;
+- a chain that holds more than one molecule — a protein, its ligands and its
+  waters under one author chain id — is an **error**, whether its annotations
+  say so or a declared kind is contradicted by the CCD;
 - a chain that cannot be expressed, a covalent bond that cannot be placed, a
   chain kind that would have to be guessed, or a modification whose position is
   unknown each **raises** by default — accepted only by name, on every path,

@@ -11,7 +11,7 @@ itself is untouched.
 
 | input | source | why |
 |---|---|---|
-| chain kind | `chain_type` annotation → `atomworks.enums.ChainType` | D-002 |
+| chain kind | `chain_type` annotation → `atomworks.enums.ChainType`; without one, a `chain_kinds` declaration, verified | D-002 |
 | sequence | `chain_info[c]["processed_entity_canonical_sequence"]` | D-003 |
 | modifications | `chain_info[c]["res_name"]`, aligned 1:1 with the canonical sequence | D-007 |
 | ligand identity | a declared `LigandSpec`, else a verified CCD code | D-004 |
@@ -26,8 +26,68 @@ RNA                                                     -> RNAInput
 NON_POLYMER / BRANCHED / MACROLIDE                      -> LigandInput
 WATER                                                   -> dropped by policy (drop_water), and reported
 anything else                                           -> raises UnsupportedChainError
-no chain_type annotation                                -> raises InferredChainKindError
+no chain_type, declared in chain_kinds                  -> the declared kind, verified (below)
+no chain_type, only is_polymer                          -> raises InferredChainKindError
+no chain_type, no is_polymer                            -> raises UnsupportedChainError
 ```
+
+A chain is classified as a whole, so every atom of it has to agree: a chain
+whose atoms carry two `chain_type` values, or both `is_polymer` values, raises
+`MixedChainError`; classified by its first atom, the rest would be folded as
+part of that molecule.
+
+## One chain, one molecule
+
+ESMFold2 takes one input per chain, and everything above assumes that one label
+of `chain_key` is one molecule. `atomworks.io.parse` makes it so: it gives the
+polymer and non-polymer residues of an author chain chains of their own. An
+author chain read any other way need not be one molecule. Read with author
+fields — biotite's default — chain `A` of 101M is the protein, a heme, NBN, a
+sulfate and 138 waters.
+
+Such a structure carries no `chain_type`, so it is refused until the caller says
+what its chains are. `chain_kinds` is how:
+
+```python
+atom_array_to_structure_prediction_input(atoms, chain_kinds={"A": "protein", "B": "ligand"})
+model.fold_atom_array(atoms, adapter_kwargs={"chain_kinds": {"A": "protein", "B": "ligand"}})
+```
+
+It is a declaration, not an override, and it is verified rather than trusted:
+
+| the chain carries | the declaration is checked against |
+|---|---|
+| `chain_type` | `chain_type` alone: the parse is authoritative, and a contradiction raises |
+| `is_polymer` only | `is_polymer`, then the CCD |
+| neither | the CCD, residue by residue |
+
+Against the CCD, each declared kind has to be true of every residue:
+
+| declared | every residue must be |
+|---|---|
+| `protein` / `dna` / `rna` | of that polymer, by its CCD `_chem_comp.type` — modified and D-residues included |
+| `ligand` | not water, and a polymer residue only when it is the chain's only residue (a free amino acid is a ligand; a run of them is a peptide) |
+| `water` | water in AtomWorks' sense, `HOH` or `DOD`, and then `drop_water` decides, as for a parsed water chain |
+
+A residue that does not fit raises `ChainDeclarationError`, listing it with
+what the CCD calls it. That covers the case this exists for: declared `protein`,
+101M's author chain A would otherwise fold every water and the heme as residues
+of the protein — and under a sequence override, the design path, leave them out
+of the model input with nothing dropped and nothing raised. The CCD is only ever
+used to refuse; it never supplies a kind, so this is verification and not the
+residue-name guess the classification exists to avoid. It cannot tell which of
+two things went wrong, and the error says so: the residues may be separate
+molecules sharing a label, or the chain's own residues under names the CCD uses
+for something else — Amber's `HIE` and `CYX` are unrelated small molecules
+there. Nor can it catch a name the CCD files under the same polymer: Amber's
+`HIP` is phosphonohistidine in the CCD, passes, and is folded as that
+modification. Residue names have to be CCD codes.
+
+The fix for a chain that holds more than one molecule is a label per molecule:
+parse with `atomworks.io.parse`, read an mmCIF with
+`pdbx.get_structure(..., use_author_fields=False)`, or build an annotation that
+separates them and pass it as `chain_key=`. `unsupported` cannot be declared —
+it names the absence of anything to classify by, not something a chain is.
 
 ## Modification positions are verified, not assumed
 
@@ -133,13 +193,14 @@ engine therefore records, per output, what actually happened under
 direct callers pass an `AdapterReport` through `adapter_kwargs={"report": report}`
 and read `report.accepted_degradations()`.
 
-Two refusals have no opt-in, because there is nothing reasonable to proceed
+Three refusals have no opt-in, because there is nothing reasonable to proceed
 with; and water is not a degradation but a policy with its own switch:
 
 | situation | behaviour |
 |---|---|
 | ligand labelled `LIG`/`UNL`/`UNK`, or a name absent from the CCD | **raises** `LigandIdentityError`; declare a `LigandSpec` |
 | a declaration that does not bind ([below](#declarations-must-bind)) | **raises** `ChainDeclarationError` |
+| a chain whose atoms carry more than one `chain_type` or `is_polymer` value | **raises** `MixedChainError`; give each molecule its own chain ([above](#one-chain-one-molecule)) |
 | water | dropped under the explicit `drop_water` policy (`drop_water=False` refuses instead) |
 
 **The boundary of the policy.** It acts on what the adapter can establish.
@@ -162,14 +223,16 @@ silence.
 
 ## Declarations must bind
 
-`sequences`, `msas` and `ligands` are statements about particular chains, and
-the conversion reads each only for chains of particular kinds. One that names
-another chain — or none — would be passed over without a trace, and the fold
-would come back as though it had been applied. So each is checked before
-conversion starts, and one that does not bind raises `ChainDeclarationError`:
+`chain_kinds`, `sequences`, `msas` and `ligands` are statements about
+particular chains, and the conversion reads each only for chains of particular
+kinds. One that names another chain — or none — would be passed over without a
+trace, and the fold would come back as though it had been applied. So each is
+checked before conversion starts, and one that does not bind raises
+`ChainDeclarationError`:
 
 | declaration | binds only if | otherwise |
 |---|---|---|
+| `chain_kinds[c]` | `c` is a chain, the kind is `protein`, `dna`, `rna`, `ligand` or `water`, and neither the chain's annotations nor its residues contradict it ([above](#one-chain-one-molecule)) | ignored; overriding what the parse recorded; or folding what else shares the label as part of the declared molecule |
 | `sequences[c]` | `c` is a protein, DNA or RNA chain, the override is not empty, and a protein override has no chain break (`:` or `\|`) | ignored in favour of the structure's own sequence; the chain omitted; or split by upstream into chains `c_0`, `c_1` |
 | `msas[c]` | `c` is a protein chain, and the alignment's query row is the sequence folded there | ignored, leaving the protein in single-sequence mode; or clamped into place |
 | `ligands[c]` | `c` is a non-polymer chain, a mapping key equals its spec's `chain_id`, and no other spec names `c` | never read; applied to one chain while describing another; or replaced, the last one winning |

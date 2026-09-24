@@ -361,9 +361,11 @@ class AtomWorksESMFold2:
             :data:`esmfold2_atomworks.data.atomworks_to_esm.DEGRADATIONS`. To see
             what happened under an opt-in, pass an ``AdapterReport`` as
             ``adapter_kwargs={"report": report}`` and read
-            ``report.accepted_degradations()`` afterwards. A sequence override,
-            MSA or ``LigandSpec`` passed the same way must bind to the chain it
-            names, or it raises ``ChainDeclarationError`` -- with no opt-in.
+            ``report.accepted_degradations()`` afterwards. A chain kind,
+            sequence override, MSA or ``LigandSpec`` passed the same way must
+            bind to the chain it names, or it raises ``ChainDeclarationError``
+            -- with no opt-in. For a structure that carries no ``chain_type``,
+            ``adapter_kwargs={"chain_kinds": {...}}`` says what each chain is.
 
         Returns:
             ``(atom_array, result)`` -- the structure, and the native result

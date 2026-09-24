@@ -26,13 +26,15 @@ tensors it expects. Parity then becomes checkable rather than hoped for
 (``esmfold2_atomworks.parity``).
 
 **What is deliberately not inferred.** Chain classification comes from
-AtomWorks' own ``chain_type`` annotation, and ligand identity from an explicit
-declaration or a CCD code that is verified, never from a residue-name guess.
-See :mod:`esmfold2_atomworks.data.spec`.
+AtomWorks' own ``chain_type`` annotation -- or, for an array without one, from
+the caller's declaration, verified against the CCD -- and ligand identity from
+an explicit declaration or a CCD code that is verified, never from a
+residue-name guess. See :mod:`esmfold2_atomworks.data.spec`.
 """
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
@@ -46,6 +48,7 @@ from esmfold2_atomworks.data.spec import (
     InferredChainKindError,
     LigandIdentityError,
     LigandSpec,
+    MixedChainError,
     ModificationResolutionError,
     UnsupportedChainError,
 )
@@ -54,6 +57,7 @@ if TYPE_CHECKING:
     from biotite.structure import AtomArray
 
 __all__ = [
+    "DECLARABLE_CHAIN_KINDS",
     "DEGRADATIONS",
     "AdapterReport",
     "ChainRecord",
@@ -120,6 +124,14 @@ def _remedy(name: str) -> str:
         f"Opt in deliberately with allow_{name}=True (adapter / fold_atom_array "
         f"adapter_kwargs), allow=[{name!r}] (pipeline or engine config), or "
         f"--allow {name} (CLI)."
+    )
+
+
+def _declare_hint(chain_id: str) -> str:
+    """The fix for a caller who knows what an unannotated chain is."""
+    return (
+        f"If you know what the chain is, declare it: chain_kinds={{{chain_id!r}: "
+        f"<kind>}}, one of {sorted(DECLARABLE_CHAIN_KINDS)}."
     )
 
 
@@ -422,12 +434,217 @@ def modifications_for_chain(residue_names: list[str], kind: str) -> list[Any]:
 # --------------------------------------------------------------------------
 # Chain partition
 # --------------------------------------------------------------------------
+# ESMFold2 takes one input per chain, so a chain is classified as a whole, and
+# everything below relies on one label of `chain_key` being one molecule.
+# `atomworks.io.parse` makes it so: it gives the polymer and non-polymer
+# residues of an author chain chains of their own. An author chain read any
+# other way need not be one molecule -- in an mmCIF read with author fields, a
+# protein, its ligands and its waters commonly share one. Where the annotations
+# can show a chain is mixed, it is refused; where a declaration is all there
+# is, the declaration is verified against the CCD instead.
+
+
+#: Chain kinds a caller may declare. ``unsupported`` is absent: it names the
+#: absence of anything to classify by, not something a chain can be. ``water``
+#: is present because declaring it describes the chain and asks for nothing;
+#: what happens to water is decided by ``drop_water``, as for a parsed one.
+DECLARABLE_CHAIN_KINDS: frozenset[str] = frozenset(
+    {"protein", "dna", "rna", "ligand", "water"}
+)
+
+_POLYMER_KINDS = ("protein", "dna", "rna")
+
+#: The CCD's ``_chem_comp.type`` values for each polymer kind: the partition
+#: biotite's ``amino_acid_names`` and ``nucleotide_names`` are drawn from.
+_POLYMER_LINK_TYPES: dict[str, frozenset[str]] = {
+    "protein": frozenset(
+        {
+            "D-BETA-PEPTIDE, C-GAMMA LINKING",
+            "D-GAMMA-PEPTIDE, C-DELTA LINKING",
+            "D-PEPTIDE COOH CARBOXY TERMINUS",
+            "D-PEPTIDE LINKING",
+            "D-PEPTIDE NH3 AMINO TERMINUS",
+            "L-BETA-PEPTIDE, C-GAMMA LINKING",
+            "L-GAMMA-PEPTIDE, C-DELTA LINKING",
+            "L-PEPTIDE COOH CARBOXY TERMINUS",
+            "L-PEPTIDE LINKING",
+            "L-PEPTIDE NH3 AMINO TERMINUS",
+            "PEPTIDE LINKING",
+        }
+    ),
+    "dna": frozenset(
+        {
+            "DNA LINKING",
+            "DNA OH 3 PRIME TERMINUS",
+            "DNA OH 5 PRIME TERMINUS",
+            "L-DNA LINKING",
+        }
+    ),
+    "rna": frozenset(
+        {
+            "L-RNA LINKING",
+            "RNA LINKING",
+            "RNA OH 3 PRIME TERMINUS",
+            "RNA OH 5 PRIME TERMINUS",
+        }
+    ),
+}
+
+
+def _validated_chain_kinds(
+    chain_kinds: Mapping[Any, str] | None, labels: np.ndarray
+) -> dict[str, str]:
+    """*chain_kinds* keyed by ``str`` chain id, every entry checked to apply.
+
+    A declaration that cannot apply is an error, never a no-op: the caller
+    believes something was stated that would otherwise be silently ignored --
+    the rule the sequence, MSA and ligand declarations follow.
+    """
+    declared = _by_chain("chain_kinds", chain_kinds)
+    present = sorted(set(labels.tolist()))
+    for chain, kind in declared.items():
+        if chain not in present:
+            raise ChainDeclarationError(
+                f"a chain kind is declared for chain {chain!r}, but the structure "
+                f"has no such chain (it has {', '.join(map(repr, present))}), so it "
+                "would be silently ignored."
+            )
+        if kind not in DECLARABLE_CHAIN_KINDS:
+            raise ChainDeclarationError(
+                f"chain {chain!r} is declared {kind!r}; declarable kinds are "
+                f"{sorted(DECLARABLE_CHAIN_KINDS)}. 'unsupported' names the absence "
+                "of anything to classify a chain by, so it cannot be declared."
+            )
+    return declared
+
+
+def _one_per_chain(chain_id: str, annotation: str, values: np.ndarray) -> Any:
+    """The one value *annotation* takes on a chain, or ``MixedChainError``.
+
+    Reading the first atom's value and applying it to the chain would fold
+    whatever else shares the label as part of that molecule.
+    """
+    unique = np.unique(values)
+    if unique.size == 1:
+        return unique[0]
+    if annotation == "chain_type":
+        from atomworks.enums import ChainType
+
+        def name(value: Any) -> str:
+            try:
+                return ChainType(int(value)).name
+            except ValueError:
+                return str(value)
+
+        shown = " and ".join(name(value) for value in unique)
+    else:
+        shown = " and ".join(str(value) for value in unique)
+    raise MixedChainError(
+        f"chain {chain_id!r} holds more than one kind of molecule: its atoms "
+        f"carry {annotation} {shown}. ESMFold2 takes one input per chain, so "
+        "classifying it by any one of them would fold the others as part of that "
+        "molecule, or not at all. Give each molecule a chain of its own -- "
+        "atomworks.io.parse does -- or pass chain_key= naming an annotation that "
+        "does."
+    )
+
+
+def _ccd_class(res_name: str) -> tuple[str, str]:
+    """``(class, what the CCD calls it)`` for one residue name.
+
+    The class is a polymer kind, ``"water"``, ``"non-polymer"`` for anything
+    else the CCD knows, or ``"unknown"``. Water is AtomWorks' own set
+    (``WATER_LIKE_CCDS``, what ``parse`` removes), so a declared water chain
+    means what a parsed one does.
+    """
+    from atomworks.constants import WATER_LIKE_CCDS
+    from biotite.structure.info import link_type
+
+    if res_name in WATER_LIKE_CCDS:
+        return "water", "water"
+    link = link_type(res_name)
+    if link is None:
+        return "unknown", "not in the CCD"
+    link = link.upper()
+    for kind, types in _POLYMER_LINK_TYPES.items():
+        if link in types:
+            return kind, link
+    return "non-polymer", link
+
+
+#: What every residue of a chain declared as each kind must be, for the error.
+_DECLARED_RESIDUES_MUST_BE = {
+    "protein": "protein residues in the CCD",
+    "dna": "DNA residues in the CCD",
+    "rna": "RNA residues in the CCD",
+    "water": "water",
+    "ligand": (
+        "possible in a ligand chain, which holds no water, and a polymer "
+        "residue only on its own"
+    ),
+}
+
+
+def _verify_declared_composition(chain: AtomArray, chain_id: str, kind: str) -> None:
+    """Refuse a declared kind that the chain's residues contradict.
+
+    Checked against the CCD because the chain carries nothing else to check it
+    against. The CCD is only ever used to refuse: it never supplies a kind, so
+    this is verification rather than the residue-name guess that chain
+    classification exists to avoid.
+
+    A declaration describes one molecule, so it has to be true of every
+    residue. The failure this catches is a chain holding more than one: an
+    author chain declared ``protein`` that also holds a heme and a hundred
+    waters would fold them as residues of the protein -- or, under a sequence
+    override, leave them out altogether -- and nothing downstream raises.
+    """
+    starts = _residue_starts(chain)
+    names = [str(name) for name in chain.res_name[starts]]
+    classes = {name: _ccd_class(name) for name in set(names)}
+
+    def fits(name: str) -> bool:
+        cls, _ = classes[name]
+        if kind in _POLYMER_KINDS:
+            return cls == kind
+        if kind == "water":
+            return cls == "water"
+        # A ligand. Never water; and a polymer residue only on its own, since a
+        # free amino acid is a ligand but a run of them is a peptide.
+        if cls == "water":
+            return False
+        return cls not in _POLYMER_KINDS or len(names) == 1
+
+    misfits = Counter(name for name in names if not fits(name))
+    if not misfits:
+        return
+
+    def describe(name: str, count: int) -> str:
+        label = f"{count} x {name}" if count > 1 else name
+        return f"{label} ({classes[name][1]})"
+
+    listing = ", ".join(
+        describe(name, count)
+        for name, count in sorted(misfits.items(), key=lambda item: (-item[1], item[0]))
+    )
+    raise ChainDeclarationError(
+        f"chain {chain_id!r} is declared {kind!r}, but {sum(misfits.values())} of "
+        f"its {len(names)} residues are not {_DECLARED_RESIDUES_MUST_BE[kind]}: "
+        f"{listing}. A declaration describes one molecule, so it has to be true "
+        "of every residue. If these are separate molecules -- a ligand, an ion or "
+        "water sharing an author chain id -- give each a chain of its own: "
+        "atomworks.io.parse does, as does biotite's pdbx.get_structure(..., "
+        "use_author_fields=False), or pass chain_key= naming an annotation that "
+        "does. If they are this chain's own residues under names the CCD uses "
+        "for something else, rename them to their CCD codes."
+    )
 
 
 def chain_records(
     atoms: AtomArray,
     *,
     chain_info: dict | None = None,
+    chain_kinds: Mapping[str, str] | None = None,
     chain_key: str = "chain_id",
 ) -> list[ChainRecord]:
     """Classify every chain of *atoms*, in first-appearance order.
@@ -435,82 +652,129 @@ def chain_records(
     Order matters: ESMFold2 numbers entities in the order the inputs are given
     (``build_chains_from_input``), so a stable, structure-derived order is what
     makes two conversions of the same structure comparable.
+
+    Args:
+        chain_kinds: what each chain is, for an array that does not say -- one
+            of :data:`DECLARABLE_CHAIN_KINDS` per chain. A **declaration, not an
+            override**, and verified: against ``chain_type`` or ``is_polymer``
+            where the array carries them, and against the CCD, residue by
+            residue, where it carries neither. It has to be true of every
+            residue, so a chain holding more than one molecule cannot be
+            declared at all.
+
+            This is the seam for a caller that knows -- a structure built by
+            hand, converted back from another modelling package, or threaded
+            onto a backbone, none of which carry AtomWorks annotations. The only
+            alternative is ``allow_inferred_chain_kind``, which accepts a guess
+            that would call a DNA chain protein.
+
+    Raises:
+        MixedChainError: a chain whose atoms carry more than one ``chain_type``,
+            or more than one ``is_polymer`` value.
+        ChainDeclarationError: a ``chain_kinds`` entry that names no chain,
+            gives a kind that cannot be declared, or that the chain's
+            annotations or residues contradict.
     """
     protein_t, dna_t, rna_t, ligand_t = _chain_type_groups()
     water_t = _droppable_chain_types()
 
     labels = np.asarray(atoms.get_annotation(chain_key)).astype(str)
-    has_chain_type = "chain_type" in set(atoms.get_annotation_categories())
+    declared_kinds = _validated_chain_kinds(chain_kinds, labels)
+    categories = set(atoms.get_annotation_categories())
     chain_types = (
         np.asarray(atoms.get_annotation("chain_type")).astype(int)
-        if has_chain_type
+        if "chain_type" in categories
         else None
     )
-    has_is_polymer = "is_polymer" in set(atoms.get_annotation_categories())
     is_polymer = (
         np.asarray(atoms.get_annotation("is_polymer")).astype(bool)
-        if has_is_polymer
+        if "is_polymer" in categories
         else None
     )
 
     # First-appearance order, not np.unique's lexicographic order.
     _, first_index = np.unique(labels, return_index=True)
-    ordered = [labels[i] for i in sorted(first_index)]
+    ordered = [str(labels[i]) for i in sorted(first_index)]
 
     records: list[ChainRecord] = []
     for chain_id in ordered:
         mask = labels == chain_id
         chain = atoms[mask]
-        ctype = int(chain_types[mask][0]) if chain_types is not None else None
+        ctype = (
+            int(_one_per_chain(chain_id, "chain_type", chain_types[mask]))
+            if chain_types is not None
+            else None
+        )
+        polymer = (
+            bool(_one_per_chain(chain_id, "is_polymer", is_polymer[mask]))
+            if is_polymer is not None
+            else None
+        )
+        declared_kind = declared_kinds.get(chain_id)
 
-        if ctype is None:
-            # No chain_type annotation: the array did not come through
-            # atomworks.io.parse. Fall back to is_polymer, and if that is
-            # missing too, say so rather than guessing from residue names.
-            #
-            # The polymer branch is a genuine guess -- a DNA or RNA chain
-            # arriving without chain_type would be called protein here. It is
-            # made so that a hand-built AtomArray can still be described, and
-            # flagged (`ChainRecord.kind_is_inferred`) so that the adapter
-            # refuses to fold on it unless the caller accepts it by name
-            # (`allow_inferred_chain_kind`). Anything from `atomworks.io.parse`
-            # or the component assembler carries chain_type and never takes
-            # this path.
-            inferred = is_polymer is not None
-            if is_polymer is None:
-                kind = "unsupported"
+        inferred = False
+        if ctype is not None:
+            if ctype in protein_t:
+                kind = "protein"
+            elif ctype in dna_t:
+                kind = "dna"
+            elif ctype in rna_t:
+                kind = "rna"
+            elif ctype in ligand_t:
+                kind = "ligand"
+            elif ctype in water_t:
+                kind = "water"
             else:
-                kind = "protein" if bool(is_polymer[mask][0]) else "ligand"
-        elif ctype in protein_t:
-            inferred = False
-            kind = "protein"
-        elif ctype in dna_t:
-            inferred = False
-            kind = "dna"
-        elif ctype in rna_t:
-            inferred = False
-            kind = "rna"
-        elif ctype in ligand_t:
-            inferred = False
-            kind = "ligand"
-        elif ctype in water_t:
-            inferred = False
-            kind = "water"
+                kind = "unsupported"
+            if declared_kind is not None and declared_kind != kind:
+                raise ChainDeclarationError(
+                    f"chain {chain_id!r} is declared {declared_kind!r}, but the "
+                    f"structure's own chain_type says {kind!r}. A declaration "
+                    "states what a chain is; it does not override what the parse "
+                    "recorded. Drop the declaration, or fix the annotation."
+                )
+        elif declared_kind is not None:
+            # The caller stated it; what the array still carries has to agree,
+            # and the residues have to be what was stated. Not an inference, so
+            # `allow_inferred_chain_kind` is never asked for.
+            if polymer is not None and polymer != (declared_kind in _POLYMER_KINDS):
+                raise ChainDeclarationError(
+                    f"chain {chain_id!r} is declared {declared_kind!r}, but "
+                    f"is_polymer marks its atoms "
+                    f"{'polymer' if polymer else 'non-polymer'}. A declaration "
+                    "states what a chain is; it does not override the array's own "
+                    "annotation. Drop the declaration, or fix the annotation."
+                )
+            _verify_declared_composition(chain, chain_id, declared_kind)
+            kind = declared_kind
+        elif polymer is not None:
+            # No chain_type and no declaration: the array did not come through
+            # atomworks.io.parse. The polymer branch is a genuine guess -- a DNA
+            # or RNA chain arriving this way would be called protein. It is made
+            # so that a hand-built AtomArray can still be described, and flagged
+            # (`ChainRecord.kind_is_inferred`) so that the adapter refuses to
+            # fold on it unless the caller accepts it by name
+            # (`allow_inferred_chain_kind`). A caller that knows the answer
+            # declares it with `chain_kinds` instead.
+            inferred = True
+            kind = "protein" if polymer else "ligand"
         else:
-            inferred = False
+            # Nothing to classify by, and no guess made from residue names.
             kind = "unsupported"
 
         starts = _residue_starts(chain)
         sequence: str | None = None
-        if kind in ("protein", "dna", "rna"):
-            declared = _canonical_sequence_from_chain_info(chain_info, str(chain_id))
+        if kind in _POLYMER_KINDS:
+            canonical = _canonical_sequence_from_chain_info(chain_info, chain_id)
             sequence = (
-                declared if declared is not None else sequence_of_chain(chain, kind)[0]
+                canonical
+                if canonical is not None
+                else sequence_of_chain(chain, kind)[0]
             )
 
         records.append(
             ChainRecord(
-                chain_id=str(chain_id),
+                chain_id=chain_id,
                 kind=kind,
                 n_atoms=int(mask.sum()),
                 n_residues=len(starts),
@@ -534,6 +798,7 @@ def atom_array_to_structure_prediction_input(
     atoms: AtomArray,
     *,
     chain_info: dict | None = None,
+    chain_kinds: Mapping[str, str] | None = None,
     ligands: dict[str, LigandSpec] | tuple[LigandSpec, ...] = (),
     msas: dict[str, Any] | None = None,
     sequences: dict[str, str] | None = None,
@@ -556,6 +821,12 @@ def atom_array_to_structure_prediction_input(
             preferred: it carries the full entity sequence, including residues
             that were never resolved. Without it, unmodelled residues are
             simply absent from the sequence, which folds a different molecule.
+        chain_kinds: what each chain is, for a structure that carries no
+            ``chain_type`` -- one built by hand, converted back from another
+            modelling package, or threaded onto a backbone. A declaration,
+            verified rather than trusted, never an override; see
+            :func:`chain_records`. Each chain has to be one molecule, which a
+            raw author chain often is not.
         ligands: declared identities for non-polymer chains, keyed by chain id
             (or a tuple, keyed by each spec's own ``chain_id``). A key must
             equal its spec's ``chain_id``, and a chain has at most one spec.
@@ -593,8 +864,11 @@ def atom_array_to_structure_prediction_input(
         ``StructurePredictionInput`` ready for ``ESMFold2InputBuilder``.
 
     Raises:
-        ChainDeclarationError: a sequence override, MSA or ligand spec that
-            would not reach exactly the chain it names.
+        ChainDeclarationError: a chain kind, sequence override, MSA or ligand
+            spec that would not reach exactly the chain it names, or that the
+            chain contradicts.
+        MixedChainError: a chain whose atoms belong to more than one kind of
+            molecule, by their own annotations.
         LigandIdentityError: a non-polymer chain whose identity cannot be
             established without guessing.
 
@@ -613,7 +887,9 @@ def atom_array_to_structure_prediction_input(
     msas = _by_chain("msas", msas)
     sequences = _by_chain("sequences", sequences)
 
-    records = chain_records(atoms, chain_info=chain_info, chain_key=chain_key)
+    records = chain_records(
+        atoms, chain_info=chain_info, chain_kinds=chain_kinds, chain_key=chain_key
+    )
     rep.chains = records
     _check_declarations(records, sequences=sequences, msas=msas, ligands=spec_by_chain)
 
@@ -630,7 +906,9 @@ def atom_array_to_structure_prediction_input(
                     f"would be inferred from is_polymer as {record.kind!r}. That "
                     "cannot tell protein from DNA or RNA -- a nucleic-acid chain "
                     "inferred this way is folded as a protein -- nor water from a "
-                    "ligand. Set chain_type explicitly (atomworks.enums.ChainType). "
+                    "ligand. "
+                    + _declare_hint(chain_id)
+                    + " To accept the guess instead: "
                     + _remedy("inferred_chain_kind")
                 )
             rep.inferred_chain_kinds.append(chain_id)
@@ -651,9 +929,18 @@ def atom_array_to_structure_prediction_input(
                 else "no chain_type or is_polymer annotation"
             )
             if not allow_unsupported_chains:
+                # With no annotation at all the chain may be perfectly
+                # expressible; what is missing is someone saying what it is. A
+                # chain_type upstream has no input for cannot be declared away.
+                declare = (
+                    _declare_hint(chain_id) + " To drop it instead: "
+                    if record.chain_type is None
+                    else ""
+                )
                 raise UnsupportedChainError(
                     f"chain {chain_id!r} cannot be expressed as an ESMFold2 input "
                     f"({reason}), so folding would silently omit it. "
+                    + declare
                     + _remedy("unsupported_chains")
                 )
             rep.dropped.append((chain_id, reason))

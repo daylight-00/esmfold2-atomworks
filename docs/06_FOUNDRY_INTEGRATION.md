@@ -103,6 +103,12 @@ The last two `pyproject.toml` entries are newer than the rest and easy to miss:
 resolve. `rfd3` and `rfd3na` have it; `rf3` omits it despite declaring the
 searchpath. Do not copy `rf3` here.
 
+Foundry's models also list `pkg://configs` on their Hydra searchpath. Outside
+Foundry that package does not exist, and Hydra warns on every compose for an
+entry it cannot resolve, so `configs/inference.yaml` lists only
+`pkg://esmfold2_atomworks.configs`; moving the package in, add `pkg://configs`
+back beside it.
+
 Two conventions have a current and a legacy form — copy the current one:
 
 | | current | legacy |

@@ -10,7 +10,7 @@ Read in order. Decisions carry IDs (`D-001` …) and the code cites them.
 | [03_MODEL.md](03_MODEL.md) | the model wrapper, the AtomWorks pipeline, the engine, and upstream gotchas |
 | [04_ENVIRONMENT.md](04_ENVIRONMENT.md) | installing, the ESMFold2 packagings, checks, gotchas |
 | [05_ROADMAP.md](05_ROADMAP.md) | what is not done yet |
-| [06_FOUNDRY_INTEGRATION.md](06_FOUNDRY_INTEGRATION.md) | the optional Foundry integration: how it drops into `foundry/models/`, and training |
+| [06_FOUNDRY_INTEGRATION.md](06_FOUNDRY_INTEGRATION.md) | the optional Foundry integration: compatibility contracts and training |
 
 The pinned environment the published results were produced in is documented
 beside the record rather than in it, under

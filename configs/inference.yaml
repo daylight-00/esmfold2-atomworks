@@ -1,9 +1,7 @@
 # @package _global_
-# The searchpath lets an installed package find its own configs. Foundry's
-# models also list `pkg://configs`; that package does not exist in this
-# repository, and Hydra warns on every compose for a searchpath it cannot
-# resolve, so it is omitted here. Add it back when moving into foundry/models/,
-# where the rest of the files carry it.
+# The searchpath lets an installed package find its own configs. It names only
+# this package: Hydra warns on every compose for a searchpath entry it cannot
+# resolve, so nothing else is listed.
 hydra:
   searchpath:
     - pkg://esmfold2_atomworks.configs

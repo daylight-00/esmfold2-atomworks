@@ -1,10 +1,9 @@
-"""This package actually plugs into the Foundry it is pinned against.
+"""The optional Foundry integration holds against the Foundry it is tested with.
 
-docs/06 describes how to drop the package into ``foundry/models/esmfold2/`` in
-detail, but description is not verification: every claim in it is about a
-repository that moves independently of this one. These tests check the claims
-against the installed Foundry, so that "Foundry-shaped" becomes
-"Foundry-compatible".
+docs/06 describes the integration and the Foundry contracts it relies on, but
+description is not verification: every claim in it is about a repository that
+moves independently of this one. These tests check the claims against the
+installed Foundry, so that "Foundry-shaped" becomes "Foundry-compatible".
 
 They do **not** modify the Foundry checkout. Copying this package into it and
 editing its ``pyproject.toml`` would verify the same things while leaving a
@@ -59,7 +58,7 @@ def test_our_engine_offers_the_base_engine_surface():
         assert hasattr(ESMFold2InferenceEngine, name), f"ours is missing {name}"
 
 
-def test_the_checkpoint_registry_takes_the_fields_docs_03_claims():
+def test_the_checkpoint_registry_takes_the_fields_docs_06_claims():
     """docs/06 tells the reader to add a RegisteredCheckpoint(url, filename, description)."""
     registry = pytest.importorskip("foundry.inference_engines.checkpoint_registry")
 
@@ -75,7 +74,7 @@ def _foundry_pyproject() -> dict:
     return tomllib.loads(path.read_text())
 
 
-def test_the_registration_points_docs_03_names_still_exist():
+def test_the_registration_points_docs_06_names_still_exist():
     """Every table docs/06 tells the reader to edit must be there to edit.
 
     Upstream added two of these after this package was written; if it adds a

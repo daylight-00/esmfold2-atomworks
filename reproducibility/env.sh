@@ -47,11 +47,13 @@ export EF_MODELS="${EF_MODELS:-${DESIGN_ROOT}/biohub}"
 export EF_CHECKPOINTS="${EF_CHECKPOINTS:-${DESIGN_ROOT}/checkpoints}"
 export EF_RUNS="${EF_RUNS:-${EF_ROOT}/runs}"
 
-# The CCD pickle ESMFold2 builds conformers from. esm loads it once per process:
-# from this variable when it is set, otherwise from wherever the first caller
-# says -- and its own lazy lookups say nothing, which downloads the Hub's latest
-# revision into the Hugging Face cache. Pointing it at the mirror makes every
-# call agree. See paths.ccd_dir().
+# The CCD pickle ESMFold2 builds conformers from. esm captures this variable
+# once, when esm.models.esmfold2.conformers is imported, and prefers it over any
+# location a caller passes; the dictionary is then loaded once per process by
+# whichever call comes first -- and esm's own lazy lookups pass no location,
+# which downloads the Hub's latest revision into the Hugging Face cache.
+# Exported here, before Python starts, it makes every call agree. See
+# paths.ccd_dir().
 if [ -z "${ESMCFOLD_CCD_PATH:-}" ] && [ -f "${EF_MODELS}/ESMFold2/ccd.pkl" ]; then
     export ESMCFOLD_CCD_PATH="${EF_MODELS}/ESMFold2/ccd.pkl"
 fi

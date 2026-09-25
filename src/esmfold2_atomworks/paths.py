@@ -179,8 +179,10 @@ def ccd_dir() -> Path | None:
     The dictionary is process-global and the first load wins, so this decides
     the source only when it reaches whichever call loads first -- and esm's own
     lazy lookups load with no location at all. ``reproducibility/env.sh``
-    therefore also exports ``ESMCFOLD_CCD_PATH``, which esm consults on every
-    load.
+    therefore also exports ``ESMCFOLD_CCD_PATH`` before Python starts:
+    ``esm.models.esmfold2.conformers`` captures it when it is imported and
+    prefers it over any location a caller passes, so whichever call loads
+    first reads the mirror's pickle.
     """
     directory = ESMFOLD2_WEIGHTS.standard
     return directory if (directory / "ccd.pkl").is_file() else None

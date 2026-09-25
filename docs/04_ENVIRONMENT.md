@@ -52,8 +52,9 @@ the `ccd.pkl` in the `ESMFold2` mirror (`paths.ccd_dir()`), which serves every
 checkpoint; without a mirror copy, esm downloads it from the Hub's latest
 revision, which can change under a fixed checkpoint. The first load in a
 process decides, and esm's own lazy lookups name no location, so
-`reproducibility/env.sh` also exports `ESMCFOLD_CCD_PATH`, which esm consults on
-every load. `doctor` reports which source applies.
+`reproducibility/env.sh` also exports `ESMCFOLD_CCD_PATH` before Python starts:
+`esm.models.esmfold2.conformers` captures it at import and prefers it over any
+location a caller passes. `doctor` reports which source applies.
 
 **Historically**, esm ≤ 3.3 shipped only the input pipeline, and the module
 lived in a fork of `transformers` (`ESMFold2Model`, moved with `.to(device)`

@@ -43,7 +43,7 @@ def data_dir() -> Path:
 def ccd() -> None:
     """Load the CCD dictionary once for the whole session (~9 s, ~50k entries)."""
     load_ccd = pytest.importorskip("esm.models.esmfold2").load_ccd
-    load_ccd()
+    load_ccd(paths.ccd_dir())
 
 
 @pytest.fixture(scope="session")

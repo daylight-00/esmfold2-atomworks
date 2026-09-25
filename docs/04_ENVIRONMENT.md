@@ -47,7 +47,13 @@ otherwise from the Hub id `biohub/ESMFold2`, downloaded on first use
 
 The CCD dictionary (~50k entries, ~9 s) is loaded once per process into
 module-global state in `esm.models.esmfold2.conformers`. It is **not
-thread-safe**, which is why `AtomWorksESMFold2.__init__` warms it.
+thread-safe**, which is why `AtomWorksESMFold2.__init__` warms it. It comes from
+the `ccd.pkl` in the `ESMFold2` mirror (`paths.ccd_dir()`), which serves every
+checkpoint; without a mirror copy, esm downloads it from the Hub's latest
+revision, which can change under a fixed checkpoint. The first load in a
+process decides, and esm's own lazy lookups name no location, so
+`reproducibility/env.sh` also exports `ESMCFOLD_CCD_PATH`, which esm consults on
+every load. `doctor` reports which source applies.
 
 **Historically**, esm ≤ 3.3 shipped only the input pipeline, and the module
 lived in a fork of `transformers` (`ESMFold2Model`, moved with `.to(device)`

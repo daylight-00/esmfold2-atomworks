@@ -107,7 +107,9 @@ def run_feature_parity(
     """
     from esm.models.esmfold2.conformers import load_ccd
 
-    load_ccd()
+    from esmfold2_atomworks import paths
+
+    load_ccd(paths.ccd_dir())
 
     failures: list[ParityOutcome] = []
     for item in structures:

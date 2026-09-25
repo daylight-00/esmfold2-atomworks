@@ -278,7 +278,10 @@ class AtomWorksESMFold2:
             self.net.set_kernel_backend(kernel_backend)
 
         # Stateless, and its __init__ loads the ~50k-entry CCD dictionary
-        # (~9 s), so one builder is shared by every call.
+        # (~9 s), so one builder is shared by every call. The dictionary comes
+        # from the mirror when there is one (paths.ccd_dir), not from the Hub.
+        if ccd_cache is None:
+            ccd_cache = paths.ccd_dir()
         self.builder = ESMFold2InputBuilder(ccd_cache=ccd_cache)
 
     # -- introspection -----------------------------------------------------

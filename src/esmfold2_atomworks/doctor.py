@@ -18,6 +18,7 @@ import importlib
 import importlib.metadata
 import importlib.util
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -192,7 +193,20 @@ def check_weights() -> bool:
         else:
             detail = "will download from the Hub"
         _check(f"{name:12s} {resolved}", True, detail)
+    source, detail = _ccd_source()
+    _check(f"{'ccd':12s} {source}", True, detail)
     return True
+
+
+def _ccd_source() -> tuple[str, str]:
+    """Where esm will load the CCD pickle from, in esm's own order."""
+    override = os.environ.get("ESMCFOLD_CCD_PATH")
+    if override and Path(override).is_file():
+        return override, "ESMCFOLD_CCD_PATH"
+    directory = paths.ccd_dir()
+    if directory is not None:
+        return str(directory / "ccd.pkl"), "local mirror"
+    return "biohub/ESMFold2 ccd.pkl", "will download from the Hub's latest revision"
 
 
 def _esmc_detail(checkpoint: Path) -> str:

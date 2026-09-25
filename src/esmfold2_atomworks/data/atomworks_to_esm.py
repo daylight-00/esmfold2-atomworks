@@ -1467,7 +1467,9 @@ def _is_ccd_code(name: str) -> bool:
     try:
         from esm.models.esmfold2.conformers import load_ccd
 
-        ccd = load_ccd()
+        from esmfold2_atomworks import paths
+
+        ccd = load_ccd(paths.ccd_dir())
     except Exception:  # noqa: BLE001 - absence of the CCD must not be fatal here
         return True
     try:

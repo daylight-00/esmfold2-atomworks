@@ -1,10 +1,12 @@
-"""The ESMC backbone is found the way the folding weights are.
+"""The ESMC backbone and the CCD pickle are found the way the folding weights are.
 
 A checkpoint that does not bundle its backbone names one in ``config.esmc_id``,
 and what that string holds varies by where the mirror came from: a Hub id, or an
 absolute path on the machine that wrote it. These pin that the name is resolved
 through ``paths`` -- a local mirror first -- and that the wrapper attaches what
-was resolved rather than what was written. Nothing here loads weights.
+was resolved rather than what was written. The CCD pickle likewise comes from
+the mirror when it holds one, rather than from the Hub's latest revision.
+Nothing here loads weights.
 """
 
 from __future__ import annotations
@@ -115,3 +117,26 @@ def test_the_experimental_signature_is_respected(models):
     net = _ExperimentalNet(esmc_id="biohub/ESMC-6B")
     source = attach_esmc(net, "fp32")
     assert net.calls == [(source,)]
+
+
+# -- ccd_dir -----------------------------------------------------------------
+
+
+def test_the_ccd_comes_from_the_mirror_that_holds_it(tmp_path, monkeypatch):
+    mirror = tmp_path / "ESMFold2"
+    mirror.mkdir()
+    (mirror / "ccd.pkl").write_bytes(b"")
+    monkeypatch.setattr(
+        paths, "ESMFOLD2_WEIGHTS", paths.ESMFold2Weights(standard=mirror)
+    )
+    assert paths.ccd_dir() == mirror
+
+
+def test_without_a_mirror_copy_esm_downloads_it(tmp_path, monkeypatch):
+    # A mirror without the pickle (as -Fast and -Experimental ship) is not one.
+    mirror = tmp_path / "ESMFold2"
+    mirror.mkdir()
+    monkeypatch.setattr(
+        paths, "ESMFOLD2_WEIGHTS", paths.ESMFold2Weights(standard=mirror)
+    )
+    assert paths.ccd_dir() is None

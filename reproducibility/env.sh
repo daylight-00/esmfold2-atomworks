@@ -47,6 +47,15 @@ export EF_MODELS="${EF_MODELS:-${DESIGN_ROOT}/biohub}"
 export EF_CHECKPOINTS="${EF_CHECKPOINTS:-${DESIGN_ROOT}/checkpoints}"
 export EF_RUNS="${EF_RUNS:-${EF_ROOT}/runs}"
 
+# The CCD pickle ESMFold2 builds conformers from. esm loads it once per process:
+# from this variable when it is set, otherwise from wherever the first caller
+# says -- and its own lazy lookups say nothing, which downloads the Hub's latest
+# revision into the Hugging Face cache. Pointing it at the mirror makes every
+# call agree. See paths.ccd_dir().
+if [ -z "${ESMCFOLD_CCD_PATH:-}" ] && [ -f "${EF_MODELS}/ESMFold2/ccd.pkl" ]; then
+    export ESMCFOLD_CCD_PATH="${EF_MODELS}/ESMFold2/ccd.pkl"
+fi
+
 # ---------------------------------------------------------------- thread policy
 # Featurization parity is many small CPU jobs; BLAS threads only oversubscribe.
 export OMP_NUM_THREADS="${OMP_NUM_THREADS:-1}"

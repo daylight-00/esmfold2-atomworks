@@ -164,6 +164,28 @@ def _is_hub_id(name: str) -> bool:
     return name.count("/") == 1 and not name.startswith(("/", ".", "~"))
 
 
+def ccd_dir() -> Path | None:
+    """The directory holding the workspace's ``ccd.pkl``, or ``None``.
+
+    ESMFold2 builds ligand and modified-residue conformers from a pickled CCD
+    published only in ``biohub/ESMFold2``, so the copy in that mirror serves
+    every checkpoint. esm's ``load_ccd(cache_dir)`` reads
+    ``<cache_dir>/ccd.pkl``; given nothing, it downloads the pickle from the
+    Hub's latest revision into the Hugging Face cache -- a source that moves,
+    and one that bypasses the mirror. Pass this instead. ``None`` means there
+    is no mirror copy, and esm downloads as before. ``ESMCFOLD_CCD_PATH``, when
+    set, still takes precedence inside esm.
+
+    The dictionary is process-global and the first load wins, so this decides
+    the source only when it reaches whichever call loads first -- and esm's own
+    lazy lookups load with no location at all. ``reproducibility/env.sh``
+    therefore also exports ``ESMCFOLD_CCD_PATH``, which esm consults on every
+    load.
+    """
+    directory = ESMFOLD2_WEIGHTS.standard
+    return directory if (directory / "ccd.pkl").is_file() else None
+
+
 def pythonpath_entries() -> list[Path]:
     """The ``PYTHONPATH`` additions ``reproducibility/env.sh`` makes, in order."""
     return [*SOURCE_TREES.values(), REPO_ROOT / "src"]

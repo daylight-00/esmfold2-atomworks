@@ -27,7 +27,7 @@ wants ``AtomArray -> StructurePredictionInput`` need not pay for it.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 from atomworks.ml.transforms._checks import check_contains_keys
 from atomworks.ml.transforms.base import Compose, SubsetToKeys, Transform
@@ -35,9 +35,55 @@ from atomworks.ml.transforms.base import Compose, SubsetToKeys, Transform
 __all__ = [
     "AttachStructureLabels",
     "FeaturizeForESMFold2",
+    "PolymerMSAsToESMFold2",
     "StructurePredictionInputTransform",
     "build_esmfold2_pipeline",
 ]
+
+
+class PolymerMSAsToESMFold2(Transform):
+    """``data["polymer_msas_by_chain_id"]`` -> ``data["msas"]``, protein chains only.
+
+    Runs straight after AtomWorks' ``LoadPolymerMSAs``, which is what
+    ``build_esmfold2_pipeline(msa_loader=...)`` arranges. Each protein chain's
+    loaded alignment becomes an ``esm.utils.msa.MSA``
+    (:func:`~esmfold2_atomworks.data.msa.polymer_msa_to_esm`) and then binds,
+    or is refused, like any other declared MSA.
+
+    ESMFold2 takes alignments for protein chains only, so an RNA alignment is
+    left out -- by policy, not silently: ``data["msas_left_out"]`` names each
+    such chain with its kind. An alignment already in ``data["msas"]`` for a
+    chain the loader also covered is a conflict and raises.
+    """
+
+    requires_previous_transforms: ClassVar[list[str]] = ["LoadPolymerMSAs"]
+
+    def check_input(self, data: dict[str, Any]) -> None:
+        check_contains_keys(data, ["atom_array", "polymer_msas_by_chain_id"])
+
+    def forward(self, data: dict[str, Any]) -> dict[str, Any]:
+        from atomworks.enums import ChainType
+
+        from esmfold2_atomworks.data.msa import polymer_msa_to_esm
+
+        atoms = data["atom_array"]
+        msas = dict(data.get("msas") or {})
+        left_out: dict[str, str] = {}
+        for chain_id, msa_data in data["polymer_msas_by_chain_id"].items():
+            kinds = atoms.chain_type[atoms.chain_id == chain_id]
+            kind = ChainType(int(kinds[0])) if len(kinds) else None
+            if kind is None or not kind.is_protein():
+                left_out[chain_id] = kind.name if kind is not None else "absent"
+                continue
+            if chain_id in msas:
+                raise ValueError(
+                    f"chain {chain_id!r} has an alignment in data['msas'] already "
+                    "and another from the loader; keep one"
+                )
+            msas[chain_id] = polymer_msa_to_esm(msa_data, chain_id=chain_id)
+        data["msas"] = msas
+        data["msas_left_out"] = left_out
+        return data
 
 
 class StructurePredictionInputTransform(Transform):
@@ -192,6 +238,7 @@ def build_esmfold2_pipeline(
     allow: Any = (),
     attach_labels: bool = False,
     pre_transforms: list[Transform] | None = None,
+    msa_loader: Transform | None = None,
     keys_to_keep: list[str] | None = None,
 ) -> Compose:
     """Compose the ESMFold2 training/inference pipeline.
@@ -209,8 +256,13 @@ def build_esmfold2_pipeline(
         attach_labels: also emit ``data["labels"]`` -- the source coordinates on
             the model's atom axis, plus a mask. Supervision targets only; the
             objective stays with the caller.
-        pre_transforms: AtomWorks transforms to run first -- crops, filters, MSA
-            loading. Everything structural belongs here.
+        pre_transforms: AtomWorks transforms to run first -- crops, filters.
+            Everything structural belongs here.
+        msa_loader: an AtomWorks ``LoadPolymerMSAs``, run after
+            ``pre_transforms`` and followed by :class:`PolymerMSAsToESMFold2`,
+            so the alignments it finds reach the model. A crop in
+            ``pre_transforms`` changes the folded sequence, and a full-chain
+            alignment then no longer binds: it is refused, not clamped.
         keys_to_keep: final ``SubsetToKeys``. Defaults to the features, the
             decode metadata and the example id.
 
@@ -218,6 +270,8 @@ def build_esmfold2_pipeline(
         An ``atomworks.ml.transforms.Compose``.
     """
     transforms: list[Transform] = list(pre_transforms or [])
+    if msa_loader is not None:
+        transforms += [msa_loader, PolymerMSAsToESMFold2()]
     transforms.append(
         StructurePredictionInputTransform(
             ligands=ligands,
@@ -236,5 +290,7 @@ def build_esmfold2_pipeline(
             keys_to_keep += ["labels", "label_coverage", "label_skipped_chains"]
         if is_inference:
             keys_to_keep += ["atom_array", "adapter_report"]
+        if msa_loader is not None:
+            keys_to_keep += ["msas_left_out"]
     transforms.append(SubsetToKeys(keys_to_keep))
     return Compose(transforms)

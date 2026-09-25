@@ -85,6 +85,7 @@ rather than known-good.
 | MSA, single chain | exact feature parity against a hand-written input |
 | MSA, paired heteromer | pairing verified by row content, not just shape |
 | MSA binding | refused unless the query row is the folded sequence, which upstream would clamp into place; lookup by chain id verified by swapping alignments between identical chains |
+| MSA from AtomWorks' loader | `LoadPolymerMSAs` output features exactly like the same a3m handed over directly, insertions included; heteromer rows pair by the loader's TaxIDs, and not without them; the alignment AtomWorks' own `1wym` case pairs with that structure is for another protein, and is refused |
 | DNA | branch covered (`mol_type` 1, duplex) |
 | RNA | branch covered (`mol_type` 2) |
 | protein–nucleic complex | branch covered (`mol_type` {0, 1}) |
@@ -260,10 +261,6 @@ Three deliberate choices:
   step in featurization. With a fixed seed it is reproducible, but a ligand
   declared as SMILES on one side and CCD on the other will differ in `ref_pos`
   legitimately. `compare_features` takes `atol` for this case.
-- **MSAs built by AtomWorks' own loader.** Transfer and `key=<taxid>` pairing
-  are verified, but with alignments the tests construct directly. Composing
-  `LoadPolymerMSAs` into `pre_transforms` and re-checking would close the last
-  step of that path.
 - **Chains whose insertion codes cannot be placed.** `chain_info` records no
   insertion code, so for a chain numbered 100/100A/100B whose sequence comes
   from there, residues cannot be tied to sequence positions. The fold input is

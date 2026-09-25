@@ -244,6 +244,13 @@ tag, the parent of a design — is used column by column with no error, and its
 first row contradicts the residues the model is given. To fold a design against
 its parent's alignment on purpose, make the design the alignment's query row.
 
+Alignments found by AtomWorks' `LoadPolymerMSAs` reach the same check through
+`PolymerMSAsToESMFold2`, which `build_esmfold2_pipeline(msa_loader=...)` places
+after the loader: rows, insertion counts and TaxIDs become an `MSA` whose
+headers carry upstream's `key=<taxid>`, so heteromer rows pair. ESMFold2 takes
+no RNA alignment, so the loader's RNA alignments are left out and named in
+`data["msas_left_out"]`.
+
 Keys are compared as strings, as the structure's own labels are, so a key `1`
 binds to chain `"1"` instead of silently matching nothing. These are invalid
 requests rather than approximations, so unlike `DEGRADATIONS` there is no

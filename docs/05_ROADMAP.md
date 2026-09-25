@@ -21,21 +21,19 @@ build on this repository keep their own.
 - **Packaged configs** compose from an installed wheel (checked in CI).
 - **Optional Foundry integration** verified against the pinned checkout, not just
   described.
+- **AtomWorks' own MSA loader**, `LoadPolymerMSAs`, wired in with
+  `build_esmfold2_pipeline(msa_loader=...)`: what it loads features exactly like
+  the file it came from, heteromer rows pair by its TaxIDs, and an alignment it
+  finds for a different protein is refused ([02](02_PARITY.md)).
 
-## Missing for inference completeness
+## Ongoing validation
+
+Inference is complete for the scope above; what follows has no natural end, so
+it is validation that continues rather than a missing piece.
 
 **Corpus coverage.** `esmfold2-atomworks parity <dir>/*.cif` over a larger set,
 to enumerate the chain types and ligands the adapter cannot yet express. The
 useful output is the failure list, not the pass rate.
-
-**`LoadPolymerMSAs` wiring.** MSA transfer and pairing are verified
-([02_PARITY.md](02_PARITY.md)), but the alignments in those tests are
-constructed directly. Composing AtomWorks' own MSA loader into
-`pre_transforms` and re-checking would close the last step of that path.
-Whatever the loader attaches must bind ([01](01_ADAPTER.md#declarations-must-bind)):
-an alignment is accepted only for a protein chain and only with the folded
-sequence as its query row, so an RNA alignment — ESMFold2 has no input for one —
-has to be left out rather than passed through.
 
 ## Missing for training
 

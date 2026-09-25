@@ -92,6 +92,11 @@ pipelines of `rf3` and `rfd3`:
 - **Cropping changes the molecule.** ESMFold2 folds sequences, so a crop applied
   before the featurizer folds the crop. That is usually right for training and
   usually wrong for evaluation.
+- **Alignments come from AtomWorks' own loader.** `msa_loader=LoadPolymerMSAs(...)`
+  runs it after `pre_transforms` and hands what it finds to the adapter
+  ([01](01_ADAPTER.md#declarations-must-bind)). A crop shortens the folded
+  sequence, and a full-chain alignment then no longer binds: it is refused, not
+  clamped.
 
 The pipeline emits unbatched CPU tensors, one example at a time; whatever
 trains on them adds the batch dimension, exactly as

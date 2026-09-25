@@ -56,15 +56,27 @@ it expects.
 
 **Consequence:** parity is checkable at the feature level, exactly, on CPU.
 
-### D-002 — Chain classification comes from `chain_type`, never from residue names
+### D-002 — A chain's kind is annotated, or declared and verified; never inferred from residue names
 
-AtomWorks annotates every atom with its `chain_type` (`atomworks.enums.ChainType`).
-The adapter maps that enum onto ESMFold2's four input classes. A chain type the
-mapping does not know **raises** (`UnsupportedChainError`), rather than falling
-into whichever branch happened to be the default. So does a chain with no
-`chain_type` at all (`InferredChainKindError`): the only fallback, `is_polymer`,
-cannot tell protein from DNA or RNA, and a DNA chain read that way folds as a
-protein of unknown residues.
+AtomWorks annotates every atom with its `chain_type` (`atomworks.enums.ChainType`),
+and that annotation is authoritative: the adapter maps it onto ESMFold2's four
+input classes, and a chain type the mapping does not know **raises**
+(`UnsupportedChainError`) rather than falling into whichever branch happened to
+be the default.
+
+A structure without `chain_type` is described by the caller instead
+(`chain_kinds`). A declaration is a statement to verify, not a hint: it is
+checked against what the structure does carry — `chain_type` where present,
+otherwise `is_polymer` and then the CCD entry of every residue — and a
+contradiction raises (`ChainDeclarationError`). The CCD only ever refuses; it
+never supplies a kind.
+
+With neither annotation nor declaration, the one remaining signal, `is_polymer`,
+cannot tell protein from DNA or RNA — a DNA chain read that way folds as a
+protein of unknown residues — so that inference raises
+(`InferredChainKindError`) and is accepted only by name
+(`allow_inferred_chain_kind`). Either way a chain is classified as a whole: one
+whose atoms disagree raises `MixedChainError`.
 
 ### D-003 — Sequences come from `chain_info`, not from the residues that were modelled
 

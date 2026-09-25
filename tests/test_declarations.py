@@ -205,7 +205,7 @@ def test_an_msa_follows_the_sequence_being_folded(parsed, ccd, gold_document):
             msas={"A": _msa(native)},
         )
 
-    # The parent's alignment with the design as its query row binds.
+    # Another sequence's alignment, with the folded variant as its query row, binds.
     spi = atom_array_to_structure_prediction_input(
         atoms,
         chain_info=chain_info,

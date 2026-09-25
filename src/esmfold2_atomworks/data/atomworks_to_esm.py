@@ -833,7 +833,7 @@ def atom_array_to_structure_prediction_input(
         msas: per-chain ``MSA`` objects for protein chains, each with the
             sequence being folded there as its query row.
         sequences: per-chain sequences that override what the structure says.
-            This is the design path -- fold *this* sequence on *that* system.
+            The sequence-override path: fold *this* sequence on *that* system.
         allow_undeclared_ccd_ligands: when a non-polymer chain has no declared
             spec, use its residue name as a CCD code. Names that carry no
             chemical meaning (``LIG``, ``UNL``, ``UNK``) are refused regardless,
@@ -1178,7 +1178,7 @@ def _modifications_for(
     """Modifications for one polymer chain, or an empty list with a reason.
 
     A modification is only emitted when its position is *known* to line up with
-    the sequence being folded. An overridden sequence (the design path) is a
+    the sequence being folded. An overridden sequence is a
     different molecule from the one in the structure, so carrying the
     structure's modifications onto it would place them by coincidence.
     """
@@ -1370,7 +1370,7 @@ def _check_msa_binds(chain_id: str, msa: Any, sequence: str) -> None:
     Upstream does not check. ``construct_paired_msa`` clamps each residue's
     column to the alignment's width, so an alignment built for another sequence
     -- the other chain of a heteromer, a construct with a different tag, the
-    parent of a design -- is used anyway, column by column, and its first row
+    wild type of a variant -- is used anyway, column by column, and its first row
     contradicts the residues the model is given.
     """
     query = getattr(msa, "query", None)
@@ -1406,8 +1406,8 @@ def _check_msa_binds(chain_id: str, msa: Any, sequence: str) -> None:
     raise ChainDeclarationError(
         f"the MSA for chain {chain_id!r} is aligned to a different sequence than "
         f"the one being folded: {detail}. Build it with the folded sequence as its "
-        "query row; to fold a design against its parent's alignment, replace the "
-        "query row with the design."
+        "query row; to fold a variant against another sequence's alignment, "
+        "replace the query row with the variant."
     )
 
 

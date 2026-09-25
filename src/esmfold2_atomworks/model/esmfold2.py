@@ -340,7 +340,7 @@ class AtomWorksESMFold2:
         return "gradients available"
 
     def representation_dims(self) -> dict[str, int]:
-        """The single/pair widths, for comparison against RFD3's ``c_s``/``c_z``.
+        """The single and pair widths, read off the live config.
 
         Read off the live config, under the names it uses now: ``EsmFold2Config``
         migrates a pre-alignment ``config.json`` on load and drops the old field

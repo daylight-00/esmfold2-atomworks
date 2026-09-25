@@ -7,11 +7,12 @@ fabricated zero reads downstream as a real measurement, and for pLDDT (where
 higher is better) it reads as a catastrophic fold, while for PAE it reads as a
 perfect one. Absence is recoverable; a plausible wrong number is not.
 
-**Global means are the wrong summary for a binder.** On a 112-residue protein
-with a 19-atom ligand, three quarters of the PAE matrix is protein-internal, so
-``mean_pae`` mostly reports how well the monomer folded. A candidate can improve
-it by folding its core better while placing the ligand worse. The cross-entity
-and ligand-restricted values are therefore emitted beside the global ones.
+**Global means can hide the confidence between entities.** On a 112-residue
+protein with a 19-atom ligand, three quarters of the PAE matrix is
+protein-internal, so ``mean_pae`` mostly reports how well the monomer folded; a
+prediction can improve it by folding the core better while placing the ligand
+worse. The cross-entity and ligand-restricted values are therefore emitted
+beside the global ones.
 
 Units: **pLDDT here is on 0--1**, as the model reports it -- not the 0--100 of
 AlphaFold's B-factor column. Scale at the point of display, not here.
@@ -98,7 +99,7 @@ def fold_metrics(result: Any) -> dict[str, float]:
 
 
 def _interface_metrics(result: Any, pae: Any) -> dict[str, float]:
-    """Cross-entity confidence, which is what a binder is actually judged on.
+    """Cross-entity confidence, which the global means dilute in a complex.
 
     ``pair_chains_iptm`` is **asymmetric** -- the model reports a per-chain-pair
     matrix whose two directions differ -- so there is no single "the" pair ipTM

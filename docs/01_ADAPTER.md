@@ -72,7 +72,7 @@ Against the CCD, each declared kind has to be true of every residue:
 A residue that does not fit raises `ChainDeclarationError`, listing it with
 what the CCD calls it. That covers the case this exists for: declared `protein`,
 101M's author chain A would otherwise fold every water and the heme as residues
-of the protein — and under a sequence override, the design path, leave them out
+of the protein — and under a sequence override, leave them out
 of the model input with nothing dropped and nothing raised. The CCD is only ever
 used to refuse; it never supplies a kind, so this is verification and not the
 residue-name guess the classification exists to avoid. It cannot tell which of
@@ -121,9 +121,8 @@ by coincidence would be worse still, so accepting the approximation
 chain in `AdapterReport.unplaceable_modifications`. A chain of standard residues
 has nothing to place, so the same misalignment is not an error there.
 
-An overridden sequence (the design path) drops the structure's modifications
-entirely — a designed sequence is a different molecule, and the structure's
-positions do not apply to it.
+An overridden sequence drops the structure's modifications entirely — it is a
+different molecule, and the structure's positions do not apply to it.
 
 ## Covalent bonds
 
@@ -240,9 +239,10 @@ checked before conversion starts, and one that does not bind raises
 The MSA rule is the one upstream cannot enforce for itself. `construct_paired_msa`
 clamps each residue's column to the alignment's width, so an alignment built for
 another sequence — the other chain of a heteromer, a construct with a different
-tag, the parent of a design — is used column by column with no error, and its
-first row contradicts the residues the model is given. To fold a design against
-its parent's alignment on purpose, make the design the alignment's query row.
+tag, the wild type of a variant — is used column by column with no error, and
+its first row contradicts the residues the model is given. To fold a variant
+against another sequence's alignment on purpose, make the variant the
+alignment's query row.
 
 Alignments found by AtomWorks' `LoadPolymerMSAs` reach the same check through
 `PolymerMSAsToESMFold2`, which `build_esmfold2_pipeline(msa_loader=...)` places

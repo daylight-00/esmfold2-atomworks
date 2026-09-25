@@ -5,10 +5,10 @@ repo, from a git worktree, and on a cluster where the trees are staged
 elsewhere. ``reproducibility/env.sh`` sets the same variables for the shell.
 
 ``DESIGN_ROOT`` is *discovered* rather than fixed at ``REPO_ROOT.parent``: a git
-worktree lives several levels below the repo, so a fixed parent would resolve to
-``.claude/worktrees`` and every source tree would silently vanish. Searching
-upward for the directory that actually holds the trees is correct from both, and
-survives the next reorganization of the workspace.
+worktree can live several levels below the repository, where a fixed parent
+names the directory holding the worktree and every source tree would silently
+vanish. Searching upward for the directory that actually holds the trees is
+correct from both, and survives the next reorganization of the tree.
 """
 
 from __future__ import annotations

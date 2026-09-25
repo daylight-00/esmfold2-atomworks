@@ -33,8 +33,9 @@ reference_environment_only = pytest.mark.skipif(
 def test_design_root_is_discovered_not_assumed():
     """Discovery must find the real tree, including from a git worktree.
 
-    A worktree sits several levels below the repo, so ``REPO_ROOT.parent`` would
-    resolve into ``.claude/worktrees`` and every source tree would vanish.
+    A worktree can sit several levels below the repository, where
+    ``REPO_ROOT.parent`` names the directory holding it and every source tree
+    would vanish.
     """
     for marker in paths.REQUIRED_TREES:
         assert (paths.DESIGN_ROOT / marker).is_dir(), (

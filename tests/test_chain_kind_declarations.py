@@ -335,7 +335,7 @@ def test_an_author_chain_holding_a_protein_its_ligands_and_water_is_refused(
     """Author chain A of 101M is the protein, a heme, NBN, a sulfate and 138 waters.
 
     Declared ``protein``, it would fold them as residues of the protein. Under a
-    sequence override -- the design path -- none of them would reach the model,
+    sequence override none of them would reach the model,
     with nothing dropped and nothing raised.
     """
     atoms = _read_101m(data_dir, author=True)

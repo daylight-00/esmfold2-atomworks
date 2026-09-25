@@ -55,7 +55,9 @@ process decides, and esm's own lazy lookups name no location, so
 `reproducibility/env.sh` also exports `ESMCFOLD_CCD_PATH` before Python starts:
 `esm.models.esmfold2.conformers` captures it at import and prefers it over any
 location a caller passes. `doctor` reports which source applies, and
-`provenance()["esmfold2.ccd"]` records it for each model.
+`provenance()["esmfold2.ccd"]` records it for each model -- or records it as
+unknown when something loaded the dictionary before the model, since esm keeps
+no record of where it came from.
 
 **Historically**, esm ≤ 3.3 shipped only the input pipeline, and the module
 lived in a fork of `transformers` (`ESMFold2Model`, moved with `.to(device)`

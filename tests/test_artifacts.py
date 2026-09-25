@@ -73,6 +73,7 @@ def test_the_ccd_source_follows_esms_order(tmp_path, monkeypatch):
     from esmfold2_atomworks.model.esmfold2 import ccd_source
 
     monkeypatch.setattr(conformers, "CCD_PICKLE_PATH", None)
+    monkeypatch.setattr(conformers, "_CCD_MOLECULES", None)  # nothing loaded yet
     assert ccd_source(tmp_path) == str(tmp_path / "ccd.pkl")
     assert "Hub" in ccd_source(None)
 
@@ -81,3 +82,32 @@ def test_the_ccd_source_follows_esms_order(tmp_path, monkeypatch):
     monkeypatch.setattr(conformers, "CCD_PICKLE_PATH", captured)
     # Captured at import, it outranks the location a caller passes.
     assert ccd_source(tmp_path / "elsewhere") == str(captured)
+
+
+def test_a_dictionary_loaded_earlier_is_reported_as_unknown(tmp_path, monkeypatch):
+    """The builder's location is never read then; naming it would be a guess."""
+    pytest.importorskip("torch")
+    conformers = pytest.importorskip("esm.models.esmfold2.conformers")
+    from esmfold2_atomworks.model.esmfold2 import ccd_source
+
+    monkeypatch.setattr(conformers, "CCD_PICKLE_PATH", None)
+    monkeypatch.setattr(conformers, "_CCD_MOLECULES", {"already": "loaded"})
+    assert ccd_source(tmp_path).startswith("unknown")
+
+    # A captured path still pins it: every load, the earlier one included,
+    # read that path.
+    captured = tmp_path / "captured.pkl"
+    captured.write_bytes(b"")
+    monkeypatch.setattr(conformers, "CCD_PICKLE_PATH", captured)
+    assert ccd_source(tmp_path) == str(captured)
+
+
+def test_esm_still_keeps_the_ccd_where_ccd_source_looks():
+    """ccd_source reads two module names of esm's, one private.
+
+    A rename upstream would make it misreport silently, so it fails here.
+    """
+    pytest.importorskip("torch")
+    conformers = pytest.importorskip("esm.models.esmfold2.conformers")
+    assert hasattr(conformers, "_CCD_MOLECULES")
+    assert hasattr(conformers, "CCD_PICKLE_PATH")

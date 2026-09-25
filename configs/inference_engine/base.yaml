@@ -2,7 +2,7 @@
 # Parameters for ESMFold2InferenceEngine.__init__()
 ckpt_path: null        # weight directory or HF repo id; null -> paths.ESMFOLD2_WEIGHTS.standard
 device: null           # null -> cuda when available, else cpu
-load_esmc: true        # false lets several folding models share one ESMC
+load_esmc: true        # false: no backbone for a separate-layout checkpoint (docs/04)
 chunk_size: 64         # null is faster below L~600; 64 fits L~2k on 80 GB
 verbose: false
 seed: null

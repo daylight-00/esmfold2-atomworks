@@ -42,10 +42,8 @@ Two things about esm 3.4 worth knowing:
   tree instead.
 
 Weights come from a local mirror if one exists at `$EF_MODELS/ESMFold2`, and
-otherwise from the Hub id `biohub/ESMFold2`, downloaded on first use. The ESMC
-backbone (`biohub/ESMC-6B`) is a separate repository fetched during
-`from_pretrained`; pass `load_esmc=False` to share one instance across several
-folding models.
+otherwise from the Hub id `biohub/ESMFold2`, downloaded on first use
+(`paths.ESMFOLD2_WEIGHTS`; likewise `-Fast` and `-Experimental`).
 
 The CCD dictionary (~50k entries, ~9 s) is loaded once per process into
 module-global state in `esm.models.esmfold2.conformers`. It is **not
@@ -58,6 +56,41 @@ parity was verified against it while it was published; it no longer is.
 ESMFold2 has since also moved into Hugging Face `transformers` ≥ 5.16, which
 cannot share an environment with esm 3.4 (esm requires `transformers<5`).
 `AtomWorksESMFold2.provenance()` records which packaging produced a result.
+
+### Two checkpoint layouts, and where the ESMC backbone comes from
+
+A Hub repository is mutable, and `biohub/ESMFold2` has been re-published in a
+different layout, so "the checkpoint" needs saying which:
+
+| layout | backbone | `biohub/` repos, as of writing |
+|---|---|---|
+| **separate** — one trunk file, ~1 GB | named in `config.esmc_id`, stored elsewhere | `ESMFold2` before Hub revision `4dc54ad`; `ESMFold2-Experimental` |
+| **bundled** — sharded, ~27 GB | carried in the checkpoint (`config.esmc_config`) | `ESMFold2` and `ESMFold2-Fast` from then on |
+
+The parity results in [02](02_PARITY.md) were produced with the separate
+`biohub/ESMFold2` at Hub revision `e1e189d0` — the **reference checkpoint**; a
+fresh download today gets the bundled one.
+
+With a separate backbone, `esmc_id` is only a name, and what it holds depends
+on where the mirror came from: a Hub id (`biohub/ESMC-6B`), or an absolute path
+on the machine that wrote the `config.json`. Left to `from_pretrained`, an
+absolute path breaks when the tree moves, and a Hub id downloads 25 GB again
+although a mirror sits beside the checkpoint. `AtomWorksESMFold2` therefore
+loads the trunk with `load_esmc=False` and attaches the backbone itself
+(`attach_esmc`), resolved by `paths.resolve_esmc` by identity: a Hub id the
+workspace mirrors (`paths.ESMC_MIRRORS`: `biohub/ESMC-6B` → `$EF_MODELS/ESMC-6B`)
+goes to its mirror; any other Hub id is passed on unchanged, so a mirror never
+stands in for a backbone of another namespace; an existing directory is used
+as is; and an absolute path that no longer exists — which records a directory
+on another machine, not an identity — is recovered only when its last
+component names a known mirror. A bundled checkpoint is left exactly as
+upstream loads it. `provenance()["esmfold2.esmc"]` records which applied, and `doctor`
+reports it for every local mirror.
+
+`load_esmc=False` leaves a separate-layout checkpoint without a backbone, so
+several folding models can share one instance, or a caller can supply
+`lm_hidden_states` itself (see [03](03_MODEL.md)). It cannot remove a bundled
+backbone, which arrives with the trunk.
 
 ## Provenance: `UPSTREAM.lock`
 

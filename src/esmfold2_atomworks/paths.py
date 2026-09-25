@@ -74,6 +74,7 @@ SOURCE_TREES: dict[str, Path] = {
 HUB_IDS: dict[str, str] = {
     "standard": "biohub/ESMFold2",
     "fast": "biohub/ESMFold2-Fast",
+    "experimental": "biohub/ESMFold2-Experimental",
 }
 
 
@@ -89,6 +90,7 @@ class ESMFold2Weights:
 
     standard: Path = MODELS / "ESMFold2"
     fast: Path = MODELS / "ESMFold2-Fast"
+    experimental: Path = MODELS / "ESMFold2-Experimental"
 
     def resolve(self, name: str = "standard") -> Path | str:
         """The local directory if present, else the HuggingFace repo id."""
@@ -102,6 +104,64 @@ class ESMFold2Weights:
 
 
 ESMFOLD2_WEIGHTS = ESMFold2Weights()
+
+
+#: The separately stored ESMC backbones a checkpoint may name, by Hub id, and
+#: the directory under ``EF_MODELS`` that mirrors each. A mapping rather than a
+#: rule, because a directory name is not an identity: ``otherorg/ESMC-6B`` must
+#: never be served by the mirror of ``biohub/ESMC-6B``.
+ESMC_MIRRORS: dict[str, str] = {
+    "biohub/ESMC-6B": "ESMC-6B",
+}
+
+
+def resolve_esmc(esmc_id: str) -> Path | str:
+    """Where the ESMC backbone a checkpoint names is, preferring a local mirror.
+
+    A checkpoint either bundles its backbone (``config.esmc_config``) or names a
+    separately stored one in ``config.esmc_id`` -- as a Hub id, or as whatever
+    path was written into the ``config.json`` of the mirror it came from. Left
+    to ``from_pretrained``, that string decides everything: an absolute path
+    stops existing when the tree moves, and a Hub id downloads again although a
+    mirror sits beside the checkpoint. So it is resolved here, by identity:
+
+    1. a Hub id in :data:`ESMC_MIRRORS` -> its mirror under ``EF_MODELS``, when
+       the mirror is present;
+    2. any other Hub id (``org/name``) -> unchanged, for ``from_pretrained`` to
+       fetch; no mirror stands in for a backbone it does not mirror;
+    3. an existing directory -> itself;
+    4. an absolute path that no longer exists -> the mirror its last component
+       names, when that names exactly one known backbone. Such a path was
+       written on another machine and records a directory, not an identity, so
+       its name is all there is to go on.
+
+    Raises:
+        FileNotFoundError: for anything else, rather than handing
+            ``from_pretrained`` a directory it will fail to find much later.
+    """
+    mirror = ESMC_MIRRORS.get(esmc_id)
+    if mirror is not None and (MODELS / mirror).is_dir():
+        return MODELS / mirror
+    if _is_hub_id(esmc_id):
+        return esmc_id
+    as_path = Path(esmc_id).expanduser()
+    if as_path.is_dir():
+        return as_path
+    if as_path.is_absolute():
+        named = [name for name in ESMC_MIRRORS.values() if name == as_path.name]
+        if len(named) == 1 and (MODELS / named[0]).is_dir():
+            return MODELS / named[0]
+    raise FileNotFoundError(
+        f"the checkpoint names its ESMC backbone as {esmc_id!r}: not a Hub id, "
+        f"not a directory, and not the name of a mirror present under {MODELS} "
+        f"(mirrored: {sorted(ESMC_MIRRORS)}). Mirror the backbone there, or "
+        "point EF_MODELS at the directory holding it."
+    )
+
+
+def _is_hub_id(name: str) -> bool:
+    """``org/name``: exactly one slash, and not the start of a path."""
+    return name.count("/") == 1 and not name.startswith(("/", ".", "~"))
 
 
 def pythonpath_entries() -> list[Path]:

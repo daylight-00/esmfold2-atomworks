@@ -17,6 +17,7 @@ from __future__ import annotations
 import importlib
 import importlib.metadata
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -183,12 +184,38 @@ def check_weights() -> bool:
     are required for the adapter, which needs no weights at all.
     """
     print("weights")
-    for name in ("standard", "fast"):
+    for name in paths.HUB_IDS:
         local = getattr(paths.ESMFOLD2_WEIGHTS, name)
         resolved = paths.ESMFOLD2_WEIGHTS.resolve(name)
-        detail = "local mirror" if local.is_dir() else "will download from the Hub"
-        _check(f"{name:8s} {resolved}", True, detail)
+        if local.is_dir():
+            detail = f"local mirror; {_esmc_detail(local)}"
+        else:
+            detail = "will download from the Hub"
+        _check(f"{name:12s} {resolved}", True, detail)
     return True
+
+
+def _esmc_detail(checkpoint: Path) -> str:
+    """Which ESMC backbone a local checkpoint would be given, from its config.json.
+
+    The two layouts differ in what decides it: a bundled checkpoint carries its
+    own, and a separate one names it, which ``paths.resolve_esmc`` turns into a
+    location. A name that resolves nowhere is reported here, where it is cheap,
+    instead of at load time.
+    """
+    try:
+        raw = json.loads((checkpoint / "config.json").read_text())
+    except (OSError, ValueError) as error:
+        return f"config.json unreadable ({error})"
+    if raw.get("esmc_config") is not None:
+        return "ESMC bundled"
+    esmc_id = raw.get("esmc_id")
+    if esmc_id is None:
+        return "ESMC named by the upstream default"
+    try:
+        return f"ESMC from {paths.resolve_esmc(esmc_id)}"
+    except FileNotFoundError:
+        return f"ESMC {esmc_id!r} resolves nowhere; loading will fail"
 
 
 def check_adapter() -> bool:

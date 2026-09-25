@@ -40,6 +40,7 @@ anything to it; each is asserted or surfaced below rather than left as folklore.
 
 from __future__ import annotations
 
+import inspect
 import warnings
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
@@ -53,6 +54,7 @@ __all__ = [
     "GRADIENT_GATE",
     "AtomWorksESMFold2",
     "FoldingConfig",
+    "attach_esmc",
     "load_native_model_class",
 ]
 
@@ -106,6 +108,34 @@ def load_native_model_class() -> tuple[type, str]:
             "the model. (esm <= 3.3 relied on a fork of transformers that is no "
             "longer published.) See docs/04_ENVIRONMENT.md."
         ) from error
+
+
+def _bundles_esmc(config: Any) -> bool:
+    return getattr(config, "esmc_config", None) is not None
+
+
+def attach_esmc(net: Any, precision: str = "bf16") -> str:
+    """Attach the ESMC backbone ``net``'s checkpoint needs; say where it came from.
+
+    Returns ``"bundled"`` for a checkpoint that carries its backbone, which the
+    native loader has already attached. Otherwise the checkpoint names a
+    separate one in ``config.esmc_id``, which is resolved through
+    :func:`esmfold2_atomworks.paths.resolve_esmc` -- a local mirror first --
+    rather than handed to ``from_pretrained`` as written. The resolved location
+    is returned.
+
+    ``precision`` reaches the release model only: the experimental model's
+    ``load_esmc`` takes none and always loads bf16, as its own
+    ``from_pretrained`` does.
+    """
+    if _bundles_esmc(net.config):
+        return "bundled"
+    source = str(paths.resolve_esmc(net.config.esmc_id))
+    if "precision" in inspect.signature(net.load_esmc).parameters:
+        net.load_esmc(source, precision=precision)
+    else:
+        net.load_esmc(source)
+    return source
 
 
 def _field(obj: Any, path: str) -> Any:
@@ -207,14 +237,24 @@ class AtomWorksESMFold2:
 
         if self.flavour == "esm":
             # esm >= 3.4 places the model on `device` during construction, which
-            # avoids materializing it on CPU first.
+            # avoids materializing it on CPU first. A bundled backbone comes in
+            # with the trunk regardless of `load_esmc`; a separate one is
+            # attached here rather than from the checkpoint's `esmc_id` (see
+            # attach_esmc).
             self.net = model_class.from_pretrained(
                 self.weights,
-                load_esmc=load_esmc,
+                load_esmc=False,
                 esmc_precision=esmc_precision,
                 device=str(self.device),
             ).eval()
+            if load_esmc:
+                self.esmc_source = attach_esmc(self.net, esmc_precision)
+            elif _bundles_esmc(self.net.config):
+                self.esmc_source = "bundled"
+            else:
+                self.esmc_source = "none"
         else:
+            self.esmc_source = "checkpoint esmc_id" if load_esmc else "none"
             self.net = (
                 model_class.from_pretrained(
                     self.weights, load_esmc=load_esmc, esmc_precision=esmc_precision
@@ -469,4 +509,6 @@ class AtomWorksESMFold2:
             # Which packaging supplied the module; the two are different code
             # paths, so a result is only comparable against one of them.
             "esmfold2.flavour": self.flavour,
+            # "bundled", "none", or where a separate backbone was loaded from.
+            "esmfold2.esmc": self.esmc_source,
         }

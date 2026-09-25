@@ -1,0 +1,37 @@
+{
+  "reference": {
+    "repo": "biohub/ESMFold2",
+    "revision": "e1e189d0f5fb70c2693da2332eca4443c0ccccd6",
+    "esmc": {
+      "repo": "biohub/ESMC-6B",
+      "revision": "89c554c46a44d825fbfbe3ce2a6bdc539770bdaa"
+    }
+  },
+  "candidate": {
+    "repo": "biohub/ESMFold2",
+    "revision": "69869f737beffec5294845ede23db5fc0b4f509e",
+    "esmc": "bundled"
+  },
+  "trunk": {
+    "compared": 1590,
+    "identical": 1590,
+    "differ": [],
+    "only_in_reference": [],
+    "only_in_candidate": [],
+    "allocated_but_unread": [
+      "confidence_head.s_input_to_s.weight",
+      "confidence_head.s_inputs_to_single.weight",
+      "confidence_head.s_norm.bias",
+      "confidence_head.s_norm.weight"
+    ]
+  },
+  "esmc": {
+    "compared": 802,
+    "identical": 802,
+    "differ": [],
+    "only_in_reference": [],
+    "only_in_candidate": [],
+    "allocated_but_unread": []
+  },
+  "same_weights": true
+}

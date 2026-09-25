@@ -10,6 +10,7 @@ package, `pip install -e .` in the repository root is enough; see
 | interpreter | CPython 3.14.6, linux x86_64 |
 | torch | 2.14.0, CUDA 13.2 |
 | esm, atomworks, foundry | source trees at the revisions in [`UPSTREAM.lock`](UPSTREAM.lock), on `PYTHONPATH` |
+| model artifacts | the checkpoint, its ESMC backbone and the CCD pickle, by revision and digest, in [`ARTIFACTS.lock`](ARTIFACTS.lock) |
 | everything else | [`pyproject.toml`](pyproject.toml) pins what the trees and the package import; [`uv.lock`](uv.lock) pins the rest — 177 packages, each at the version that environment had |
 
 ## Rebuilding it
@@ -81,6 +82,18 @@ Drift is **reported, never enforced**: the adapter is deliberately
 version-tolerant, so a newer tree is something to re-verify and re-pin, not
 something to refuse. In an ordinary install `doctor` compares the installed
 packages' versions instead.
+
+## `ARTIFACTS.lock`
+
+What the code read, as `UPSTREAM.lock` is the code. Feature parity needs only
+the CCD pickle -- it passes two inputs through the same featurizer and involves
+no weights; the GPU output-parity numbers need all three artifacts. A Hub
+repository can be re-published under the same name, as `biohub/ESMFold2` was,
+so each entry names a revision and a digest per file.
+[`scripts/compare_checkpoints.py`](../scripts/compare_checkpoints.py) is how a
+re-published checkpoint is compared with the pinned one, and
+[`checkpoint_equivalence.json`](checkpoint_equivalence.json) is its record for
+the current `biohub/ESMFold2`.
 
 ## Not part of it
 

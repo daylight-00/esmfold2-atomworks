@@ -43,6 +43,7 @@ from __future__ import annotations
 import inspect
 import warnings
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from esmfold2_atomworks import paths
@@ -55,6 +56,7 @@ __all__ = [
     "AtomWorksESMFold2",
     "FoldingConfig",
     "attach_esmc",
+    "ccd_source",
     "load_native_model_class",
 ]
 
@@ -108,6 +110,25 @@ def load_native_model_class() -> tuple[type, str]:
             "the model. (esm <= 3.3 relied on a fork of transformers that is no "
             "longer published.) See docs/04_ENVIRONMENT.md."
         ) from error
+
+
+def ccd_source(ccd_cache: Any) -> str:
+    """Where esm reads the CCD pickle for a builder given ``ccd_cache``.
+
+    In esm's own order: ``ESMCFOLD_CCD_PATH`` as captured when
+    ``esm.models.esmfold2.conformers`` was imported, then ``<ccd_cache>/ccd.pkl``,
+    then a download of the Hub's latest copy. The dictionary is process-global,
+    so if something loaded it earlier in the process, that load's source is the
+    one in use.
+    """
+    from esm.models.esmfold2 import conformers
+
+    captured = getattr(conformers, "CCD_PICKLE_PATH", None)
+    if captured is not None and Path(captured).exists():
+        return str(captured)
+    if ccd_cache is not None:
+        return str(Path(ccd_cache) / "ccd.pkl")
+    return "biohub/ESMFold2 ccd.pkl, the Hub's latest revision"
 
 
 def _bundles_esmc(config: Any) -> bool:
@@ -282,6 +303,7 @@ class AtomWorksESMFold2:
         # from the mirror when there is one (paths.ccd_dir), not from the Hub.
         if ccd_cache is None:
             ccd_cache = paths.ccd_dir()
+        self.ccd_source = ccd_source(ccd_cache)
         self.builder = ESMFold2InputBuilder(ccd_cache=ccd_cache)
 
     # -- introspection -----------------------------------------------------
@@ -519,4 +541,6 @@ class AtomWorksESMFold2:
             "esmfold2.flavour": self.flavour,
             # "bundled", "none", or where a separate backbone was loaded from.
             "esmfold2.esmc": self.esmc_source,
+            # The CCD pickle ligand and modified-residue conformers come from.
+            "esmfold2.ccd": self.ccd_source,
         }

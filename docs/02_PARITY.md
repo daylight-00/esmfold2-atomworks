@@ -187,6 +187,12 @@ regression hide behind "well, something differs".
 sbatch --partition=<gpu-partition> scripts/parity_gpu.sbatch
 ```
 
+The numbers below come from the reference checkpoint. Reproducing them needs
+the artifacts pinned in
+[`reproducibility/ARTIFACTS.lock`](../reproducibility/ARTIFACTS.lock): the
+checkpoint, the ESMC backbone paired with it and the CCD pickle. Feature parity
+needs only the last.
+
 **The sampler is not reproducible, even seeded.** `_seed_context` seeds python,
 numpy, torch and CUDA identically for every fold, and the two paths hand the
 model identical tensors -- yet folding the *same* input twice on an RTX 6000 Ada

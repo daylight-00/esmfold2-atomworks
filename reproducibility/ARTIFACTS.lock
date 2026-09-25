@@ -1,0 +1,38 @@
+# Model artifacts the published results were produced with.
+#
+# UPSTREAM.lock pins the code; this pins what the code read. Feature parity
+# (docs/02) needs only the CCD pickle: it compares two inputs through the same
+# featurizer and involves no weights. Reproducing the GPU output-parity numbers
+# needs all three entries. Hub repositories are mutable, so each entry names a
+# revision and a digest for every file that matters -- the file's sha256 (the
+# Hub's LFS object id), or its git blob sha1 where marked.
+#
+# biohub/ESMFold2 has since been re-published in another layout (ESMC bundled,
+# tensors renamed). checkpoint_equivalence.json, written by
+# scripts/compare_checkpoints.py, records how that release compares with the
+# reference below.
+
+[esmfold2]
+repo = biohub/ESMFold2
+revision = e1e189d0f5fb70c2693da2332eca4443c0ccccd6
+layout = separate: config.esmc_id names the backbone below
+config.json = git-sha1:0300c084b990b2bd600efd9f538aa5de27109fea
+model.safetensors = 138fd4350d6892b81ce6be7ff9bf5a93ae9d4d3751f46a27438a3f9f0dcefa0e
+
+[esmc]
+repo = biohub/ESMC-6B
+revision = 89c554c46a44d825fbfbe3ce2a6bdc539770bdaa
+config.json = git-sha1:19f5fb09e4f630fb5b748a497183c22a87ec5102
+model.safetensors.index.json = git-sha1:a780483ca93cf7e05c18a7d5bf25a9e56a7d98cf
+model-00001-of-00006.safetensors = bd90149ff223e6ac1a0cac6147a5ae0df20d3a21df4f65356a1f19cd14f4aa8a
+model-00002-of-00006.safetensors = f75e2144d8269fe2eb4b3e0823fb089b94f176d8024153e85b8fb573a42294fa
+model-00003-of-00006.safetensors = f699f01ecc9691d9c6470492765fe54b8b5d2e9f277c139e89427433ffdfe0b2
+model-00004-of-00006.safetensors = 46add1b7be098bbfdc3073884851ba3057f1b33ea23a158b650a37007dabd13d
+model-00005-of-00006.safetensors = 1e1cb62f060a34e18f54a31a76683ef888b8cec59e73315f5b31d25d45a1f88c
+model-00006-of-00006.safetensors = 56c73e13ae96e777ce65eee99364056069ef93b646470f352f83c5f1037b1b18
+
+[ccd]
+repo = biohub/ESMFold2
+revision = e1e189d0f5fb70c2693da2332eca4443c0ccccd6
+ccd.pkl = 9ff44b1927c6b9198e38ffe0928706827a09a350c15530beeeabebfa88038fc5
+note = the same file at revision 69869f737beffec5294845ede23db5fc0b4f509e

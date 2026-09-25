@@ -54,7 +54,8 @@ revision, which can change under a fixed checkpoint. The first load in a
 process decides, and esm's own lazy lookups name no location, so
 `reproducibility/env.sh` also exports `ESMCFOLD_CCD_PATH` before Python starts:
 `esm.models.esmfold2.conformers` captures it at import and prefers it over any
-location a caller passes. `doctor` reports which source applies.
+location a caller passes. `doctor` reports which source applies, and
+`provenance()["esmfold2.ccd"]` records it for each model.
 
 **Historically**, esm ≤ 3.3 shipped only the input pipeline, and the module
 lived in a fork of `transformers` (`ESMFold2Model`, moved with `.to(device)`
@@ -79,6 +80,19 @@ The parity results in [02](02_PARITY.md) were produced with the separate
 fresh download today gets the bundled one. The two configs also differ in
 defaults — `num_loops` is 3 in the reference checkpoint and 20 in the current
 one — which is why no schedule is hardcoded here ([03](03_MODEL.md)).
+
+The artifacts behind those results — the reference checkpoint, the ESMC-6B
+revision it was paired with and the CCD pickle — are pinned by revision and
+digest in [`reproducibility/ARTIFACTS.lock`](../reproducibility/ARTIFACTS.lock).
+[`scripts/compare_checkpoints.py`](../scripts/compare_checkpoints.py) loads a
+checkpoint and that reference through esm's own loader and compares every
+tensor. Its record for the current `biohub/ESMFold2` (revision `69869f73`),
+[`reproducibility/checkpoint_equivalence.json`](../reproducibility/checkpoint_equivalence.json),
+finds all 1590 trunk tensors and all 802 tensors of the bundled backbone
+identical to the reference. The only exclusions are the three confidence-head
+modules upstream allocates and never reads, which the re-published checkpoint
+no longer carries. The re-release changed packaging, names and config defaults,
+not weights.
 
 With a separate backbone, `esmc_id` is only a name, and what it holds depends
 on where the mirror came from: a Hub id (`biohub/ESMC-6B`), or an absolute path

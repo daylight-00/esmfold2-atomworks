@@ -108,6 +108,37 @@ def load_native_model_class() -> tuple[type, str]:
         ) from error
 
 
+def _field(obj: Any, path: str) -> Any:
+    """``obj.a.b`` for ``path="a.b"``, or ``None`` if any step is absent."""
+    for name in path.split("."):
+        obj = getattr(obj, name, None)
+        if obj is None:
+            return None
+    return obj
+
+
+def _dimension(obj: Any, *paths: str) -> int:
+    """The first of ``paths`` present on ``obj``, as a positive width.
+
+    Raises rather than defaulting: a width that cannot be found is unknown, and
+    a default would pass it off as measured.
+    """
+    for path in paths:
+        value = _field(obj, path)
+        if value is None:
+            continue
+        width = int(value)
+        if width <= 0:
+            raise ValueError(
+                f"config field {path!r} is {width}; a width must be positive"
+            )
+        return width
+    raise AttributeError(
+        f"none of {list(paths)} is present on {type(obj).__name__}; the config "
+        "schema has moved again, and the width is unknown rather than zero"
+    )
+
+
 @dataclass
 class FoldingConfig:
     """Inference-time knobs, mirroring the SDK's ``FoldingConfig``.
@@ -261,39 +292,58 @@ class AtomWorksESMFold2:
         return "gradients available"
 
     def representation_dims(self) -> dict[str, int]:
-        """The single/pair widths, for comparison against RFD3's ``c_s``/``c_z``."""
+        """The single/pair widths, for comparison against RFD3's ``c_s``/``c_z``.
+
+        Read off the live config, under the names it uses now: ``EsmFold2Config``
+        migrates a pre-alignment ``config.json`` on load and drops the old field
+        names, so ``d_pair`` or ``c_token`` are absent from a config that was
+        written with them. The old name is read only when the new one is
+        missing, for a module that predates the migration. A width that is
+        missing under both, or not positive, raises: an unknown dimension
+        reported as ``0`` reads downstream as a measurement.
+
+        The keys are this method's own and did not move with upstream.
+        """
         config = self.config
-        structure = getattr(config, "structure_head", None)
-        diffusion = getattr(structure, "diffusion_module", None) if structure else None
-        dims = {
-            "d_pair": int(getattr(config, "d_pair", 0)),
-            "d_single_declared": int(getattr(config, "d_single", 0)),
+        diffusion = _field(config, "structure_head.diffusion_module")
+        return {
+            "d_pair": _dimension(config, "pairwise_hidden_size", "d_pair"),
+            "d_single_declared": _dimension(config, "hidden_size", "d_single"),
+            "c_token": _dimension(diffusion, "token_hidden_size", "c_token"),
+            "c_atom": _dimension(diffusion, "atom_encoder.hidden_size", "c_atom"),
+            "c_s_inputs": _dimension(diffusion, "c_s_inputs"),
         }
-        if diffusion is not None:
-            dims["c_token"] = int(getattr(diffusion, "c_token", 0))
-            dims["c_atom"] = int(getattr(diffusion, "c_atom", 0))
-            dims["c_s_inputs"] = int(getattr(diffusion, "c_s_inputs", 0))
-        return dims
 
     # -- component seams ---------------------------------------------------
     # Named accessors for the three components the plan eventually separates.
     # They exist now so that a later change is a change of implementation
-    # rather than a change of every call site.
+    # rather than a change of every call site. Only `.esmc` has a real absent
+    # state; the trunk and the head raise rather than answer None, which a
+    # caller would read as a component that is legitimately missing.
 
     @property
     def esmc(self) -> Any:
-        """The frozen ESMC language model backbone."""
+        """The frozen ESMC language model backbone, or ``None`` when none is attached.
+
+        ``None`` means exactly that -- constructed with ``load_esmc=False`` from
+        a checkpoint that does not bundle one -- so the attribute is read under
+        the name the native module stores it: ``esmc``, with ``_esmc`` as a
+        fallback for a layout that kept it private.
+        """
+        esmc = getattr(self.net, "esmc", None)
+        if esmc is not None:
+            return esmc
         return getattr(self.net, "_esmc", None)
 
     @property
     def folding_trunk(self) -> Any:
-        """The pair-representation trunk."""
-        return getattr(self.net, "folding_trunk", None)
+        """The pair-representation trunk. ``AttributeError`` if the module has none."""
+        return self.net.folding_trunk
 
     @property
     def structure_head(self) -> Any:
-        """The diffusion structure head."""
-        return getattr(self.net, "structure_head", None)
+        """The diffusion structure head. ``AttributeError`` if the module has none."""
+        return self.net.structure_head
 
     # -- the model as a function ------------------------------------------
 

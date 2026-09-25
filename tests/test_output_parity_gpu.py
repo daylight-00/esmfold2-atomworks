@@ -169,3 +169,24 @@ def test_the_sampler_is_not_bitwise_reproducible(parsed, model):
             "this build folds reproducibly; the scatter-budget tests are now "
             "equivalent to absolute-tolerance checks and should be tightened"
         )
+
+
+def test_the_loaded_model_answers_through_its_seams(model, gold):
+    """The seams against the real module rather than a fake of it.
+
+    A backbone is attached -- from the local mirror or bundled, never
+    ``"none"`` under the default ``load_esmc=True`` -- and ``.esmc`` is that
+    module; every width is real; and a fold that leaves ``num_loops`` unset
+    reaches the model, which takes the count from its own config.
+    """
+    from esmfold2_atomworks.model.esmfold2 import FoldingConfig
+
+    assert model.esmc is not None
+    assert model.esmc is model.net.esmc
+    assert model.provenance()["esmfold2.esmc"] != "none"
+    assert all(width > 0 for width in model.representation_dims().values())
+
+    result = model.fold(
+        gold("lysozyme"), config=FoldingConfig(num_sampling_steps=8, seed=0)
+    )
+    assert result.plddt is not None

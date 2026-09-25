@@ -24,11 +24,20 @@ registers.
 
 There is no `model.net` sub-config of layer widths, because ESMFold2's
 architecture comes from the checkpoint's `config.json`. **Read dimensions off
-`model.config`, never off the dataclass defaults in
-`configuration_esmfold2.py`** — they disagree substantially. The shipped
-`biohub/ESMFold2` has `folding_trunk.n_layers = 48` (dataclass says 24),
-`num_loops = 3` (says 20), `structure_head.distogram_bins = 64` (says 128).
-`AtomWorksESMFold2.representation_dims()` reads the live config.
+`model.config`, never off the dataclass defaults in `EsmFold2Config`** — they
+disagree substantially, and checkpoints disagree with each other: the reference
+checkpoint has `num_loops = 3` where the one `biohub/ESMFold2` publishes today
+has 20 (see [04](04_ENVIRONMENT.md) for the two layouts).
+
+`AtomWorksESMFold2.representation_dims()` reads the widths off the live config.
+`EsmFold2Config` renames fields on load — a `config.json` written with `d_pair`
+or `structure_head.diffusion_module.c_token` comes back with
+`pairwise_hidden_size` and `token_hidden_size`, the old names gone — so the
+helper reads the current names, falls back to the old ones, and raises on a
+width it cannot find rather than reporting 0.
+
+For the same reason `FoldingConfig.num_loops` defaults to `None`, which leaves
+the count to the loaded checkpoint; set it to pin a schedule.
 
 ## Gradients depend on the inputs, not only the checkpoint
 
@@ -60,6 +69,13 @@ parameter. (`early_exit` *is* honoured by the experimental model.)
 
 They are therefore **not** exposed as config keys; `AtomWorksESMFold2.fold` warns
 if they are passed. Set them on `config.structure_head` instead.
+
+The reverse also holds: `forward` declares `lm_hidden_states`, and a caller that
+supplies it skips the ESMC pass entirely, but `ESMFold2InputBuilder.fold()` does
+not take it — so neither `fold` nor `fold_atom_array` can carry an externally
+computed or substituted ESMC stack. That route is `featurize()`, then
+`model.net(**features, lm_hidden_states=...)`, then `model.builder.decode(...)`
+with the `chain_infos` from `featurize()`.
 
 ## Pipeline
 

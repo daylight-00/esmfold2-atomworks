@@ -59,7 +59,7 @@ class ESMFold2InferenceEngine:
         ckpt_path: str | Path | None = None,
         *,
         device: Any | None = None,
-        num_loops: int = 3,
+        num_loops: int | None = None,
         num_sampling_steps: int = 100,
         num_diffusion_samples: int = 1,
         lm_dropout: float | None = 0.3,

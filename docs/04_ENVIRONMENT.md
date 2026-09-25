@@ -69,7 +69,9 @@ different layout, so "the checkpoint" needs saying which:
 
 The parity results in [02](02_PARITY.md) were produced with the separate
 `biohub/ESMFold2` at Hub revision `e1e189d0` — the **reference checkpoint**; a
-fresh download today gets the bundled one.
+fresh download today gets the bundled one. The two configs also differ in
+defaults — `num_loops` is 3 in the reference checkpoint and 20 in the current
+one — which is why no schedule is hardcoded here ([03](03_MODEL.md)).
 
 With a separate backbone, `esmc_id` is only a name, and what it holds depends
 on where the mirror came from: a Hub id (`biohub/ESMC-6B`), or an absolute path

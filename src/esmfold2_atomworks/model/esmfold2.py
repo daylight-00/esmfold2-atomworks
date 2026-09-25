@@ -173,12 +173,14 @@ def _dimension(obj: Any, *paths: str) -> int:
 class FoldingConfig:
     """Inference-time knobs, mirroring the SDK's ``FoldingConfig``.
 
-    Defaults follow the shipped ``biohub/ESMFold2`` config rather than the
-    dataclass defaults in ``configuration_esmfold2.py``, which differ
-    substantially (that config ships ``num_loops=3``, not 20).
+    ``num_loops=None`` means the checkpoint's own ``config.num_loops``, which
+    is what the model uses when it is given no count -- and the checkpoints
+    disagree: 3 in the reference checkpoint, 20 in the one ``biohub/ESMFold2``
+    publishes today (docs/04). A fixed default here would silently override
+    whichever of them is loaded. Set it to pin a schedule.
     """
 
-    num_loops: int = 3
+    num_loops: int | None = None
     num_sampling_steps: int = 100
     num_diffusion_samples: int = 1
     lm_dropout: float | None = 0.3
@@ -189,6 +191,9 @@ class FoldingConfig:
 
     def as_fold_kwargs(self) -> dict[str, Any]:
         kwargs: dict[str, Any] = {
+            # Passed even when None: ESMFold2InputBuilder.fold has a default of
+            # its own (20), so leaving the key out would not reach the model's
+            # fallback to config.num_loops.
             "num_loops": self.num_loops,
             "num_sampling_steps": self.num_sampling_steps,
             "num_diffusion_samples": self.num_diffusion_samples,

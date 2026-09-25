@@ -46,7 +46,9 @@ def fold(
     structures: list[Path] = typer.Argument(..., help="Structures to fold."),
     out_dir: Path = typer.Option(Path("runs/fold"), help="Where to write results."),
     weights: str | None = typer.Option(None, help="Weight directory or HF repo id."),
-    num_loops: int = typer.Option(3, help="Trunk recycle count."),
+    num_loops: int | None = typer.Option(
+        None, help="Trunk recycle count; default: the checkpoint's own."
+    ),
     num_sampling_steps: int = typer.Option(100, help="Diffusion steps."),
     num_diffusion_samples: int = typer.Option(1),
     seed: int | None = typer.Option(None),

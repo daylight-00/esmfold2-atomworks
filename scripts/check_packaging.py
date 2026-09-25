@@ -71,9 +71,9 @@ def main(require_installed: bool = True) -> int:
         return 1
     print(f"composed:   inference -> {target}")
 
-    # Sampling defaults follow the shipped checkpoint, not the dataclass
-    # defaults; a silent change here would alter every downstream run.
-    for key, expected in (("num_loops", 3), ("num_sampling_steps", 100)):
+    # A silent change to a sampling default alters every downstream run.
+    # num_loops is null so that the loaded checkpoint's own count applies.
+    for key, expected in (("num_loops", None), ("num_sampling_steps", 100)):
         if cfg[key] != expected:
             print(f"FAIL: {key} is {cfg[key]}, expected {expected}", file=sys.stderr)
             return 1

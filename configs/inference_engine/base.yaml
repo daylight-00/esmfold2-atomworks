@@ -10,11 +10,11 @@ seed: null
 # Whatever is accepted is recorded per output under adapter.degradations.
 allow: []
 
-# Sampling. These defaults follow the SHIPPED biohub/ESMFold2 config.json, which
-# differs from the dataclass defaults in configuration_esmfold2.py -- that file
-# declares num_loops=20, the checkpoint ships 3. Always read dimensions and
-# schedules off model.config, never off the dataclass.
-num_loops: 3
+# Sampling. num_loops: null defers to the loaded checkpoint's config.num_loops,
+# and the checkpoints disagree -- 3 in the reference checkpoint, 20 in the one
+# biohub/ESMFold2 publishes today (docs/04) -- so a number here would silently
+# override whichever is loaded. Set one to pin a schedule.
+num_loops: null
 num_sampling_steps: 100
 num_diffusion_samples: 1
 lm_dropout: 0.3        # LM dropout left on at inference is the ensembling mechanism

@@ -64,6 +64,7 @@ __all__ = [
     "MissingLanguageModelError",
     "attach_esmc",
     "ccd_source",
+    "input_digests",
     "load_native_model_class",
 ]
 
@@ -261,6 +262,48 @@ def _check_record(record: dict[str, Any] | None) -> None:
             f"record already holds {stale}; pass a fresh dict per call, so two "
             "calls' entries cannot mix"
         )
+
+
+def input_digests(spi: Any) -> list[dict[str, Any]]:
+    """Each entity of a ``StructurePredictionInput``: ids, kind, length, digest.
+
+    The digest covers the chemistry the model is given -- the sequence and its
+    modifications, or a ligand's CCD codes or SMILES -- and not the chain ids,
+    so two runs that folded the same molecule under different names agree on
+    it. ``length`` is the sequence length (``None`` for a ligand); ``msa`` says
+    whether an alignment was attached.
+    """
+    import hashlib
+    import json
+
+    out = []
+    for entry in spi.sequences:
+        kind = type(entry).__name__.removesuffix("Input").lower()
+        sequence = getattr(entry, "sequence", None)
+        chemistry = {
+            "kind": kind,
+            "sequence": sequence,
+            "modifications": sorted(
+                (m.position, m.ccd, getattr(m, "smiles", None))
+                for m in (getattr(entry, "modifications", None) or [])
+            ),
+            "ccd": list(getattr(entry, "ccd", None) or []),
+            "smiles": getattr(entry, "smiles", None),
+        }
+        digest = hashlib.sha256(
+            json.dumps(chemistry, sort_keys=True).encode()
+        ).hexdigest()[:16]
+        ids = entry.id if isinstance(entry.id, list) else [entry.id]
+        out.append(
+            {
+                "ids": [str(i) for i in ids],
+                "kind": kind,
+                "length": None if sequence is None else len(sequence),
+                "sha256": digest,
+                "msa": getattr(entry, "msa", None) is not None,
+            }
+        )
+    return out
 
 
 def _observed_execution() -> dict[str, Any]:
@@ -639,13 +682,17 @@ class AtomWorksESMFold2:
                 enter the LM shim detached, as upstream detaches them, so no
                 gradient reaches them. ``lm_mask_pct`` acts only inside the
                 backbone, which this skips, so combining the two raises.
-            record: a dict to write this call's ``esmfold2.*`` entries into:
-                ``esmfold2.lm_source``, one of :data:`LM_SOURCES`, and the
-                execution state observed when the call began (see
-                :func:`_observed_execution`). The caller's
-                other keys are kept; an ``esmfold2.*`` key already present
-                raises, so a record reused from an earlier fold cannot mix two
-                calls' entries.
+            record: a dict to write this call's ``esmfold2.*`` entries into --
+                every argument the fold ran with (``esmfold2.fold.*``), what the
+                checkpoint resolved (``esmfold2.effective.*``),
+                ``esmfold2.lm_source`` (one of :data:`LM_SOURCES`), each folded
+                entity by digest (``esmfold2.inputs``, see :func:`input_digests`)
+                and the execution state observed when the call began (see
+                :func:`_observed_execution`). One record per call: with
+                ``num_diffusion_samples > 1`` it describes every sample, and
+                holds no sample index. The caller's other keys are kept; an
+                ``esmfold2.*`` key already present raises, so a record reused
+                from an earlier fold cannot mix two calls' entries.
 
         Raises:
             MissingLanguageModelError: no backbone is resident and no
@@ -698,9 +745,66 @@ class AtomWorksESMFold2:
             lm_source = "caller-supplied"
 
         if record is not None:
-            record["esmfold2.lm_source"] = lm_source
+            record.update(self._call_record(spi, kwargs, lm_source))
             record.update(execution)
         return result
+
+    def _call_record(
+        self, spi: Any, kwargs: dict[str, Any], lm_source: str
+    ) -> dict[str, Any]:
+        """This call's ``esmfold2.*`` entries: what was asked, what ran, on what.
+
+        ``esmfold2.fold.<name>`` is every argument the fold ran with, upstream's
+        defaults included. ``esmfold2.effective.*`` resolves the two a request
+        can leave to the checkpoint: ``num_loops=None`` is the checkpoint's
+        count, and ``lm_mask_pct=None`` its fraction when the backbone runs; with
+        supplied states no mask is applied at the fold, which is recorded as
+        ``None``. ``esmfold2.inputs`` names every entity folded by kind, length
+        and a digest of its chemistry, so a record says which sequence ran, not
+        only where it came from.
+        """
+        args = self._fold_arguments(kwargs)
+        num_loops = args.get("num_loops")
+        if num_loops is None:
+            num_loops = self.config.num_loops
+        if lm_source == "model":
+            lm_mask_pct = args.get("lm_mask_pct")
+            if lm_mask_pct is None:
+                lm_mask_pct = self.config.lm_mask_pct
+        else:
+            lm_mask_pct = None
+        return {
+            **{f"esmfold2.fold.{name}": value for name, value in sorted(args.items())},
+            "esmfold2.effective.num_loops": int(num_loops),
+            "esmfold2.effective.lm_mask_pct": lm_mask_pct,
+            "esmfold2.lm_source": lm_source,
+            "esmfold2.inputs": input_digests(spi),
+        }
+
+    def _fold_arguments(self, kwargs: dict[str, Any]) -> dict[str, Any]:
+        """What ``ESMFold2InputBuilder.fold`` runs with: its defaults, then ``kwargs``.
+
+        Read off upstream's signature, so a default upstream changes is the one
+        recorded, and an argument it does not declare raises as upstream would.
+        """
+        parameters = inspect.signature(type(self.builder).fold).parameters
+        declared = set(parameters) - {"self"} - _FOLD_POSITIONALS
+        takes_any = any(
+            parameter.kind is inspect.Parameter.VAR_KEYWORD
+            for parameter in parameters.values()
+        )
+        unknown = set() if takes_any else set(kwargs) - declared
+        if unknown:
+            raise TypeError(
+                f"fold() got unexpected keyword argument(s) {sorted(unknown)}"
+            )
+        args = {
+            name: parameter.default
+            for name, parameter in parameters.items()
+            if name in declared and parameter.default is not inspect.Parameter.empty
+        }
+        args.update(kwargs)
+        return args
 
     def _fold_with_lm_states(
         self, spi: Any, kwargs: dict[str, Any], lm_hidden_states: Any
@@ -721,8 +825,7 @@ class AtomWorksESMFold2:
         import torch
         from esm.models.esmfold2.processor import _lm_dropout_context, _seed_context
 
-        parameters = inspect.signature(type(self.builder).fold).parameters
-        known = set(parameters) - {"self"}
+        known = set(inspect.signature(type(self.builder).fold).parameters) - {"self"}
         if known != REPLICATED_FOLD_PARAMETERS:
             raise NotImplementedError(
                 "ESMFold2InputBuilder.fold's parameters have changed "
@@ -731,17 +834,7 @@ class AtomWorksESMFold2:
                 "carries lm_hidden_states replicates it and must be brought up to "
                 "date before it can be trusted"
             )
-        unknown = set(kwargs) - (known - _FOLD_POSITIONALS)
-        if unknown:
-            raise TypeError(
-                f"fold() got unexpected keyword argument(s) {sorted(unknown)}"
-            )
-        args = {
-            name: parameter.default
-            for name, parameter in parameters.items()
-            if parameter.default is not inspect.Parameter.empty
-        }
-        args.update(kwargs)
+        args = self._fold_arguments(kwargs)
 
         if (
             args["early_exit"] is not None
@@ -837,6 +930,10 @@ class AtomWorksESMFold2:
                 several, omit it and relabel chain by chain. Checked before the
                 fold: a name longer than a residue name's five characters
                 raises rather than being truncated.
+            lm_hidden_states: as for :meth:`fold`.
+            record: as for :meth:`fold`, plus ``esmfold2.sequence_source``:
+                where each chain's folded sequence came from
+                (``AdapterReport.sequence_source``).
 
         Returns:
             ``(atom_array, result)`` -- the structure, and the native result
@@ -859,8 +956,13 @@ class AtomWorksESMFold2:
         _check_record(record)
         if ligand_residue_name is not None:
             check_residue_name(ligand_residue_name)
+        adapter_kwargs = dict(adapter_kwargs or {})
+        if record is not None and adapter_kwargs.get("report") is None:
+            from esmfold2_atomworks.data.atomworks_to_esm import AdapterReport
+
+            adapter_kwargs["report"] = AdapterReport()
         spi = atom_array_to_structure_prediction_input(
-            atoms, chain_info=chain_info, **(adapter_kwargs or {})
+            atoms, chain_info=chain_info, **adapter_kwargs
         )
         result = self.fold(
             spi,
@@ -869,6 +971,10 @@ class AtomWorksESMFold2:
             record=record,
             **overrides,
         )
+        if record is not None:
+            record["esmfold2.sequence_source"] = dict(
+                adapter_kwargs["report"].sequence_source
+            )
 
         chain_key = (adapter_kwargs or {}).get("chain_key", "chain_id")
 
@@ -881,9 +987,34 @@ class AtomWorksESMFold2:
         return structure(result), result
 
     def provenance(self) -> dict[str, str]:
+        """What this model is and where it runs: one entry per fact, as strings.
+
+        The weights by path and, where the directory says, by repo and
+        revision (``paths.checkpoint_identity``); the device resolved to an
+        index, with its name; torch and its CUDA build. What a single fold was
+        asked and ran with is the call's own record (``fold(record=...)``).
+        """
+        import torch
+
+        checkpoint = (
+            paths.checkpoint_identity(Path(self.weights))
+            if Path(self.weights).is_dir()
+            else {"repo": self.weights, "revision": ""}
+        )
+        device = self.device
+        if device.type == "cuda" and device.index is None:
+            device = torch.device("cuda", torch.cuda.current_device())
+        device_name = (
+            torch.cuda.get_device_name(device) if device.type == "cuda" else device.type
+        )
         return {
             "esmfold2.weights": self.weights,
-            "esmfold2.device": str(self.device),
+            "esmfold2.checkpoint.repo": checkpoint.get("repo", ""),
+            "esmfold2.checkpoint.revision": checkpoint.get("revision", ""),
+            "esmfold2.device": str(device),
+            "esmfold2.device_name": device_name,
+            "esmfold2.torch": torch.__version__,
+            "esmfold2.torch_cuda": str(torch.version.cuda),
             "esmfold2.config_type": str(getattr(self.config, "type", "release")),
             # Which packaging supplied the module; the two are different code
             # paths, so a result is only comparable against one of them.
@@ -892,4 +1023,14 @@ class AtomWorksESMFold2:
             "esmfold2.esmc": self.esmc_source,
             # The CCD pickle ligand and modified-residue conformers come from.
             "esmfold2.ccd": self.ccd_source,
+        } | self._esmc_identity()
+
+    def _esmc_identity(self) -> dict[str, str]:
+        """A separately attached backbone's repo and revision, when its directory says."""
+        if not Path(self.esmc_source).is_dir():
+            return {}
+        identity = paths.checkpoint_identity(Path(self.esmc_source))
+        return {
+            "esmfold2.esmc.repo": identity.get("repo", ""),
+            "esmfold2.esmc.revision": identity.get("revision", ""),
         }

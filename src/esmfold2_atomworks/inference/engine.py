@@ -142,26 +142,32 @@ class ESMFold2InferenceEngine:
 
         self.initialize()
         named = _canonicalize_inputs(inputs)
+        provenance = self.model.provenance()
 
         outputs: list[ESMFold2Output] = []
         for example_id, item in named.items():
             atoms, chain_info = _load(item)
             report = AdapterReport()
+            record: dict[str, Any] = {}
             structure, result = self.model.fold_atom_array(
                 atoms,
                 chain_info=chain_info,
                 config=self.folding,
                 adapter_kwargs={**self.adapter_policy, "report": report},
+                record=record,
                 **overrides,
             )
-            accepted = _accepted_degradations(report)
+            # Every output carries what it needs to be read on its own: the
+            # model, the call that produced it, and what the adapter accepted.
+            described = provenance | record | _accepted_degradations(report)
             if isinstance(structure, list):
-                # num_diffusion_samples > 1: emit one output per sample.
+                # num_diffusion_samples > 1: emit one output per sample. The
+                # call record describes all of them; the index is the output's.
                 for index, (one, res) in enumerate(zip(structure, result, strict=True)):
                     outputs.append(
                         ESMFold2Output(
                             atom_array=one,
-                            metadata=fold_metrics(res) | {"sample": index} | accepted,
+                            metadata=fold_metrics(res) | described | {"sample": index},
                             example_id=f"{example_id}_{index}",
                         )
                     )
@@ -169,7 +175,7 @@ class ESMFold2InferenceEngine:
                 outputs.append(
                     ESMFold2Output(
                         atom_array=structure,
-                        metadata=fold_metrics(result) | accepted,
+                        metadata=fold_metrics(result) | described,
                         example_id=example_id,
                     )
                 )

@@ -102,11 +102,47 @@ backbone is resident (`.esmc`, whatever `load_esmc` said -- a bundled
 checkpoint carries one regardless) or states are given. The raw `.net` keeps
 upstream's flexibility for whoever means to ablate the prior.
 
-`fold(record=...)` fills a caller's dict with the call's own entries:
-`esmfold2.lm_source` is `model` or `caller-supplied`, while
-`provenance()["esmfold2.esmc"]` stays the backbone that was loaded. A record
-that already holds an `esmfold2.*` key raises, so one reused from an earlier
-fold cannot mix two calls.
+`lm_source` is part of the call's record, below; `provenance()["esmfold2.esmc"]`
+stays the backbone that was loaded.
+
+## Provenance: the model's, and each call's
+
+Two halves, kept apart because they change at different rates.
+
+`provenance()` is the model's, one string per fact: the weights by path and,
+where the directory says, by Hub repo and revision
+(`esmfold2.checkpoint.repo`/`.revision`, read by `paths.checkpoint_identity`
+through the workspace pin into the Hugging Face store); the same for a
+separately attached ESMC backbone; the device resolved to an index, with its
+name; torch and its CUDA build; the config type, the packaging, the backbone's
+source and the CCD's.
+
+`fold(record=...)` and `fold_atom_array(record=...)` fill a caller's dict with
+the call's own entries:
+
+- `esmfold2.fold.<name>`: every argument the fold ran with, upstream's defaults
+  included, read off its signature -- so `num_sampling_steps=8` and `100` are
+  visibly different calls, and a default upstream changes is the one recorded.
+- `esmfold2.effective.num_loops` and `.lm_mask_pct`: what a request left to the
+  checkpoint resolved to. With supplied LM states no mask is applied at the
+  fold, recorded as `None`.
+- `esmfold2.lm_source`: `model` or `caller-supplied`.
+- `esmfold2.inputs`: every entity folded -- ids, kind, length and a digest of
+  its chemistry (sequence and modifications, or CCD codes or SMILES), not of
+  its chain ids. Where a sequence came from is one question; which sequence
+  ran is another, and a caller that always overrides the sequence learns
+  nothing from the first.
+- `esmfold2.sequence_source` (from `fold_atom_array`): where each chain's
+  folded sequence came from, as `AdapterReport` records it.
+- `esmfold2.deterministic_algorithms`, `esmfold2.cublas_workspace_config`: the
+  execution state observed at the call ([02](02_PARITY.md)).
+
+One record per call. With `num_diffusion_samples > 1` it describes every
+sample and names none; a sample index belongs to the output. A record that
+already holds an `esmfold2.*` key raises, so one reused from an earlier call
+cannot mix two calls' entries. The engine writes both halves into each
+output's JSON, with the sample index when there are several, so a prediction
+can be read without the run that made it.
 
 ## Pipeline
 

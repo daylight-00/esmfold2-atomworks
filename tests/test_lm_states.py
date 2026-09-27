@@ -25,6 +25,9 @@ from esmfold2_atomworks.model.esmfold2 import (
     MissingLanguageModelError,
 )
 
+#: An input with no entities: enough for a record's digests.
+_SPI = SimpleNamespace(sequences=[])
+
 
 class _Builder:
     """Records whether a fold reached upstream."""
@@ -39,7 +42,8 @@ class _Builder:
 
 def _wrapper(esmc=None) -> AtomWorksESMFold2:
     model = AtomWorksESMFold2.__new__(AtomWorksESMFold2)
-    model.net = SimpleNamespace(esmc=esmc, config=SimpleNamespace(type="release"))
+    config = SimpleNamespace(type="release", num_loops=3, lm_mask_pct=0.0)
+    model.net = SimpleNamespace(esmc=esmc, config=config)
     model.builder = _Builder()
     return model
 
@@ -59,7 +63,7 @@ def test_the_guard_reads_the_resident_backbone_not_the_load_flag():
     # A bundled checkpoint loaded with load_esmc=False still has its backbone.
     model = _wrapper(esmc=object())
     record: dict = {}
-    assert model.fold(object(), record=record) == "result"
+    assert model.fold(_SPI, record=record) == "result"
     assert record["esmfold2.lm_source"] == "model"
 
 
@@ -76,14 +80,14 @@ def test_a_record_holding_an_earlier_calls_entries_is_refused():
     model = _wrapper(esmc=object())
     record = {"caller.run": "r1", "esmfold2.lm_source": "model"}
     with pytest.raises(ValueError, match="fresh dict"):
-        model.fold(object(), record=record)
+        model.fold(_SPI, record=record)
     assert model.builder.calls == 0
 
 
 def test_a_record_keeps_the_callers_own_keys():
     model = _wrapper(esmc=object())
     record = {"caller.run": "r1"}
-    model.fold(object(), record=record)
+    model.fold(_SPI, record=record)
     assert record["caller.run"] == "r1"
     assert record["esmfold2.lm_source"] == "model"
 
@@ -93,7 +97,7 @@ def test_a_record_observes_the_determinism_settings(monkeypatch):
     torch = pytest.importorskip("torch")
     monkeypatch.setenv("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
     record: dict = {}
-    _wrapper(esmc=object()).fold(object(), record=record)
+    _wrapper(esmc=object()).fold(_SPI, record=record)
     assert record["esmfold2.deterministic_algorithms"] is (
         torch.are_deterministic_algorithms_enabled()
     )
@@ -101,7 +105,7 @@ def test_a_record_observes_the_determinism_settings(monkeypatch):
 
     monkeypatch.delenv("CUBLAS_WORKSPACE_CONFIG")
     record = {}
-    _wrapper(esmc=object()).fold(object(), record=record)
+    _wrapper(esmc=object()).fold(_SPI, record=record)
     assert record["esmfold2.cublas_workspace_config"] is None
 
 
@@ -120,6 +124,7 @@ def test_the_model_and_input_are_not_overrides(name, states):
 def test_computing_states_reads_the_mask_fraction_rather_than_defaulting_it():
     model = _wrapper(esmc=object())
     model.net._compute_lm_hidden_states = lambda *args, **kwargs: None
+    del model.net.config.lm_mask_pct
     with pytest.raises(AttributeError, match="lm_mask_pct"):
         model.compute_lm_hidden_states({})
 

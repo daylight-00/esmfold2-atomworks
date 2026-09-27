@@ -31,24 +31,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-
-def identity(path: Path) -> dict[str, str]:
-    """Repo id and revision of a checkpoint directory, where its layout says."""
-    resolved = path.resolve()
-    parts = resolved.parts
-    if "snapshots" in parts:
-        index = parts.index("snapshots")
-        if (
-            index > 0
-            and parts[index - 1].startswith("models--")
-            and index + 1 < len(parts)
-        ):
-            repo = parts[index - 1][len("models--") :].replace("--", "/", 1)
-            return {"repo": repo, "revision": parts[index + 1]}
-    metadata = resolved / ".cache/huggingface/download/config.json.metadata"
-    if metadata.is_file():
-        return {"repo": "", "revision": metadata.read_text().splitlines()[0]}
-    return {"repo": "", "revision": "", "directory": resolved.name}
+from esmfold2_atomworks.paths import checkpoint_identity as identity
 
 
 def load_fold(path: Path) -> Any:

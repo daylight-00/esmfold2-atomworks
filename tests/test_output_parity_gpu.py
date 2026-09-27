@@ -126,10 +126,12 @@ def test_fold_atom_array_round_trips_to_a_structure(parsed, model):
     from esmfold2_atomworks.model.esmfold2 import FoldingConfig
 
     atoms, chain_info = parsed("hemoglobin")
+    record: dict = {}
     structure, result = model.fold_atom_array(
         atoms,
         chain_info=chain_info,
-        config=FoldingConfig(num_loops=1, num_sampling_steps=8, seed=0),
+        config=FoldingConfig(num_sampling_steps=8, seed=0),
+        record=record,
     )
     assert len(structure) > 0
     # Four HEM ligands must survive as hetero atoms; the mmCIF route loses them.
@@ -142,6 +144,17 @@ def test_fold_atom_array_round_trips_to_a_structure(parsed, model):
         structure.chain_id.tolist(), structure.chain_type.tolist(), strict=True
     ):
         assert kind == source[chain], chain
+
+    # The record against the real module: what the checkpoint resolved, where
+    # each sequence came from, and every entity folded.
+    assert record["esmfold2.fold.num_loops"] is None
+    assert record["esmfold2.effective.num_loops"] == model.config.num_loops
+    assert set(record["esmfold2.sequence_source"]) >= {"A", "B", "C", "D"}
+    kinds = [entity["kind"] for entity in record["esmfold2.inputs"]]
+    assert "protein" in kinds and "ligand" in kinds
+    provenance = model.provenance()
+    assert provenance["esmfold2.device"].startswith("cuda:")
+    assert provenance["esmfold2.device_name"]
 
 
 def test_the_loaded_model_answers_through_its_seams(model, gold):

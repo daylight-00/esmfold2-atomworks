@@ -277,3 +277,29 @@ def tree_revision(tree: str) -> str | None:
                 return None
             return out.stdout.strip() or None
     return None
+
+
+def checkpoint_identity(path: Path) -> dict[str, str]:
+    """Repo id and revision of a checkpoint directory, where its layout says.
+
+    A path names a directory on one machine; this names what it holds. A
+    Hugging Face store (``models--<org>--<name>/snapshots/<revision>``, which a
+    workspace pin resolves into) gives both; a ``local_dir`` download keeps the
+    revision in its metadata; anything else is named by its directory alone,
+    with the revision left empty rather than guessed.
+    """
+    resolved = path.resolve()
+    parts = resolved.parts
+    if "snapshots" in parts:
+        index = parts.index("snapshots")
+        if (
+            index > 0
+            and parts[index - 1].startswith("models--")
+            and index + 1 < len(parts)
+        ):
+            repo = parts[index - 1][len("models--") :].replace("--", "/", 1)
+            return {"repo": repo, "revision": parts[index + 1]}
+    metadata = resolved / ".cache/huggingface/download/config.json.metadata"
+    if metadata.is_file():
+        return {"repo": "", "revision": metadata.read_text().splitlines()[0]}
+    return {"repo": "", "revision": "", "directory": resolved.name}

@@ -119,6 +119,12 @@ REPLICATED_FOLD_PARAMETERS = frozenset(
 )
 
 
+#: The parameters of ``ESMFold2InputBuilder.fold`` this wrapper fills itself.
+#: Passed as overrides, the ordinary path fails on them ("multiple values") and
+#: the replica would ignore them, so both refuse them up front.
+_FOLD_POSITIONALS = frozenset({"model", "input"})
+
+
 class MissingLanguageModelError(RuntimeError):
     """A fold would run without the LM prior the checkpoint was trained with.
 
@@ -552,7 +558,9 @@ class AtomWorksESMFold2:
                 "another way would not be the computation forward performs"
             )
         if lm_mask_pct is None:
-            lm_mask_pct = getattr(self.config, "lm_mask_pct", 0.0)
+            # Read, not defaulted: a config that no longer carries it has moved,
+            # and 0.0 would be a fraction nobody measured.
+            lm_mask_pct = self.config.lm_mask_pct
 
         import torch
 
@@ -644,6 +652,12 @@ class AtomWorksESMFold2:
                 ``lm_hidden_states`` are given.
         """
         _check_record(record)
+        positional = sorted(set(overrides) & _FOLD_POSITIONALS)
+        if positional:
+            raise TypeError(
+                f"fold() got {positional} as keyword overrides; the model and the "
+                "input are this call's own, not settings to override"
+            )
         config = config or FoldingConfig()
         kwargs = config.as_fold_kwargs()
         kwargs.update(overrides)
@@ -717,7 +731,7 @@ class AtomWorksESMFold2:
                 "carries lm_hidden_states replicates it and must be brought up to "
                 "date before it can be trusted"
             )
-        unknown = set(kwargs) - known
+        unknown = set(kwargs) - (known - _FOLD_POSITIONALS)
         if unknown:
             raise TypeError(
                 f"fold() got unexpected keyword argument(s) {sorted(unknown)}"

@@ -106,6 +106,25 @@ def test_a_record_observes_the_determinism_settings(monkeypatch):
 
 
 @pytest.mark.offline
+@pytest.mark.parametrize("name", ["model", "input"])
+@pytest.mark.parametrize("states", [None, object()], ids=["model-lm", "supplied-lm"])
+def test_the_model_and_input_are_not_overrides(name, states):
+    """Both paths refuse them alike, rather than one failing and one ignoring."""
+    model = _wrapper(esmc=object())
+    with pytest.raises(TypeError, match="not settings to override"):
+        model.fold(object(), lm_hidden_states=states, **{name: object()})
+    assert model.builder.calls == 0
+
+
+@pytest.mark.offline
+def test_computing_states_reads_the_mask_fraction_rather_than_defaulting_it():
+    model = _wrapper(esmc=object())
+    model.net._compute_lm_hidden_states = lambda *args, **kwargs: None
+    with pytest.raises(AttributeError, match="lm_mask_pct"):
+        model.compute_lm_hidden_states({})
+
+
+@pytest.mark.offline
 def test_computing_states_without_a_backbone_is_refused():
     with pytest.raises(MissingLanguageModelError, match="load_esmc=True"):
         _wrapper(esmc=None).compute_lm_hidden_states({})

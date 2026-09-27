@@ -60,7 +60,7 @@ def test_the_guard_reads_the_resident_backbone_not_the_load_flag():
     model = _wrapper(esmc=object())
     record: dict = {}
     assert model.fold(object(), record=record) == "result"
-    assert record == {"esmfold2.lm_source": "model"}
+    assert record["esmfold2.lm_source"] == "model"
 
 
 @pytest.mark.offline
@@ -84,7 +84,25 @@ def test_a_record_keeps_the_callers_own_keys():
     model = _wrapper(esmc=object())
     record = {"caller.run": "r1"}
     model.fold(object(), record=record)
-    assert record == {"caller.run": "r1", "esmfold2.lm_source": "model"}
+    assert record["caller.run"] == "r1"
+    assert record["esmfold2.lm_source"] == "model"
+
+
+def test_a_record_observes_the_determinism_settings(monkeypatch):
+    """Observed, not certified: the flag and the variable as they stand."""
+    torch = pytest.importorskip("torch")
+    monkeypatch.setenv("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+    record: dict = {}
+    _wrapper(esmc=object()).fold(object(), record=record)
+    assert record["esmfold2.deterministic_algorithms"] is (
+        torch.are_deterministic_algorithms_enabled()
+    )
+    assert record["esmfold2.cublas_workspace_config"] == ":4096:8"
+
+    monkeypatch.delenv("CUBLAS_WORKSPACE_CONFIG")
+    record = {}
+    _wrapper(esmc=object()).fold(object(), record=record)
+    assert record["esmfold2.cublas_workspace_config"] is None
 
 
 @pytest.mark.offline

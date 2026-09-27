@@ -19,7 +19,7 @@ AtomWorks AtomArray ──adapter──> ESMFold2 (unmodified) ──adapter─�
 | part | state |
 |---|---|
 | **AtomWorks ↔ ESMFold2** — adapter and its reverse, AtomWorks pipeline, supervision labels | done; feature parity exact on 5 fixtures |
-| **Inference** — model wrapper, engine, CLI | done; output parity within the model's own scatter on a GPU |
+| **Inference** — model wrapper, engine, CLI | done; output parity exact on a GPU under deterministic kernels |
 | **Foundry integration** (optional) — trainer, Hydra configs | contracts verified against the pinned Foundry checkout, the runtime ones also against rc-foundry 0.2.0; the objective is the caller's ([docs/05](docs/05_ROADMAP.md)) |
 
 The core milestone is met: for monomer, multimer, metal, cofactor and
@@ -29,11 +29,12 @@ input. Featurization is a pure function **at a fixed seed**, so that
 equality is exact. (Only a SMILES ligand makes the seed matter: its conformer
 is embedded at call time.)
 
-The model itself is *not* deterministic — its structure head is a diffusion
-sampler — so identical features mean the two paths condition the model
-identically, not that they return identical coordinates. Confirmed on a GPU:
-the cross-path deviation falls within the model's own run-to-run scatter,
-measured rather than assumed ([docs/02](docs/02_PARITY.md)).
+The model's structure head is a diffusion sampler, and on a GPU with the
+default kernels a seeded fold is not repeatable, so identical features alone
+say that the two paths condition the model identically. Under deterministic
+kernels they say more, and it is confirmed on a GPU: the two paths return
+identical structures, every coordinate and confidence value equal
+([docs/02](docs/02_PARITY.md)).
 
 ## Quickstart
 

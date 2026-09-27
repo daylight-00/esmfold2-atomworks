@@ -19,14 +19,14 @@ the same coordinates. ``forward`` is not pure: the structure head is a diffusion
 sampler.
 
 **Output parity** (:func:`compare_results`) compares coordinates, pLDDT, pTM,
-ipTM and the distogram from a real fold. It needs a GPU and it is the only
-level at which sampling noise exists, so it is a tolerance check and a
-confirmation, not the primary test.
+ipTM and the distogram from a real fold. It needs a GPU and the weights, and it
+confirms rather than diagnoses, so it is not the primary test.
 
-Running only the second is a trap: the structure head is a diffusion sampler, so
-a single paired run cannot distinguish an implementation difference from
-run-to-run scatter, and a shared seed does not guarantee a shared trajectory
-when the two paths consume randomness differently.
+Running only the second is a trap: the structure head is a diffusion sampler,
+and with the default GPU kernels a seeded fold is not repeatable, so a paired
+run cannot distinguish an implementation difference from run-to-run scatter.
+Under deterministic kernels it can, and the two paths then agree exactly
+(docs/02).
 """
 
 from __future__ import annotations

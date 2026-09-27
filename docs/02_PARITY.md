@@ -143,17 +143,19 @@ CCD, which is why the comparison holds exactly; a SMILES case needs the same
 seed on both sides, or a tolerance.
 
 `forward` is **not** pure. The structure head is a diffusion sampler; it
-consumes RNG, and on a GPU it is not even reproducible across two identical
-calls (see below). So feature parity does *not* say that the two paths produce
-the same coordinates. What it says is:
+consumes RNG, and on a GPU with the default kernels it is not even
+reproducible across two identical seeded calls (see below). So feature parity
+by itself does *not* say that the two paths produce the same coordinates. What
+it says is:
 
 > the adapter presents the model with exactly the same conditioning, and
 > therefore the same conditional sampling distribution
 
 which is the claim worth making, and the strongest one available for a
 stochastic model. Everything downstream — coordinates, pLDDT, PAE — is then a
-draw from one distribution rather than from two, and the GPU check below
-verifies that the realised draws behave accordingly.
+draw from one distribution rather than from two. The GPU check below goes
+further: with the kernels made deterministic, the realised draws are
+identical.
 
 It is also the diagnostic level. A failure names the tensor: a wrong
 `res_type` is a sequence bug, a wrong `ref_element` is a ligand-identity bug, a
@@ -181,76 +183,79 @@ regression hide behind "well, something differs".
 
 **On the fixtures above, `.identical` holds** — the stronger statement.
 
-## Output parity: measured, and why it is a *controlled* comparison
+## Output parity: exact, under deterministic execution
 
 ```bash
 sbatch --partition=<gpu-partition> scripts/parity_gpu.sbatch
 ```
 
-The numbers below come from the reference checkpoint. Reproducing them needs
-the artifacts pinned in
-[`reproducibility/ARTIFACTS.lock`](../reproducibility/ARTIFACTS.lock): the
-checkpoint, the ESMC backbone paired with it and the CCD pickle. Feature parity
-needs only the last.
+Two statements, kept apart because they are about different things:
 
-**The sampler is not reproducible, even seeded.** `_seed_context` seeds python,
-numpy, torch and CUDA identically for every fold, and the two paths hand the
-model identical tensors -- yet folding the *same* input twice on an RTX 6000 Ada
-gives coordinates differing by **0.25 A** in the worst atom.
+1. **Under deterministic kernels the two paths fold identically.** With
+   `torch.use_deterministic_algorithms(True)` and a fixed cuBLAS workspace
+   (`CUBLAS_WORKSPACE_CONFIG=:4096:8`, which the sbatch script exports before
+   Python starts), the same input folds to the same structure twice, bit for
+   bit -- and the adapted input folds to exactly the structure of the frozen
+   native input. This is the output-level parity claim.
+2. **Without them, a seeded fold is not repeatable.** That is a property of
+   the execution configuration, not of either path, and it is measured below
+   as a characterization rather than used as a tolerance.
 
-The obvious suspect is `lm_dropout`, which defaults to `0.3` and is left active
-at inference on purpose (it is the ensembling mechanism). It is not the cause.
-Folding lysozyme twice at each setting:
+Measured on an RTX 6000 Ada with the current `biohub/ESMFold2` (revision
+`69869f73`, whose weights are identical to the reference checkpoint's --
+[`checkpoint_equivalence.json`](../reproducibility/checkpoint_equivalence.json)),
+`seed=0`, deterministic kernels:
 
-| `lm_dropout` | `coord_max_abs` (A) | `coord_rmsd` (A) | `plddt_max_abs` |
+| fixture | config | native, folded twice | native vs adapted |
 |---|---|---|---|
-| 0.3 (default) | 0.176 | 0.061 | 0.060 |
-| **0.0** | 0.193 | 0.048 | 0.033 |
+| lysozyme | 1 loop, 8 steps | identical | identical |
+| lysozyme | checkpoint default (20 loops), 100 steps | identical | identical |
+| haemoglobin | 1 loop, 8 steps | identical | identical |
+| 4q8n (protein + Zn²⁺) | 1 loop, 8 steps | identical | identical |
+| 8cjg (663 residues + FAD + UV3) | 1 loop, 8 steps | identical | identical |
+| 1a8o (4 × MSE) | 1 loop, 8 steps | identical | identical |
 
-Turning dropout off entirely leaves the scatter where it was. What that
-establishes is that **`lm_dropout` is not the cause**; the residue is consistent
-with non-deterministic GPU kernels and bf16 reduction ordering amplified over
-the diffusion steps, but that has not been isolated here and is stated as the
-remaining explanation rather than a demonstrated one. **Do not expect
-`lm_dropout=0` to buy reproducibility** — it does not, and a scatter budget is
-needed either way.
+"Identical" is every compared quantity at zero difference: coordinates, pLDDT,
+PAE, distogram, pTM and ipTM, and atom names. The test folds the native input
+twice before comparing paths, so a cross-path difference is never read as the
+adapter's while the execution itself is not repeatable. Deterministic kernels
+cost roughly 15% in wall time on these folds.
 
-So an absolute tolerance on coordinates cannot tell "the adapter changed the
-input" from "the sampler is not reproducible". The first version of this test
-used one and failed at 0.27 A -- which said nothing about the adapter. That is
-D-008's warning arriving in practice.
+Identical, not merely close, is what the exact feature parity above predicts:
+the model receives the same tensors, and with the kernels made deterministic
+nothing else differs. The claim holds for one device and software stack.
+Deterministic kernels make a fold repeatable there; they do not make two
+devices, or two builds, agree.
 
-The test therefore folds the native input **twice** to measure the noise floor,
-then asserts the native-vs-adapted difference sits inside it. Measured on an
-RTX 6000 Ada, `num_loops=1`, `num_sampling_steps=8`, `seed=0`:
+### The non-deterministic scatter, characterized
 
-| | lysozyme cross | lysozyme self | haemoglobin cross | haemoglobin self |
-|---|---|---|---|---|
-| `coord_max_abs` (A) | 0.214 | **0.372** | 0.356 | 0.350 |
-| `coord_rmsd` (A) | 0.048 | **0.085** | 0.049 | 0.049 |
-| `plddt_max_abs` | 0.059 | 0.059 | 0.044 | 0.044 |
-| `distogram_max_abs` | 3.46 | 3.60 | 6.12 | 5.48 |
-| `pae_max_abs` | 5.56 | 5.74 | 5.75 | 7.19 |
-| `atom_name_mismatches` | 0 | 0 | 0 | 0 |
+With the kernels left non-deterministic, as by default, and every RNG seeded
+identically, folding the same input twice gives:
 
-**The cross-path deviation falls within the observed self-scatter** — on
-lysozyme it is smaller than it. That is a single paired observation per fixture,
-not a distributional claim, and it does not need to be more: the load-bearing
-evidence is exact feature parity, and this only has to show that nothing
-unexpected happens once the sampler runs.
+| fixture | config | coordinates, worst atom (Å) | pLDDT, worst token |
+|---|---|---|---|
+| lysozyme | 1 loop, 8 steps | 0.24 | 0.058 |
+| lysozyme | checkpoint default, 100 steps | 0.37 | 0.001 |
+| haemoglobin | 1 loop, 8 steps | 0.62 | 0.041 |
+| haemoglobin | checkpoint default, 100 steps | 0.29 | 0.015 |
 
-Three deliberate choices:
+These describe this device and stack, on these inputs; the scatter varies
+with both, and with the sampling schedule in no fixed direction. `lm_dropout` is not
+the cause: it defaults to `0.3` and stays active at inference on purpose (it
+is the ensembling mechanism), but measured on the reference checkpoint,
+setting it to `0` left the scatter where it was -- its mask is drawn from the
+seeded RNG like everything else. What removes the scatter is the
+deterministic configuration above, which is why the parity check runs under
+it, and why a scatter budget -- only as tight as the scatter happens to be on
+the input at hand -- is not used as one.
 
-- **Atom names and ordering are held to exact equality**, whatever the scatter
-  budget. Those are bookkeeping, not sampling; a mismatch there would make every
-  coordinate comparison meaningless rather than merely noisy.
-- **Coordinates are compared as reported, not after superposition.** The two
-  inputs describe the same system in the same order, so a rigid-body difference
-  would itself be a finding, and aligning first would hide it.
-- **`test_the_sampler_is_not_bitwise_reproducible` guards the control.** If a
-  future build folded deterministically, the scatter budget would collapse to
-  its floor and these tests would quietly revert to the absolute-tolerance check
-  they exist to replace. That test fails loudly instead.
+`test_nondeterministic_scatter_is_characterized` prints the measurement and
+asserts only the bookkeeping: atom names and order are not sampled, so they
+agree whatever the kernels do. A fold's own record states the settings it ran
+under (`fold(record=...)`: `esmfold2.deterministic_algorithms`,
+`esmfold2.cublas_workspace_config`), as observed at the call -- cuBLAS reads the
+variable when CUDA starts, so a value set later is recorded but was never
+applied, and the record does not claim otherwise.
 
 ## What parity does *not* cover
 

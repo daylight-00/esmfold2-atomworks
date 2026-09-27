@@ -10,8 +10,8 @@ build on this repository keep their own.
 
 - **AtomWorks → ESMFold2 adapter**, with exact feature parity against frozen
   reference inputs ([02_PARITY.md](02_PARITY.md)).
-- **Output parity on a GPU**, as a controlled comparison against the model's own
-  run-to-run scatter.
+- **Output parity on a GPU**, exact under deterministic kernels, with the
+  non-deterministic scatter characterized separately.
 - **esm ≥ 3.4**, verified on CPU and GPU — as was the esm ≤ 3.3 `transformers`
   fork while it was still published.
 - **Inference**: engine, CLI, configs, AtomWorks round trip.

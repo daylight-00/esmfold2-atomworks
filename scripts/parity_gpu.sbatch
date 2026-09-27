@@ -35,6 +35,11 @@ fi
 # shellcheck disable=SC1091
 source reproducibility/env.sh
 
+# Deterministic cuBLAS for the output-parity tests, which fold under
+# torch.use_deterministic_algorithms(True). cuBLAS reads this when CUDA
+# starts, so it has to be in the environment before Python does.
+export CUBLAS_WORKSPACE_CONFIG="${CUBLAS_WORKSPACE_CONFIG:-:4096:8}"
+
 mkdir -p runs
 nvidia-smi --query-gpu=name,memory.used,memory.total --format=csv || true
 python -m pytest tests/test_output_parity_gpu.py -m gpu -v -s

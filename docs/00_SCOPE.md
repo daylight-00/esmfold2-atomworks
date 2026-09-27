@@ -146,12 +146,13 @@ cannot be vacuous.
 ### D-008 — Parity is checked at the feature level first, the output level second
 
 Feature parity is exact, needs no GPU and no weights, and names the offending
-tensor when it fails. Output parity is a tolerance check on a sampled structure
-and can only ever confirm. Relying on the second alone means judging an
-implementation from a single paired stochastic run: the structure head is a
-diffusion sampler, a shared seed does not guarantee a shared trajectory when two
-paths consume randomness differently, and the resulting scatter is easy to read
-as a real difference — or to mistake a real difference for scatter.
+tensor when it fails. Output parity needs a GPU and the weights, and only
+confirms: it reports that coordinates differ, not which input caused it. It is
+exact too, but only under deterministic kernels. With the defaults a seeded
+fold is not repeatable, and judging an implementation from paired runs of that
+kind means reading scatter as a real difference, or a real difference as
+scatter. So output parity is checked under deterministic execution, and the
+scatter is characterized on its own ([02](02_PARITY.md)).
 
 ## Non-goals, for now
 

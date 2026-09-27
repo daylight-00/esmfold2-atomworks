@@ -1,4 +1,4 @@
-"""Output parity: real folds, compared against the model's own run-to-run scatter.
+"""Output parity: real folds of the two paths, compared on a GPU.
 
 Marked ``gpu`` and skipped by default. This confirms what feature parity already
 establishes -- see docs/02 -- so it is deliberately not the primary check.
@@ -7,21 +7,18 @@ Run on a GPU node with the weights present::
 
     sbatch --partition=<gpu-partition> scripts/parity_gpu.sbatch
 
-**These tests are controlled comparisons, not absolute-tolerance checks**, and
-that distinction is the whole point. ESMFold2's structure head is a diffusion
-sampler; even with every RNG seeded identically (``_seed_context`` seeds python,
-numpy, torch and CUDA, then restores), two folds of the *same* input on a GPU do
-not agree bitwise, because non-deterministic kernels and bf16 reductions differ
-in ordering and the sampler amplifies that over its steps. Measured on an RTX
-6000 Ada: two identical lysozyme folds differ by more than 0.2 A in the worst
-atom.
+**The comparison runs under deterministic kernels.** ESMFold2's structure head
+is a diffusion sampler, and with every RNG seeded identically two folds of the
+same input still differ on a GPU when the kernels are allowed to be
+non-deterministic -- by tenths of an Angstrom here, by far more on some inputs.
+An absolute tolerance cannot tell that apart from an adapter that changed the
+input, and a budget scaled to it is only as tight as the scatter happens to be.
+With ``torch.use_deterministic_algorithms(True)`` and a fixed cuBLAS workspace
+the scatter goes away: the same input folds identically twice, and the two
+paths, which hand the model identical tensors, must then fold identically too.
 
-So an absolute tolerance on coordinates cannot distinguish "the adapter changed
-the input" from "the sampler is not reproducible", which is exactly the
-confusion D-008 exists to prevent. Instead each test folds the native input
-twice to measure the noise floor, then asserts that native-vs-adapted sits
-inside it. If the adapter really did change the input, the cross difference
-would leave that envelope.
+The scatter itself is characterized separately, as a measurement rather than a
+gate: it describes the execution configuration, not the adapter.
 """
 
 from __future__ import annotations
@@ -37,20 +34,6 @@ from esmfold2_atomworks.data.atomworks_to_esm import (
 from esmfold2_atomworks.parity.compare import compare_results
 
 pytestmark = pytest.mark.gpu
-
-#: How much larger than the model's own scatter a cross-path difference may be
-#: before it stops being explicable as noise. The floor keeps a metric that is
-#: essentially zero in both runs from failing on a rounding artefact.
-SCATTER_ALLOWANCE = 3.0
-ABSOLUTE_FLOOR = {
-    "coord_max_abs": 0.05,
-    "coord_rmsd": 0.01,
-    "plddt_max_abs": 0.01,
-    "pae_max_abs": 0.5,
-    "distogram_max_abs": 0.5,
-    "ptm": 1e-3,
-    "iptm": 1e-3,
-}
 
 
 @pytest.fixture(scope="module")
@@ -79,35 +62,17 @@ def _native_counterpart(spi, chain_info):  # retained for ad-hoc use
     return build(spi, chain_info)
 
 
-def _assert_within_scatter(cross, baseline) -> None:
-    """Every cross-path metric must sit inside the model's own scatter."""
-    failures = []
-    for key, value in sorted(cross.metrics.items()):
-        noise = baseline.metrics.get(key, 0.0)
-        budget = max(noise * SCATTER_ALLOWANCE, ABSOLUTE_FLOOR.get(key, 0.0))
-        mark = "ok " if value <= budget else "BAD"
-        line = f"  [{mark}] {key:24s} cross {value:12.6g}  self {noise:12.6g}  budget {budget:12.6g}"
-        if value > budget:
-            failures.append(line)
-        print(line)
-    assert not failures, (
-        "cross-path difference exceeds the model's own scatter:\n" + "\n".join(failures)
-    )
-
-
-@pytest.mark.parametrize("fixture", ["lysozyme", "hemoglobin"])
-def test_adapted_input_folds_within_the_models_own_scatter(
-    parsed, model, gold, fixture
-):
-    """The two paths agree as closely as the model agrees with itself.
+@pytest.mark.parametrize(
+    "fixture", ["lysozyme", "hemoglobin", "modified", "zinc", "flavoprotein"]
+)
+def test_adapted_input_folds_identically(parsed, model, gold, fixture, deterministic):
+    """The two paths fold to the same structure, exactly.
 
     The reference side is the frozen gold input, not a reconstruction of the
     adapter's output, for the same reason feature parity uses it: a systematic
-    error copied into both sides would cancel.
-
-    Atom naming and ordering are held to exact equality regardless -- those are
-    bookkeeping, not sampling, and a mismatch there would make every coordinate
-    comparison meaningless rather than merely noisy.
+    error copied into both sides would cancel. The native input is folded twice
+    first, so that a difference is never read as the adapter's while the
+    execution itself is not repeatable.
     """
     from esmfold2_atomworks.model.esmfold2 import FoldingConfig
 
@@ -120,12 +85,39 @@ def test_adapted_input_folds_within_the_models_own_scatter(
     native_b = model.fold(native, config=config)
     adapted_a = model.fold(adapted, config=config)
 
-    baseline = compare_results(native_a, native_b)
+    repeat = compare_results(native_a, native_b)
     cross = compare_results(native_a, adapted_a)
+    print(f"\n{fixture}: repeat {repeat.metrics}\n{fixture}: cross  {cross.metrics}")
+    assert all(value == 0.0 for value in repeat.metrics.values()), (
+        "the same input did not fold identically twice, so deterministic "
+        f"execution is not in force and no cross-path claim can be made: {repeat.metrics}"
+    )
+    assert all(value == 0.0 for value in cross.metrics.values()), cross.metrics
 
-    print(f"\n{fixture}: native-vs-native is the noise floor")
-    assert cross.metrics["atom_name_mismatches"] == 0
-    _assert_within_scatter(cross, baseline)
+
+def test_nondeterministic_scatter_is_characterized(model, gold):
+    """What the same seed leaves to chance when kernels may be non-deterministic.
+
+    A measurement, not a gate: the numbers depend on the device, the software
+    stack and the input, and describe the execution configuration rather than
+    the adapter. Only the bookkeeping is asserted -- atom names and order are
+    not sampled, so they agree whatever the kernels do.
+    """
+    torch = pytest.importorskip("torch")
+    from esmfold2_atomworks.model.esmfold2 import FoldingConfig
+
+    previous = torch.are_deterministic_algorithms_enabled()
+    torch.use_deterministic_algorithms(False)
+    try:
+        spi = gold("lysozyme")
+        config = FoldingConfig(num_loops=1, num_sampling_steps=8, seed=0)
+        diff = compare_results(
+            model.fold(spi, config=config), model.fold(spi, config=config)
+        )
+    finally:
+        torch.use_deterministic_algorithms(previous)
+    print(f"\nnon-deterministic repeat: {diff.metrics}")
+    assert diff.metrics["atom_name_mismatches"] == 0
 
 
 def test_fold_atom_array_round_trips_to_a_structure(parsed, model):
@@ -143,32 +135,6 @@ def test_fold_atom_array_round_trips_to_a_structure(parsed, model):
     assert structure.hetero.sum() > 0
     assert set(structure.chain_id.tolist()) >= {"A", "B", "C", "D"}
     assert result.plddt is not None
-
-
-def test_the_sampler_is_not_bitwise_reproducible(parsed, model):
-    """Guards the control above from silently becoming a no-op.
-
-    If two identical folds ever did agree bitwise, the scatter budget would
-    collapse to the absolute floor and the tests above would quietly turn into
-    the absolute-tolerance check they were written to replace. This records the
-    assumption so that a future deterministic build fails loudly here instead.
-    """
-    from esmfold2_atomworks.model.esmfold2 import FoldingConfig
-
-    atoms, chain_info = parsed("lysozyme")
-    spi = atom_array_to_structure_prediction_input(atoms, chain_info=chain_info)
-    config = FoldingConfig(num_loops=1, num_sampling_steps=8, seed=0)
-
-    diff = compare_results(
-        model.fold(spi, config=config), model.fold(spi, config=config)
-    )
-    print(f"\nself-comparison: {diff.metrics}")
-    assert diff.metrics["atom_name_mismatches"] == 0
-    if diff.metrics["coord_max_abs"] == 0.0:
-        pytest.skip(
-            "this build folds reproducibly; the scatter-budget tests are now "
-            "equivalent to absolute-tolerance checks and should be tightened"
-        )
 
 
 def test_the_loaded_model_answers_through_its_seams(model, gold):
@@ -237,8 +203,9 @@ def test_supplied_states_reproduce_the_models_own_fold(model, gold, deterministi
 
     diff = compare_results(own, supplied)
     print(f"\nown vs supplied: {diff.metrics}")
-    assert own_record == {"esmfold2.lm_source": "model"}
-    assert supplied_record == {"esmfold2.lm_source": "caller-supplied"}
+    assert own_record["esmfold2.lm_source"] == "model"
+    assert supplied_record["esmfold2.lm_source"] == "caller-supplied"
+    assert own_record["esmfold2.deterministic_algorithms"] is True
     assert diff.metrics["atom_name_mismatches"] == 0
     assert diff.metrics["coord_max_abs"] == 0.0
     assert diff.metrics["plddt_max_abs"] == 0.0

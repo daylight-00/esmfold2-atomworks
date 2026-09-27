@@ -257,6 +257,27 @@ def _check_record(record: dict[str, Any] | None) -> None:
         )
 
 
+def _observed_execution() -> dict[str, Any]:
+    """The kernel-determinism settings in force, as observed -- not certified.
+
+    ``esmfold2.deterministic_algorithms`` is torch's flag at this moment, and
+    ``esmfold2.cublas_workspace_config`` the environment variable's value
+    (``None`` when unset). cuBLAS reads that variable when CUDA starts, so a
+    value set later is recorded but was never applied; nothing here can tell
+    the two apart, which is why the entries are observations. Deterministic
+    kernels make a fold repeatable on one device and software stack; the seed
+    alone does not (docs/02).
+    """
+    import os
+
+    import torch
+
+    return {
+        "esmfold2.deterministic_algorithms": torch.are_deterministic_algorithms_enabled(),
+        "esmfold2.cublas_workspace_config": os.environ.get("CUBLAS_WORKSPACE_CONFIG"),
+    }
+
+
 @dataclass
 class FoldingConfig:
     """Inference-time knobs, mirroring the SDK's ``FoldingConfig``.
@@ -611,7 +632,9 @@ class AtomWorksESMFold2:
                 gradient reaches them. ``lm_mask_pct`` acts only inside the
                 backbone, which this skips, so combining the two raises.
             record: a dict to write this call's ``esmfold2.*`` entries into:
-                ``esmfold2.lm_source``, one of :data:`LM_SOURCES`. The caller's
+                ``esmfold2.lm_source``, one of :data:`LM_SOURCES`, and the
+                execution state observed when the call began (see
+                :func:`_observed_execution`). The caller's
                 other keys are kept; an ``esmfold2.*`` key already present
                 raises, so a record reused from an earlier fold cannot mix two
                 calls' entries.
@@ -635,6 +658,7 @@ class AtomWorksESMFold2:
                 stacklevel=2,
             )
 
+        execution = _observed_execution() if record is not None else {}
         if lm_hidden_states is None:
             if self.esmc is None:
                 raise MissingLanguageModelError(
@@ -661,6 +685,7 @@ class AtomWorksESMFold2:
 
         if record is not None:
             record["esmfold2.lm_source"] = lm_source
+            record.update(execution)
         return result
 
     def _fold_with_lm_states(

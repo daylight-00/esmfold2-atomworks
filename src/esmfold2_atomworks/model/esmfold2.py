@@ -64,8 +64,9 @@ __all__ = [
     "MissingLanguageModelError",
     "attach_esmc",
     "ccd_source",
-    "input_digests",
+    "input_record",
     "load_native_model_class",
+    "tensor_record",
 ]
 
 #: The input that switches the experimental forward into a gradient-bearing
@@ -264,20 +265,58 @@ def _check_record(record: dict[str, Any] | None) -> None:
         )
 
 
-def input_digests(spi: Any) -> list[dict[str, Any]]:
-    """Each entity of a ``StructurePredictionInput``: ids, kind, length, digest.
-
-    The digest covers the chemistry the model is given -- the sequence and its
-    modifications, or a ligand's CCD codes or SMILES -- and not the chain ids,
-    so two runs that folded the same molecule under different names agree on
-    it. ``length`` is the sequence length (``None`` for a ligand); ``msa`` says
-    whether an alignment was attached.
-    """
+def _sha256(payload: Any) -> str:
     import hashlib
     import json
 
-    out = []
-    for entry in spi.sequences:
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, default=str).encode()
+    ).hexdigest()
+
+
+def _msa_sha256(msa: Any) -> str | None:
+    """Every row of an alignment -- header and sequence -- and its deletion matrix.
+
+    Headers are included because they carry the taxonomy cross-chain pairing
+    reads, and the deletions because they become model features.
+    """
+    import hashlib
+
+    import numpy as np
+
+    if msa is None:
+        return None
+    digest = hashlib.sha256()
+    for entry in msa.entries:
+        digest.update(str(entry.header).encode() + b"\0")
+        digest.update(str(entry.sequence).encode() + b"\n")
+    deletions = getattr(msa, "deletions", None)
+    if deletions is not None:
+        deletions = np.ascontiguousarray(deletions)
+        digest.update(f"{deletions.dtype}{deletions.shape}".encode())
+        digest.update(deletions.tobytes())
+    return digest.hexdigest()
+
+
+def input_record(spi: Any) -> dict[str, Any]:
+    """What a ``StructurePredictionInput`` hands the model, as record entries.
+
+    Read after upstream's own ``clean_esmfold2_input``, which splits chainbreaks
+    into the entities that are actually folded. ``esmfold2.inputs`` lists each:
+    ids, kind, length (``None`` for a ligand), ``chemistry_sha256`` over the
+    sequence and modifications or a ligand's CCD codes or SMILES -- not the chain
+    ids, so the same molecule under another name agrees -- and ``msa_sha256``
+    over its alignment, or ``None``. ``esmfold2.covalent_bonds`` is the bond list
+    in canonical order; ``esmfold2.pocket_sha256`` and
+    ``esmfold2.distogram_conditioning_sha256`` digest those conditions, ``None``
+    when absent. Every digest is a full SHA-256.
+    """
+    import numpy as np
+    from esm.models.esmfold2.processor import clean_esmfold2_input
+
+    cleaned = clean_esmfold2_input(spi)
+    entities = []
+    for entry in cleaned.sequences:
         kind = type(entry).__name__.removesuffix("Input").lower()
         sequence = getattr(entry, "sequence", None)
         chemistry = {
@@ -290,20 +329,70 @@ def input_digests(spi: Any) -> list[dict[str, Any]]:
             "ccd": list(getattr(entry, "ccd", None) or []),
             "smiles": getattr(entry, "smiles", None),
         }
-        digest = hashlib.sha256(
-            json.dumps(chemistry, sort_keys=True).encode()
-        ).hexdigest()[:16]
         ids = entry.id if isinstance(entry.id, list) else [entry.id]
-        out.append(
+        entities.append(
             {
                 "ids": [str(i) for i in ids],
                 "kind": kind,
                 "length": None if sequence is None else len(sequence),
-                "sha256": digest,
-                "msa": getattr(entry, "msa", None) is not None,
+                "chemistry_sha256": _sha256(chemistry),
+                "msa_sha256": _msa_sha256(getattr(entry, "msa", None)),
             }
         )
-    return out
+    bonds = sorted(
+        [
+            str(b.chain_id1),
+            int(b.res_idx1),
+            int(b.atom_idx1),
+            str(b.chain_id2),
+            int(b.res_idx2),
+            int(b.atom_idx2),
+        ]
+        for b in (cleaned.covalent_bonds or [])
+    )
+    pocket = cleaned.pocket
+    distogram = cleaned.distogram_conditioning
+    return {
+        "esmfold2.inputs": entities,
+        "esmfold2.covalent_bonds": bonds,
+        "esmfold2.pocket_sha256": None
+        if pocket is None
+        else _sha256([pocket.binder_chain_id, sorted(map(list, pocket.contacts))]),
+        "esmfold2.distogram_conditioning_sha256": None
+        if not distogram
+        else _sha256(
+            [
+                [
+                    d.chain_id,
+                    np.asarray(d.distogram).shape,
+                    np.asarray(d.distogram).tobytes().hex(),
+                ]
+                for d in distogram
+            ]
+        ),
+    }
+
+
+def tensor_record(tensor: Any, *, chunk_elements: int = 1 << 24) -> dict[str, Any]:
+    """A tensor's full SHA-256 over its bytes, with its shape and dtype.
+
+    Hashed in chunks copied to the host one at a time, so the host holds one
+    chunk rather than the tensor.
+    """
+    import hashlib
+
+    import torch
+
+    flat = tensor.detach().contiguous().reshape(-1)
+    digest = hashlib.sha256()
+    for start in range(0, flat.numel(), chunk_elements):
+        piece = flat[start : start + chunk_elements].cpu()
+        digest.update(piece.view(torch.uint8).numpy().tobytes())
+    return {
+        "sha256": digest.hexdigest(),
+        "shape": list(tensor.shape),
+        "dtype": str(tensor.dtype).removeprefix("torch."),
+    }
 
 
 def _observed_execution() -> dict[str, Any]:
@@ -686,7 +775,9 @@ class AtomWorksESMFold2:
                 every argument the fold ran with (``esmfold2.fold.*``), what the
                 checkpoint resolved (``esmfold2.effective.*``),
                 ``esmfold2.lm_source`` (one of :data:`LM_SOURCES`), each folded
-                entity by digest (``esmfold2.inputs``, see :func:`input_digests`)
+                entity and condition by digest (see :func:`input_record`), the
+                supplied LM states by digest (``esmfold2.lm_states``, see
+                :func:`tensor_record`)
                 and the execution state observed when the call began (see
                 :func:`_observed_execution`). One record per call: with
                 ``num_diffusion_samples > 1`` it describes every sample, and
@@ -741,6 +832,9 @@ class AtomWorksESMFold2:
                     "supplied lm_hidden_states bypass; apply the mask when "
                     "computing the states (compute_lm_hidden_states(lm_mask_pct=))"
                 )
+            if record is not None:
+                # Hashed before the fold: the record names the states that ran.
+                execution["esmfold2.lm_states"] = tensor_record(lm_hidden_states)
             result = self._fold_with_lm_states(spi, kwargs, lm_hidden_states)
             lm_source = "caller-supplied"
 
@@ -759,9 +853,9 @@ class AtomWorksESMFold2:
         can leave to the checkpoint: ``num_loops=None`` is the checkpoint's
         count, and ``lm_mask_pct=None`` its fraction when the backbone runs; with
         supplied states no mask is applied at the fold, which is recorded as
-        ``None``. ``esmfold2.inputs`` names every entity folded by kind, length
-        and a digest of its chemistry, so a record says which sequence ran, not
-        only where it came from.
+        ``None``. :func:`input_record` names every entity folded and every
+        condition by digest, so a record says which sequence and which
+        alignment ran, not only where they came from.
         """
         args = self._fold_arguments(kwargs)
         num_loops = args.get("num_loops")
@@ -778,8 +872,7 @@ class AtomWorksESMFold2:
             "esmfold2.effective.num_loops": int(num_loops),
             "esmfold2.effective.lm_mask_pct": lm_mask_pct,
             "esmfold2.lm_source": lm_source,
-            "esmfold2.inputs": input_digests(spi),
-        }
+        } | input_record(spi)
 
     def _fold_arguments(self, kwargs: dict[str, Any]) -> dict[str, Any]:
         """What ``ESMFold2InputBuilder.fold`` runs with: its defaults, then ``kwargs``.
@@ -1001,9 +1094,7 @@ class AtomWorksESMFold2:
             if Path(self.weights).is_dir()
             else {"repo": self.weights, "revision": ""}
         )
-        device = self.device
-        if device.type == "cuda" and device.index is None:
-            device = torch.device("cuda", torch.cuda.current_device())
+        device = self._placement()
         device_name = (
             torch.cuda.get_device_name(device) if device.type == "cuda" else device.type
         )
@@ -1011,6 +1102,8 @@ class AtomWorksESMFold2:
             "esmfold2.weights": self.weights,
             "esmfold2.checkpoint.repo": checkpoint.get("repo", ""),
             "esmfold2.checkpoint.revision": checkpoint.get("revision", ""),
+            "esmfold2.checkpoint.versioning": checkpoint.get("versioning", "hub-id"),
+            "esmfold2.checkpoint.config_sha256": checkpoint.get("config_sha256", ""),
             "esmfold2.device": str(device),
             "esmfold2.device_name": device_name,
             "esmfold2.torch": torch.__version__,
@@ -1024,6 +1117,24 @@ class AtomWorksESMFold2:
             # The CCD pickle ligand and modified-residue conformers come from.
             "esmfold2.ccd": self.ccd_source,
         } | self._esmc_identity()
+
+    def _placement(self) -> Any:
+        """Where the module's parameters are, read off the module itself.
+
+        Not ``torch.cuda.current_device()``: that is the process's current
+        device, which can change after the model was placed.
+        """
+        import torch
+
+        device = getattr(self.net, "device", None)
+        if device is not None:
+            return torch.device(device)
+        parameters = getattr(self.net, "parameters", None)
+        if callable(parameters):
+            first = next(iter(parameters()), None)
+            if first is not None:
+                return first.device
+        return self.device
 
     def _esmc_identity(self) -> dict[str, str]:
         """A separately attached backbone's repo and revision, when its directory says."""

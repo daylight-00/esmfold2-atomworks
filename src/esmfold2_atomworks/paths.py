@@ -280,15 +280,24 @@ def tree_revision(tree: str) -> str | None:
 
 
 def checkpoint_identity(path: Path) -> dict[str, str]:
-    """Repo id and revision of a checkpoint directory, where its layout says.
+    """What a checkpoint directory holds, as far as its layout says -- and how far.
 
-    A path names a directory on one machine; this names what it holds. A
-    Hugging Face store (``models--<org>--<name>/snapshots/<revision>``, which a
-    workspace pin resolves into) gives both; a ``local_dir`` download keeps the
-    revision in its metadata; anything else is named by its directory alone,
-    with the revision left empty rather than guessed.
+    ``versioning`` states which answer applies: ``hub-snapshot`` for a Hugging
+    Face store (``models--<org>--<name>/snapshots/<revision>``, which a
+    workspace pin resolves into), with repo and revision; ``hub-local-dir`` for
+    a ``local_dir`` download, whose metadata keeps the revision; ``unversioned``
+    for anything else, whose repo and revision are left empty rather than
+    guessed -- its directory name is not an identity. ``config_sha256`` digests
+    its ``config.json`` in every case, which names the architecture and
+    defaults but not the weights; hashing multi-GB weights here is not done.
     """
+    import hashlib
+
     resolved = path.resolve()
+    config = resolved / "config.json"
+    config_sha256 = (
+        hashlib.sha256(config.read_bytes()).hexdigest() if config.is_file() else ""
+    )
     parts = resolved.parts
     if "snapshots" in parts:
         index = parts.index("snapshots")
@@ -298,8 +307,23 @@ def checkpoint_identity(path: Path) -> dict[str, str]:
             and index + 1 < len(parts)
         ):
             repo = parts[index - 1][len("models--") :].replace("--", "/", 1)
-            return {"repo": repo, "revision": parts[index + 1]}
+            return {
+                "repo": repo,
+                "revision": parts[index + 1],
+                "versioning": "hub-snapshot",
+                "config_sha256": config_sha256,
+            }
     metadata = resolved / ".cache/huggingface/download/config.json.metadata"
     if metadata.is_file():
-        return {"repo": "", "revision": metadata.read_text().splitlines()[0]}
-    return {"repo": "", "revision": "", "directory": resolved.name}
+        return {
+            "repo": "",
+            "revision": metadata.read_text().splitlines()[0],
+            "versioning": "hub-local-dir",
+            "config_sha256": config_sha256,
+        }
+    return {
+        "repo": "",
+        "revision": "",
+        "versioning": "unversioned",
+        "config_sha256": config_sha256,
+    }

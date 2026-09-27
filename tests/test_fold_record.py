@@ -16,7 +16,8 @@ import pytest
 from esmfold2_atomworks.model.esmfold2 import (
     AtomWorksESMFold2,
     FoldingConfig,
-    input_digests,
+    input_record,
+    tensor_record,
 )
 
 pytest.importorskip("torch")
@@ -50,7 +51,9 @@ def _model(**config) -> AtomWorksESMFold2:
 
 
 def _spi():
-    return SimpleNamespace(sequences=[])
+    return SimpleNamespace(
+        sequences=[], pocket=None, distogram_conditioning=None, covalent_bonds=None
+    )
 
 
 def test_the_record_holds_every_argument_the_fold_ran_with():
@@ -108,8 +111,10 @@ def test_fold_atom_array_records_where_each_sequence_came_from(monkeypatch):
     monkeypatch.setattr(adapter, "atom_array_to_structure_prediction_input", convert)
     monkeypatch.setattr(reverse, "result_to_atom_array", lambda result, **_: "atoms")
 
+    import biotite.structure as struc
+
     record: dict = {"caller.run": "r1"}
-    atoms, result = _model().fold_atom_array(object(), record=record)
+    atoms, result = _model().fold_atom_array(struc.AtomArray(0), record=record)
     assert (atoms, result) == ("atoms", "result")
     assert record["esmfold2.sequence_source"] == {"A": "override"}
     assert record["caller.run"] == "r1"
@@ -122,15 +127,21 @@ def _types():
     return pytest.importorskip("esm.utils.structure.input_builder")
 
 
+def _entities(t, *entries, **conditions):
+    spi = t.StructurePredictionInput(sequences=list(entries), **conditions)
+    return input_record(spi)["esmfold2.inputs"]
+
+
 def test_the_digest_names_the_chemistry_not_the_chain():
     t = _types()
-    a = t.StructurePredictionInput(sequences=[t.ProteinInput(id="A", sequence="MKV")])
-    b = t.StructurePredictionInput(sequences=[t.ProteinInput(id="Z", sequence="MKV")])
-    c = t.StructurePredictionInput(sequences=[t.ProteinInput(id="A", sequence="MKA")])
-    (da,), (db,), (dc,) = input_digests(a), input_digests(b), input_digests(c)
-    assert da["sha256"] == db["sha256"] != dc["sha256"]
+    (da,) = _entities(t, t.ProteinInput(id="A", sequence="MKV"))
+    (db,) = _entities(t, t.ProteinInput(id="Z", sequence="MKV"))
+    (dc,) = _entities(t, t.ProteinInput(id="A", sequence="MKA"))
+    assert da["chemistry_sha256"] == db["chemistry_sha256"] != dc["chemistry_sha256"]
+    assert len(da["chemistry_sha256"]) == 64
     assert da["ids"] == ["A"] and db["ids"] == ["Z"]
-    assert da["kind"] == "protein" and da["length"] == 3 and da["msa"] is False
+    assert da["kind"] == "protein" and da["length"] == 3
+    assert da["msa_sha256"] is None
 
 
 def test_a_modification_changes_the_digest():
@@ -139,20 +150,83 @@ def test_a_modification_changes_the_digest():
     modified = t.ProteinInput(
         id="A", sequence="MKV", modifications=[t.Modification(position=0, ccd="MSE")]
     )
-    (dp,) = input_digests(t.StructurePredictionInput(sequences=[plain]))
-    (dm,) = input_digests(t.StructurePredictionInput(sequences=[modified]))
-    assert dp["sha256"] != dm["sha256"]
+    ((dp,), (dm,)) = _entities(t, plain), _entities(t, modified)
+    assert dp["chemistry_sha256"] != dm["chemistry_sha256"]
 
 
 def test_a_ligand_is_named_by_its_ccd_codes():
     t = _types()
-    hem = t.LigandInput(id=["C", "D"], ccd=["HEM"])
-    zn = t.LigandInput(id="C", ccd=["ZN"])
-    (dh,) = input_digests(t.StructurePredictionInput(sequences=[hem]))
-    (dz,) = input_digests(t.StructurePredictionInput(sequences=[zn]))
+    (dh,) = _entities(t, t.LigandInput(id=["C", "D"], ccd=["HEM"]))
+    (dz,) = _entities(t, t.LigandInput(id="C", ccd=["ZN"]))
     assert dh["kind"] == "ligand" and dh["length"] is None
     assert dh["ids"] == ["C", "D"]
-    assert dh["sha256"] != dz["sha256"]
+    assert dh["chemistry_sha256"] != dz["chemistry_sha256"]
+
+
+def test_chainbreaks_are_recorded_as_the_entities_actually_folded():
+    """Upstream splits "AAA|AAA|BBB" into two entities; so does the record."""
+    t = _types()
+    entities = _entities(t, t.ProteinInput(id="X", sequence="MKV|MKV|GGA"))
+    assert [e["ids"] for e in entities] == [["X_0", "X_1"], ["X_2"]]
+    assert [e["length"] for e in entities] == [3, 3]
+
+
+def _msa(rows, deletions=None):
+    msa = pytest.importorskip("esm.utils.msa.msa")
+    parsing = pytest.importorskip("esm.utils.parsing")
+    entries = [parsing.FastaEntry(header, sequence) for header, sequence in rows]
+    return msa.MSA(entries=entries, deletions=deletions)
+
+
+def test_the_alignment_is_part_of_the_record():
+    """Same sequence, another alignment: a different conditioning."""
+    import numpy as np
+
+    t = _types()
+    a = _msa([("query", "MKV"), ("key=9606", "MRV")])
+    b = _msa([("query", "MKV"), ("key=10090", "MRV")])  # only the taxonomy differs
+    c = _msa(
+        [("query", "MKV"), ("key=9606", "MRV")],
+        deletions=np.array([[0, 0, 0], [0, 2, 0]]),
+    )
+    digests = [
+        _entities(t, t.ProteinInput(id="A", sequence="MKV", msa=m))[0]["msa_sha256"]
+        for m in (a, b, c)
+    ]
+    assert all(d is not None and len(d) == 64 for d in digests)
+    assert len(set(digests)) == 3
+
+
+def test_covalent_bonds_are_recorded_in_canonical_order():
+    t = _types()
+    bonds = [
+        t.CovalentBond("B", 0, 1, "A", 5, 2),
+        t.CovalentBond("A", 1, 0, "B", 0, 3),
+    ]
+    record = input_record(
+        t.StructurePredictionInput(
+            sequences=[t.ProteinInput(id="A", sequence="MKVCAC")], covalent_bonds=bonds
+        )
+    )
+    assert record["esmfold2.covalent_bonds"] == [
+        ["A", 1, 0, "B", 0, 3],
+        ["B", 0, 1, "A", 5, 2],
+    ]
+    assert record["esmfold2.pocket_sha256"] is None
+    assert record["esmfold2.distogram_conditioning_sha256"] is None
+
+
+def test_supplied_states_are_named_by_their_content():
+    import torch
+
+    a = torch.zeros(1, 4, 3, 5, dtype=torch.bfloat16)
+    b = a.clone()
+    b[0, 1, 2, 3] = 1.0
+    ra, rb = tensor_record(a), tensor_record(b)
+    assert ra["sha256"] != rb["sha256"] and len(ra["sha256"]) == 64
+    assert ra["shape"] == [1, 4, 3, 5] and ra["dtype"] == "bfloat16"
+    # Chunking does not change the digest.
+    assert tensor_record(b, chunk_elements=7)["sha256"] == rb["sha256"]
 
 
 # -- model provenance --------------------------------------------------------
@@ -164,6 +238,8 @@ def _loaded(weights: Path, esmc_source: str = "bundled") -> AtomWorksESMFold2:
     model = AtomWorksESMFold2.__new__(AtomWorksESMFold2)
     model.net = SimpleNamespace(config=SimpleNamespace(type="release"))
     model.weights = str(weights)
+    weights.mkdir(parents=True, exist_ok=True)
+    (weights / "config.json").write_text('{"type": "release"}')
     model.device = torch.device("cpu")
     model.flavour = "esm"
     model.esmc_source = esmc_source
@@ -191,9 +267,20 @@ def test_provenance_names_the_checkpoint_by_repo_and_revision(tmp_path):
     assert "esmfold2.esmc.revision" not in record
 
 
-def test_provenance_leaves_an_unknown_revision_empty(tmp_path):
-    record = _loaded(tmp_path).provenance()
+def test_an_unversioned_directory_is_said_to_be_one(tmp_path):
+    """Its name is not an identity; the record says so, with the config digest."""
+    record = _loaded(tmp_path / "my-finetune").provenance()
     assert record["esmfold2.checkpoint.revision"] == ""
+    assert record["esmfold2.checkpoint.versioning"] == "unversioned"
+    assert len(record["esmfold2.checkpoint.config_sha256"]) == 64
+    assert "my-finetune" not in record["esmfold2.checkpoint.repo"]
+
+
+def test_the_device_is_where_the_module_is(tmp_path):
+    """Read off the module, not the process's current device."""
+    model = _loaded(tmp_path / "w")
+    model.net.device = "meta"
+    assert model.provenance()["esmfold2.device"] == "meta"
 
 
 def test_provenance_names_a_separate_backbone(tmp_path):

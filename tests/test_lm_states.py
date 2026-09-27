@@ -26,7 +26,9 @@ from esmfold2_atomworks.model.esmfold2 import (
 )
 
 #: An input with no entities: enough for a record's digests.
-_SPI = SimpleNamespace(sequences=[])
+_SPI = SimpleNamespace(
+    sequences=[], pocket=None, distogram_conditioning=None, covalent_bonds=None
+)
 
 
 class _Builder:

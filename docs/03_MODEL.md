@@ -112,10 +112,16 @@ Two halves, kept apart because they change at different rates.
 `provenance()` is the model's, one string per fact: the weights by path and,
 where the directory says, by Hub repo and revision
 (`esmfold2.checkpoint.repo`/`.revision`, read by `paths.checkpoint_identity`
-through the workspace pin into the Hugging Face store); the same for a
-separately attached ESMC backbone; the device resolved to an index, with its
-name; torch and its CUDA build; the config type, the packaging, the backbone's
-source and the CCD's.
+through the workspace pin into the Hugging Face store), with
+`esmfold2.checkpoint.versioning` saying which answer applies -- `hub-snapshot`,
+`hub-local-dir`, `unversioned` for a directory whose name is all there is (its
+repo and revision stay empty rather than read off the name), or `hub-id` for
+weights named by Hub id -- and `esmfold2.checkpoint.config_sha256`, the digest
+of its `config.json`, which names the architecture and defaults but not the
+weights; the same for a separately attached ESMC backbone; the device the
+module's parameters are on, read off the module rather than the process's
+current device, with its name; torch and its CUDA build; the config type, the
+packaging, the backbone's source and the CCD's.
 
 `fold(record=...)` and `fold_atom_array(record=...)` fill a caller's dict with
 the call's own entries:
@@ -126,12 +132,21 @@ the call's own entries:
 - `esmfold2.effective.num_loops` and `.lm_mask_pct`: what a request left to the
   checkpoint resolved to. With supplied LM states no mask is applied at the
   fold, recorded as `None`.
-- `esmfold2.lm_source`: `model` or `caller-supplied`.
-- `esmfold2.inputs`: every entity folded -- ids, kind, length and a digest of
-  its chemistry (sequence and modifications, or CCD codes or SMILES), not of
-  its chain ids. Where a sequence came from is one question; which sequence
-  ran is another, and a caller that always overrides the sequence learns
-  nothing from the first.
+- `esmfold2.lm_source`: `model` or `caller-supplied`; with supplied states,
+  `esmfold2.lm_states` names them by a full SHA-256 of their bytes, shape and
+  dtype, hashed in chunks before the fold, so two different states cannot
+  share a record.
+- `esmfold2.inputs`: every entity folded, read after upstream's
+  `clean_esmfold2_input` (a chainbreak is recorded as the entities it becomes)
+  -- ids, kind, length, `chemistry_sha256` over the sequence and modifications
+  or the CCD codes or SMILES, not over the chain ids, and `msa_sha256` over the
+  alignment's headers, sequences and deletion matrix, or `None`. Where a
+  sequence came from is one question; which sequence and which alignment ran
+  is another, and a caller that always overrides the sequence learns nothing
+  from the first.
+- `esmfold2.covalent_bonds` in canonical order, and
+  `esmfold2.pocket_sha256` / `esmfold2.distogram_conditioning_sha256`, `None`
+  when the condition is absent. Every digest is a full SHA-256.
 - `esmfold2.sequence_source` (from `fold_atom_array`): where each chain's
   folded sequence came from, as `AdapterReport` records it.
 - `esmfold2.deterministic_algorithms`, `esmfold2.cublas_workspace_config`: the

@@ -130,7 +130,7 @@ def test_fold_atom_array_round_trips_to_a_structure(parsed, model):
     structure, result = model.fold_atom_array(
         atoms,
         chain_info=chain_info,
-        config=FoldingConfig(num_sampling_steps=8, seed=0),
+        config=FoldingConfig(num_loops=1, num_sampling_steps=8, seed=0),
         record=record,
     )
     assert len(structure) > 0
@@ -145,16 +145,12 @@ def test_fold_atom_array_round_trips_to_a_structure(parsed, model):
     ):
         assert kind == source[chain], chain
 
-    # The record against the real module: what the checkpoint resolved, where
-    # each sequence came from, and every entity folded.
-    assert record["esmfold2.fold.num_loops"] is None
-    assert record["esmfold2.effective.num_loops"] == model.config.num_loops
+    # The record against the real module: where each sequence came from, and
+    # every entity folded.
+    assert record["esmfold2.effective.num_loops"] == 1
     assert set(record["esmfold2.sequence_source"]) >= {"A", "B", "C", "D"}
     kinds = [entity["kind"] for entity in record["esmfold2.inputs"]]
     assert "protein" in kinds and "ligand" in kinds
-    provenance = model.provenance()
-    assert provenance["esmfold2.device"].startswith("cuda:")
-    assert provenance["esmfold2.device_name"]
 
 
 def test_the_loaded_model_answers_through_its_seams(model, gold):
@@ -172,10 +168,21 @@ def test_the_loaded_model_answers_through_its_seams(model, gold):
     assert model.provenance()["esmfold2.esmc"] != "none"
     assert all(width > 0 for width in model.representation_dims().values())
 
+    record: dict = {}
     result = model.fold(
-        gold("lysozyme"), config=FoldingConfig(num_sampling_steps=8, seed=0)
+        gold("lysozyme"),
+        config=FoldingConfig(num_sampling_steps=8, seed=0),
+        record=record,
     )
     assert result.plddt is not None
+    # The record resolves the count the request left to the checkpoint, and
+    # the provenance names where the module actually is.
+    assert record["esmfold2.fold.num_loops"] is None
+    assert record["esmfold2.effective.num_loops"] == model.config.num_loops
+    provenance = model.provenance()
+    assert provenance["esmfold2.device"].startswith("cuda:")
+    assert provenance["esmfold2.device_name"]
+    assert provenance["esmfold2.checkpoint.versioning"] == "hub-snapshot"
 
 
 @pytest.fixture
@@ -206,7 +213,7 @@ def test_supplied_states_reproduce_the_models_own_fold(model, gold, deterministi
     deterministic kernels, handing it exactly what ``forward`` would compute
     must give back exactly what the ordinary path gives.
     """
-    from esmfold2_atomworks.model.esmfold2 import FoldingConfig
+    from esmfold2_atomworks.model.esmfold2 import FoldingConfig, tensor_record
 
     assert model.config.lm_mask_pct == 0.0, "a masked backbone pass is not replayable"
     spi = gold("lysozyme")
@@ -225,6 +232,7 @@ def test_supplied_states_reproduce_the_models_own_fold(model, gold, deterministi
     print(f"\nown vs supplied: {diff.metrics}")
     assert own_record["esmfold2.lm_source"] == "model"
     assert supplied_record["esmfold2.lm_source"] == "caller-supplied"
+    assert supplied_record["esmfold2.lm_states"] == tensor_record(states)
     assert own_record["esmfold2.deterministic_algorithms"] is True
     assert diff.metrics["atom_name_mismatches"] == 0
     assert diff.metrics["coord_max_abs"] == 0.0

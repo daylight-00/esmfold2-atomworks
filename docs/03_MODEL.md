@@ -59,6 +59,17 @@ off. `AtomWorksESMFold2.supports_soft_sequence_design` reports the first half,
 `ESMFold2Trainer` checks the real condition against the assembled inputs on
 every step, not just the checkpoint flavour once at construction.
 
+A soft sequence does not reach the LM prior. `res_type_soft` replaces the
+residue-type one-hot the input embedder reads and, with
+`provide_soft_sequence_to_msa_and_profile=True` (the default, unless the config
+disables MSA features), the profile and MSA proxy; it does not replace
+`input_ids`. When the model computes its own LM states, ESMC stays conditioned
+on the original discrete sequence; supplied `lm_hidden_states` are used as
+given and detached before the LM shim. Optimizing `res_type_soft` therefore
+neither moves the LM prior nor opens a gradient path through ESMC. An
+optimizer that wants the prior to follow its updates has to rebuild the LM
+states from the discrete sequence it chooses and pass them in.
+
 ## Sampler knobs reach the model only if its `forward` declares them
 
 `ESMFold2InputBuilder.fold()` accepts `noise_scale`, `step_scale` and

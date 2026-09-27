@@ -842,13 +842,17 @@ class AtomWorksESMFold2:
             ``(atom_array, result)`` -- the structure, and the native result
             beside it so that confidence values remain available without being
             smuggled through annotations. With ``num_diffusion_samples > 1``,
-            a list of each, and every sample is relabelled.
+            a list of each, and every sample is relabelled. When ``atoms``
+            carries ``chain_type``, each output chain carries its source
+            chain's (:func:`~esmfold2_atomworks.data.molecular_complex.copy_chain_types`);
+            a kind known only from ``chain_kinds`` is not turned into one.
         """
         from esmfold2_atomworks.data.atomworks_to_esm import (
             atom_array_to_structure_prediction_input,
         )
         from esmfold2_atomworks.data.molecular_complex import (
             check_residue_name,
+            copy_chain_types,
             result_to_atom_array,
         )
 
@@ -866,8 +870,11 @@ class AtomWorksESMFold2:
             **overrides,
         )
 
+        chain_key = (adapter_kwargs or {}).get("chain_key", "chain_id")
+
         def structure(one: Any) -> AtomArray:
-            return result_to_atom_array(one, ligand_residue_name=ligand_residue_name)
+            folded = result_to_atom_array(one, ligand_residue_name=ligand_residue_name)
+            return copy_chain_types(folded, atoms, chain_key=chain_key)
 
         if isinstance(result, list):
             return [structure(r) for r in result], result

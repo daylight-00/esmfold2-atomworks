@@ -39,6 +39,13 @@ class _Result:
         self.complex = _Complex()
 
 
+def _source():
+    """A source structure with no ``chain_type``, so none is copied back."""
+    import biotite.structure as struc
+
+    return struc.AtomArray(0)
+
+
 @pytest.fixture
 def model(monkeypatch):
     """An ``AtomWorksESMFold2`` that loads no weights and converts nothing.
@@ -66,14 +73,14 @@ def _names(atoms, *, hetero: bool) -> set[str]:
 
 
 def test_the_callers_name_reaches_the_returned_structure(model):
-    atoms, _ = model.fold_atom_array(object(), ligand_residue_name="PHT")
+    atoms, _ = model.fold_atom_array(_source(), ligand_residue_name="PHT")
 
     assert _names(atoms, hetero=True) == {"PHT"}
     assert _names(atoms, hetero=False) == {"ALA"}
 
 
 def test_without_a_name_the_models_label_is_kept(model):
-    atoms, _ = model.fold_atom_array(object())
+    atoms, _ = model.fold_atom_array(_source())
 
     assert _names(atoms, hetero=True) == {"LIG"}
 
@@ -81,7 +88,7 @@ def test_without_a_name_the_models_label_is_kept(model):
 def test_every_sample_of_a_multi_sample_fold_is_relabelled(model, monkeypatch):
     monkeypatch.setattr(model, "fold", lambda spi, config=None, **kw: [_Result()] * 2)
 
-    arrays, results = model.fold_atom_array(object(), ligand_residue_name="PHT")
+    arrays, results = model.fold_atom_array(_source(), ligand_residue_name="PHT")
 
     assert len(arrays) == len(results) == 2
     assert all(_names(atoms, hetero=True) == {"PHT"} for atoms in arrays)
@@ -89,6 +96,6 @@ def test_every_sample_of_a_multi_sample_fold_is_relabelled(model, monkeypatch):
 
 def test_a_name_that_cannot_be_kept_is_refused_before_folding(model):
     with pytest.raises(ValueError, match="one to five characters"):
-        model.fold_atom_array(object(), ligand_residue_name="LIGAND")
+        model.fold_atom_array(_source(), ligand_residue_name="LIGAND")
 
     assert model.folds == 0

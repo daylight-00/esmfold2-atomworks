@@ -26,6 +26,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "check_residue_name",
+    "copy_chain_types",
     "molecular_complex_to_atom_array",
     "rename_ligand_residues",
     "result_to_atom_array",
@@ -210,3 +211,49 @@ def result_to_atom_array(
     if ligand_residue_name is not None:
         atoms = rename_ligand_residues(atoms, ligand_residue_name)
     return atoms
+
+
+def copy_chain_types(
+    structure: AtomArray, source: AtomArray, *, chain_key: str = "chain_id"
+) -> AtomArray:
+    """Give ``structure`` the ``chain_type`` its chains had in ``source``, as a copy.
+
+    A folded structure does not carry the AtomWorks ``chain_type`` of the
+    chains it came from, and cannot recover it: the model's output knows
+    polymer from non-polymer, not an L- from a D-polypeptide, or DNA from RNA.
+    The source structure does, so this copies it back, chain by chain -- the
+    output's chain labels are the source's ``chain_key`` labels.
+
+    Only a source that carries ``chain_type`` has one to copy; otherwise
+    ``structure`` is returned unchanged, and a kind declared through
+    ``chain_kinds`` is not turned into a ``ChainType``, which would state more
+    than the declaration did. An output chain the source does not name raises
+    rather than being left unannotated beside annotated ones.
+    """
+    if "chain_type" not in source.get_annotation_categories():
+        return structure
+    labels = np.asarray(source.get_annotation(chain_key)).astype(str)
+    types = np.asarray(source.get_annotation("chain_type"))
+    by_chain: dict[str, Any] = {}
+    for label in np.unique(labels):
+        values = np.unique(types[labels == label])
+        if len(values) != 1:
+            raise ValueError(
+                f"source chain {label!r} holds {len(values)} chain types; one "
+                "chain must be one molecule"
+            )
+        by_chain[str(label)] = values[0]
+
+    out_labels = np.asarray(structure.chain_id).astype(str)
+    unknown = sorted({str(label) for label in out_labels} - set(by_chain))
+    if unknown:
+        raise ValueError(
+            f"output chains {unknown} have no chain in the source under "
+            f"{chain_key!r}; their chain_type is unknown"
+        )
+    result = structure.copy()
+    result.set_annotation(
+        "chain_type",
+        np.array([by_chain[str(label)] for label in out_labels], dtype=types.dtype),
+    )
+    return result

@@ -136,6 +136,12 @@ def test_fold_atom_array_round_trips_to_a_structure(parsed, model):
     assert structure.hetero.sum() > 0
     assert set(structure.chain_id.tolist()) >= {"A", "B", "C", "D"}
     assert result.plddt is not None
+    # Each chain keeps the chain_type it had in the source.
+    source = dict(zip(atoms.chain_id.tolist(), atoms.chain_type.tolist(), strict=False))
+    for chain, kind in zip(
+        structure.chain_id.tolist(), structure.chain_type.tolist(), strict=True
+    ):
+        assert kind == source[chain], chain
 
 
 def test_the_loaded_model_answers_through_its_seams(model, gold):

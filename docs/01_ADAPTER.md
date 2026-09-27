@@ -301,6 +301,19 @@ option is for an output whose hetero residues are all one molecule. For
 several, convert without it and relabel chain by chain. A name longer than a
 residue name's five characters raises rather than being truncated.
 
+`chain_type` is not something `G` can write: the model's output knows polymer
+from non-polymer, not an L- from a D-polypeptide or DNA from RNA, so
+`result_to_atom_array` leaves it out rather than guess. `fold_atom_array` has
+the source, and copies each chain's `chain_type` back onto the chain the
+output names the same (`copy_chain_types`, matched under the adapter's
+`chain_key`), so a round trip keeps what the source said and the output can be
+folded again without a declaration. Only a source that carries `chain_type`
+has one to copy: a kind known from a `chain_kinds` declaration is not turned
+into a `ChainType`, which would state more than the declaration did. Residue
+numbering is a separate matter -- the output numbers each chain from 1, and
+the folded sequence can include residues the source never resolved, so the
+source's `res_id` and insertion codes do not map back one to one.
+
 ## The report
 
 `AdapterReport` records, per conversion: every chain and its classification,

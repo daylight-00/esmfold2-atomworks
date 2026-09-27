@@ -1,8 +1,8 @@
-"""Measure output parity and the seeded scatter, with and without deterministic kernels.
+"""Measure output parity and the seeded scatter, with torch's deterministic algorithms on and off.
 
 The GPU test suite gates exact output parity on short folds; this records the
 fuller measurement docs/02 reports -- the checkpoint's own schedule as well as
-the short one, and the scatter the default kernels leave -- as a frozen record
+the short one, and the scatter left with the flag off -- as a frozen record
 beside the environment it was produced in::
 
     CUBLAS_WORKSPACE_CONFIG=:4096:8 python scripts/measure_output_parity.py \\
@@ -14,7 +14,15 @@ native folds, ``cross`` the first native fold with the adapted one; wall time
 is per fold. Needs a GPU, the weights and AtomWorks' test structures, and runs
 in the reference environment. cuBLAS reads ``CUBLAS_WORKSPACE_CONFIG`` when
 CUDA starts, so it has to be set before Python is; the script refuses to run
-without it rather than record a deterministic mode that was not.
+without it rather than record a deterministic mode that was not. Both modes
+run in this one process, so both have that workspace: the flag is what
+differs between them, and a comparison against a fully default execution would
+need a second process started without the variable.
+
+The record names the commit it ran at, so the script refuses a working tree
+with uncommitted changes to tracked files (``--allow-dirty`` overrides, and is
+then recorded): code that differs from its commit would otherwise be recorded
+under that commit's name.
 """
 
 from __future__ import annotations
@@ -78,6 +86,20 @@ def _located(value: str, identity: Any) -> Any:
     return identity(path)
 
 
+def _dirty(path: Path) -> list[str]:
+    """Tracked files with uncommitted changes, as ``git status`` lists them."""
+    try:
+        status = subprocess.run(
+            ["git", "-C", str(path), "status", "--porcelain", "--untracked-files=no"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return ["(git status unavailable)"]
+    return [line for line in status.splitlines() if line.strip()]
+
+
 def _commit(path: Path) -> str | None:
     try:
         return subprocess.run(
@@ -93,7 +115,17 @@ def _commit(path: Path) -> str | None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--json", type=Path, required=True)
+    parser.add_argument("--allow-dirty", action="store_true")
     args = parser.parse_args()
+
+    dirty = _dirty(REPO)
+    if dirty and not args.allow_dirty:
+        print(
+            "uncommitted changes to tracked files; commit them, or pass "
+            "--allow-dirty to record the run as dirty:\n" + "\n".join(dirty),
+            file=sys.stderr,
+        )
+        return 2
 
     if not os.environ.get("CUBLAS_WORKSPACE_CONFIG"):
         print(
@@ -130,6 +162,7 @@ def main() -> int:
         "python": platform.python_version(),
         "cublas_workspace_config": os.environ["CUBLAS_WORKSPACE_CONFIG"],
         "esmfold2_atomworks_commit": _commit(REPO),
+        "esmfold2_atomworks_dirty": dirty,
         "upstream_lock": paths.read_upstream_lock(paths.UPSTREAM_LOCK),
         "seed": 0,
         "cases": [],

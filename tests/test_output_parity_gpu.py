@@ -100,7 +100,8 @@ def test_nondeterministic_scatter_is_characterized(model, gold):
 
     A measurement, not a gate: the numbers depend on the device, the software
     stack and the input, and describe the execution configuration rather than
-    the adapter. Only the bookkeeping is asserted -- atom names and order are
+    the adapter. Only torch's flag is turned off here; a cuBLAS workspace set
+    for the process (the sbatch script sets one) stays in force. Only the bookkeeping is asserted -- atom names and order are
     not sampled, so they agree whatever the kernels do.
     """
     torch = pytest.importorskip("torch")

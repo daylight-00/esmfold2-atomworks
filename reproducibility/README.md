@@ -95,6 +95,17 @@ re-published checkpoint is compared with the pinned one, and
 [`checkpoint_equivalence.json`](checkpoint_equivalence.json) is its record for
 the current `biohub/ESMFold2`.
 
+## `output_parity.json`
+
+The measurement behind the output-parity tables in
+[docs/02](../docs/02_PARITY.md), written by
+[`scripts/measure_output_parity.py`](../scripts/measure_output_parity.py): every
+fixture and schedule folded in both execution modes, with the checkpoint (by
+repo and revision), the device, the software stack and the commit it ran at.
+The GPU suite gates the short schedule on every run; this record holds what is
+too slow to gate -- the checkpoint's own schedule, the scatter, the wall time --
+so that the numbers can be regenerated rather than taken on trust.
+
 ## Not part of it
 
 The optional accelerators `flash-attn` and `transformer-engine` were not

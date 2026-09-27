@@ -1,0 +1,494 @@
+{
+  "cases": [
+    {
+      "cross": {
+        "atom_name_mismatches": 0.0,
+        "coord_max_abs": 0.0,
+        "coord_rmsd": 0.0,
+        "distogram_max_abs": 0.0,
+        "iptm": 0.0,
+        "pae_max_abs": 0.0,
+        "plddt_max_abs": 0.0,
+        "ptm": 0.0
+      },
+      "deterministic": true,
+      "fixture": "lysozyme",
+      "num_loops": 1,
+      "num_sampling_steps": 8,
+      "repeat": {
+        "atom_name_mismatches": 0.0,
+        "coord_max_abs": 0.0,
+        "coord_rmsd": 0.0,
+        "distogram_max_abs": 0.0,
+        "iptm": 0.0,
+        "pae_max_abs": 0.0,
+        "plddt_max_abs": 0.0,
+        "ptm": 0.0
+      },
+      "schedule": "short",
+      "seconds_per_fold": [
+        1.36,
+        0.39,
+        0.39
+      ]
+    },
+    {
+      "cross": {
+        "atom_name_mismatches": 0.0,
+        "coord_max_abs": 0.19508743286132812,
+        "coord_rmsd": 0.041955407708883286,
+        "distogram_max_abs": 3.518707275390625,
+        "iptm": 0.0,
+        "pae_max_abs": 5.752973556518555,
+        "plddt_max_abs": 0.05843089520931244,
+        "ptm": 0.0003233402967453003
+      },
+      "deterministic": false,
+      "fixture": "lysozyme",
+      "num_loops": 1,
+      "num_sampling_steps": 8,
+      "repeat": {
+        "atom_name_mismatches": 0.0,
+        "coord_max_abs": 0.12450981140136719,
+        "coord_rmsd": 0.04556809365749359,
+        "distogram_max_abs": 3.0667724609375,
+        "iptm": 0.0,
+        "pae_max_abs": 7.289638519287109,
+        "plddt_max_abs": 0.05959858000278473,
+        "ptm": 1.163780689239502e-05
+      },
+      "schedule": "short",
+      "seconds_per_fold": [
+        0.34,
+        0.34,
+        0.34
+      ]
+    },
+    {
+      "cross": {
+        "atom_name_mismatches": 0.0,
+        "coord_max_abs": 0.0,
+        "coord_rmsd": 0.0,
+        "distogram_max_abs": 0.0,
+        "iptm": 0.0,
+        "pae_max_abs": 0.0,
+        "plddt_max_abs": 0.0,
+        "ptm": 0.0
+      },
+      "deterministic": true,
+      "fixture": "lysozyme",
+      "num_loops": null,
+      "num_sampling_steps": 100,
+      "repeat": {
+        "atom_name_mismatches": 0.0,
+        "coord_max_abs": 0.0,
+        "coord_rmsd": 0.0,
+        "distogram_max_abs": 0.0,
+        "iptm": 0.0,
+        "pae_max_abs": 0.0,
+        "plddt_max_abs": 0.0,
+        "ptm": 0.0
+      },
+      "schedule": "checkpoint",
+      "seconds_per_fold": [
+        3.41,
+        3.41,
+        3.41
+      ]
+    },
+    {
+      "cross": {
+        "atom_name_mismatches": 0.0,
+        "coord_max_abs": 0.17020940780639648,
+        "coord_rmsd": 0.09707868099212646,
+        "distogram_max_abs": 5.2087860107421875,
+        "iptm": 0.0,
+        "pae_max_abs": 0.07187461853027344,
+        "plddt_max_abs": 0.0024785995483398438,
+        "ptm": 8.58306884765625e-06
+      },
+      "deterministic": false,
+      "fixture": "lysozyme",
+      "num_loops": null,
+      "num_sampling_steps": 100,
+      "repeat": {
+        "atom_name_mismatches": 0.0,
+        "coord_max_abs": 0.17870140075683594,
+        "coord_rmsd": 0.1034991517663002,
+        "distogram_max_abs": 5.8485565185546875,
+        "iptm": 0.0,
+        "pae_max_abs": 0.0998849868774414,
+        "plddt_max_abs": 0.0007945895195007324,
+        "ptm": 2.7894973754882812e-05
+      },
+      "schedule": "checkpoint",
+      "seconds_per_fold": [
+        3.03,
+        3.03,
+        3.04
+      ]
+    },
+    {
+      "cross": {
+        "atom_name_mismatches": 0.0,
+        "coord_max_abs": 0.0,
+        "coord_rmsd": 0.0,
+        "distogram_max_abs": 0.0,
+        "iptm": 0.0,
+        "pae_max_abs": 0.0,
+        "plddt_max_abs": 0.0,
+        "ptm": 0.0
+      },
+      "deterministic": true,
+      "fixture": "hemoglobin",
+      "num_loops": 1,
+      "num_sampling_steps": 8,
+      "repeat": {
+        "atom_name_mismatches": 0.0,
+        "coord_max_abs": 0.0,
+        "coord_rmsd": 0.0,
+        "distogram_max_abs": 0.0,
+        "iptm": 0.0,
+        "pae_max_abs": 0.0,
+        "plddt_max_abs": 0.0,
+        "ptm": 0.0
+      },
+      "schedule": "short",
+      "seconds_per_fold": [
+        23.2,
+        23.3,
+        23.37
+      ]
+    },
+    {
+      "cross": {
+        "atom_name_mismatches": 0.0,
+        "coord_max_abs": 0.3347927927970886,
+        "coord_rmsd": 0.04870781674981117,
+        "distogram_max_abs": 6.255218505859375,
+        "iptm": 0.00037579238414764404,
+        "pae_max_abs": 9.669632911682129,
+        "plddt_max_abs": 0.03903207182884216,
+        "ptm": 1.3455748558044434e-05
+      },
+      "deterministic": false,
+      "fixture": "hemoglobin",
+      "num_loops": 1,
+      "num_sampling_steps": 8,
+      "repeat": {
+        "atom_name_mismatches": 0.0,
+        "coord_max_abs": 0.2990446090698242,
+        "coord_rmsd": 0.05082098767161369,
+        "distogram_max_abs": 6.126953125,
+        "iptm": 1.7449259757995605e-05,
+        "pae_max_abs": 9.589777946472168,
+        "plddt_max_abs": 0.04377906024456024,
+        "ptm": 0.00021785497665405273
+      },
+      "schedule": "short",
+      "seconds_per_fold": [
+        20.53,
+        20.58,
+        20.62
+      ]
+    },
+    {
+      "cross": {
+        "atom_name_mismatches": 0.0,
+        "coord_max_abs": 0.0,
+        "coord_rmsd": 0.0,
+        "distogram_max_abs": 0.0,
+        "iptm": 0.0,
+        "pae_max_abs": 0.0,
+        "plddt_max_abs": 0.0,
+        "ptm": 0.0
+      },
+      "deterministic": true,
+      "fixture": "hemoglobin",
+      "num_loops": null,
+      "num_sampling_steps": 100,
+      "repeat": {
+        "atom_name_mismatches": 0.0,
+        "coord_max_abs": 0.0,
+        "coord_rmsd": 0.0,
+        "distogram_max_abs": 0.0,
+        "iptm": 0.0,
+        "pae_max_abs": 0.0,
+        "plddt_max_abs": 0.0,
+        "ptm": 0.0
+      },
+      "schedule": "checkpoint",
+      "seconds_per_fold": [
+        233.87,
+        233.88,
+        233.8
+      ]
+    },
+    {
+      "cross": {
+        "atom_name_mismatches": 0.0,
+        "coord_max_abs": 0.20049095153808594,
+        "coord_rmsd": 0.02573491632938385,
+        "distogram_max_abs": 7.1421356201171875,
+        "iptm": 0.0001519322395324707,
+        "pae_max_abs": 0.8528070449829102,
+        "plddt_max_abs": 0.02802443504333496,
+        "ptm": 0.00012487173080444336
+      },
+      "deterministic": false,
+      "fixture": "hemoglobin",
+      "num_loops": null,
+      "num_sampling_steps": 100,
+      "repeat": {
+        "atom_name_mismatches": 0.0,
+        "coord_max_abs": 0.10437488555908203,
+        "coord_rmsd": 0.04730064794421196,
+        "distogram_max_abs": 4.954925537109375,
+        "iptm": 0.00015228986740112305,
+        "pae_max_abs": 0.7282781600952148,
+        "plddt_max_abs": 0.05285811424255371,
+        "ptm": 0.00013387203216552734
+      },
+      "schedule": "checkpoint",
+      "seconds_per_fold": [
+        204.85,
+        204.98,
+        204.96
+      ]
+    },
+    {
+      "cross": {
+        "atom_name_mismatches": 0.0,
+        "coord_max_abs": 0.0,
+        "coord_rmsd": 0.0,
+        "distogram_max_abs": 0.0,
+        "iptm": 0.0,
+        "pae_max_abs": 0.0,
+        "plddt_max_abs": 0.0,
+        "ptm": 0.0
+      },
+      "deterministic": true,
+      "fixture": "modified",
+      "num_loops": 1,
+      "num_sampling_steps": 8,
+      "repeat": {
+        "atom_name_mismatches": 0.0,
+        "coord_max_abs": 0.0,
+        "coord_rmsd": 0.0,
+        "distogram_max_abs": 0.0,
+        "iptm": 0.0,
+        "pae_max_abs": 0.0,
+        "plddt_max_abs": 0.0,
+        "ptm": 0.0
+      },
+      "schedule": "short",
+      "seconds_per_fold": [
+        0.31,
+        0.29,
+        0.29
+      ]
+    },
+    {
+      "cross": {
+        "atom_name_mismatches": 0.0,
+        "coord_max_abs": 0.4347076416015625,
+        "coord_rmsd": 0.14090554416179657,
+        "distogram_max_abs": 5.58819580078125,
+        "iptm": 0.0,
+        "pae_max_abs": 2.055619239807129,
+        "plddt_max_abs": 0.03312993049621582,
+        "ptm": 0.00017537176609039307
+      },
+      "deterministic": false,
+      "fixture": "modified",
+      "num_loops": 1,
+      "num_sampling_steps": 8,
+      "repeat": {
+        "atom_name_mismatches": 0.0,
+        "coord_max_abs": 0.41667819023132324,
+        "coord_rmsd": 0.20056472718715668,
+        "distogram_max_abs": 3.8570556640625,
+        "iptm": 0.0,
+        "pae_max_abs": 4.004308700561523,
+        "plddt_max_abs": 0.05196757614612579,
+        "ptm": 9.498000144958496e-05
+      },
+      "schedule": "short",
+      "seconds_per_fold": [
+        0.25,
+        0.26,
+        0.25
+      ]
+    },
+    {
+      "cross": {
+        "atom_name_mismatches": 0.0,
+        "coord_max_abs": 0.0,
+        "coord_rmsd": 0.0,
+        "distogram_max_abs": 0.0,
+        "iptm": 0.0,
+        "pae_max_abs": 0.0,
+        "plddt_max_abs": 0.0,
+        "ptm": 0.0
+      },
+      "deterministic": true,
+      "fixture": "zinc",
+      "num_loops": 1,
+      "num_sampling_steps": 8,
+      "repeat": {
+        "atom_name_mismatches": 0.0,
+        "coord_max_abs": 0.0,
+        "coord_rmsd": 0.0,
+        "distogram_max_abs": 0.0,
+        "iptm": 0.0,
+        "pae_max_abs": 0.0,
+        "plddt_max_abs": 0.0,
+        "ptm": 0.0
+      },
+      "schedule": "short",
+      "seconds_per_fold": [
+        4.52,
+        4.52,
+        4.52
+      ]
+    },
+    {
+      "cross": {
+        "atom_name_mismatches": 0.0,
+        "coord_max_abs": 0.4201040267944336,
+        "coord_rmsd": 0.061839841306209564,
+        "distogram_max_abs": 4.0215911865234375,
+        "iptm": 0.002310052514076233,
+        "pae_max_abs": 6.675106048583984,
+        "plddt_max_abs": 0.03878051042556763,
+        "ptm": 0.00019378960132598877
+      },
+      "deterministic": false,
+      "fixture": "zinc",
+      "num_loops": 1,
+      "num_sampling_steps": 8,
+      "repeat": {
+        "atom_name_mismatches": 0.0,
+        "coord_max_abs": 0.1947624683380127,
+        "coord_rmsd": 0.04406176880002022,
+        "distogram_max_abs": 4.5185089111328125,
+        "iptm": 0.004859298467636108,
+        "pae_max_abs": 5.1721296310424805,
+        "plddt_max_abs": 0.060109853744506836,
+        "ptm": 0.000509411096572876
+      },
+      "schedule": "short",
+      "seconds_per_fold": [
+        3.88,
+        3.88,
+        3.88
+      ]
+    },
+    {
+      "cross": {
+        "atom_name_mismatches": 0.0,
+        "coord_max_abs": 0.0,
+        "coord_rmsd": 0.0,
+        "distogram_max_abs": 0.0,
+        "iptm": 0.0,
+        "pae_max_abs": 0.0,
+        "plddt_max_abs": 0.0,
+        "ptm": 0.0
+      },
+      "deterministic": true,
+      "fixture": "flavoprotein",
+      "num_loops": 1,
+      "num_sampling_steps": 8,
+      "repeat": {
+        "atom_name_mismatches": 0.0,
+        "coord_max_abs": 0.0,
+        "coord_rmsd": 0.0,
+        "distogram_max_abs": 0.0,
+        "iptm": 0.0,
+        "pae_max_abs": 0.0,
+        "plddt_max_abs": 0.0,
+        "ptm": 0.0
+      },
+      "schedule": "short",
+      "seconds_per_fold": [
+        22.64,
+        22.63,
+        22.64
+      ]
+    },
+    {
+      "cross": {
+        "atom_name_mismatches": 0.0,
+        "coord_max_abs": 0.7798166275024414,
+        "coord_rmsd": 0.18216875195503235,
+        "distogram_max_abs": 6.19256591796875,
+        "iptm": 0.0010730773210525513,
+        "pae_max_abs": 9.680405616760254,
+        "plddt_max_abs": 0.042055293917655945,
+        "ptm": 4.4792890548706055e-05
+      },
+      "deterministic": false,
+      "fixture": "flavoprotein",
+      "num_loops": 1,
+      "num_sampling_steps": 8,
+      "repeat": {
+        "atom_name_mismatches": 0.0,
+        "coord_max_abs": 0.7605342864990234,
+        "coord_rmsd": 0.1969878077507019,
+        "distogram_max_abs": 5.2681884765625,
+        "iptm": 0.0018134266138076782,
+        "pae_max_abs": 5.2071852684021,
+        "plddt_max_abs": 0.04181790351867676,
+        "ptm": 1.4379620552062988e-05
+      },
+      "schedule": "short",
+      "seconds_per_fold": [
+        19.78,
+        19.78,
+        19.82
+      ]
+    }
+  ],
+  "checkpoint": {
+    "repo": "biohub/ESMFold2",
+    "revision": "69869f737beffec5294845ede23db5fc0b4f509e"
+  },
+  "checkpoint_num_loops": 20,
+  "command": "measure_output_parity.py --json reproducibility/output_parity.json",
+  "cublas_workspace_config": ":4096:8",
+  "cuda": "13.2",
+  "device": "NVIDIA RTX 6000 Ada Generation",
+  "esmfold2_atomworks_commit": "8f2bac6b82b17a217584740bfcb515aba8feb50e",
+  "provenance": {
+    "esmfold2.ccd": {
+      "file": "ccd.pkl",
+      "repo": "biohub/ESMFold2",
+      "revision": "69869f737beffec5294845ede23db5fc0b4f509e"
+    },
+    "esmfold2.config_type": "release",
+    "esmfold2.device": "cuda",
+    "esmfold2.esmc": "bundled",
+    "esmfold2.flavour": "esm"
+  },
+  "python": "3.14.6",
+  "seed": 0,
+  "torch": "2.14.0+cu132",
+  "upstream_lock": {
+    "atomworks": {
+      "commit": "fcf7af8c127e0de62a460dab5230c649a25a78d4",
+      "repo": "https://github.com/RosettaCommons/atomworks",
+      "version": "2.2.1"
+    },
+    "esm": {
+      "commit": "43b4548b86762edfa747b07d5f440aad3c33acee",
+      "note": "ESMFold2 module ships inside the esm package (>= 3.4)",
+      "repo": "https://github.com/Biohub/esm",
+      "version": "3.4.1.post1"
+    },
+    "foundry": {
+      "commit": "b02eed6a6bdf8f44d14a80cc36e3da13c9f2291c",
+      "repo": "https://github.com/RosettaCommons/foundry",
+      "version": "0.1.0"
+    }
+  }
+}

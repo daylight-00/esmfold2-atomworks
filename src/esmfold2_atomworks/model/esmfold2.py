@@ -197,6 +197,19 @@ def _bundles_esmc(config: Any) -> bool:
     return getattr(config, "esmc_config", None) is not None
 
 
+def _apply(net: Any, setter: str, value: Any) -> str:
+    """Call ``net.<setter>(value)`` and say what was applied.
+
+    A module without the setter cannot honour the request, so the record says
+    so rather than reporting the value as if it had taken effect.
+    """
+    method = getattr(net, setter, None)
+    if method is None:
+        return f"not applied: {type(net).__name__} has no {setter}"
+    method(value)
+    return str(value)
+
+
 def snapshot_dir(source: str) -> str:
     """``source`` as a local directory: itself if it is one, else its Hub snapshot.
 
@@ -509,11 +522,6 @@ class AtomWorksESMFold2:
             device = "cuda" if torch.cuda.is_available() else "cpu"
 
         self.weights = str(weights)
-        #: Execution settings this wrapper applied, for provenance(). Changes
-        #: made later directly on ``.net`` are not tracked.
-        self.esmc_precision = esmc_precision
-        self.chunk_size = chunk_size
-        self.kernel_backend = kernel_backend
         #: The directory the weights were read from: ``weights`` itself when it
         #: is one, otherwise the Hub snapshot it names, resolved before loading
         #: so that the revision that ran is known (``provenance()``).
@@ -550,14 +558,15 @@ class AtomWorksESMFold2:
                 .eval()
             )
 
-        # Both are performance knobs and neither is part of the model contract,
-        # so their absence on a future revision is not an error.
-        if chunk_size is not None and hasattr(self.net, "set_chunk_size"):
-            self.net.set_chunk_size(chunk_size)
-        if kernel_backend is not None and hasattr(self.net, "set_kernel_backend"):
-            # torch.compile and the Triton kernels do not stack; upstream
-            # requires clearing the backend before compiling.
-            self.net.set_kernel_backend(kernel_backend)
+        # Both are applied as given, None included: set_chunk_size(None)
+        # disables chunking, and set_kernel_backend(None) selects upstream's
+        # reference path (its default). torch.compile and the Triton kernels do
+        # not stack; upstream requires clearing the backend before compiling.
+        # What provenance() records is what was applied, never merely asked for.
+        # Changes made later directly on .net are not tracked.
+        self.chunk_size = _apply(self.net, "set_chunk_size", chunk_size)
+        self.kernel_backend = _apply(self.net, "set_kernel_backend", kernel_backend)
+        self.esmc_precision = self._applied_esmc_precision(esmc_precision)
 
         # Stateless, and its __init__ loads the ~50k-entry CCD dictionary
         # (~9 s), so one builder is shared by every call. The dictionary comes
@@ -1240,6 +1249,18 @@ class AtomWorksESMFold2:
             # The CCD pickle ligand and modified-residue conformers come from.
             "esmfold2.ccd": self.ccd_source,
         } | self._esmc_identity()
+
+    def _applied_esmc_precision(self, requested: str) -> str:
+        """The precision the backbone actually runs in, not the one requested.
+
+        The experimental model's loader discards the argument and always loads
+        the backbone in bf16; a model without a backbone has none.
+        """
+        if self.esmc_source == "none":
+            return "none: no backbone"
+        if getattr(self.config, "type", None) == "experimental":
+            return "bf16"
+        return str(requested)
 
     def _placement(self) -> Any:
         """Where the module's parameters are, read off the module itself.

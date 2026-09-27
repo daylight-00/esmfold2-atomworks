@@ -125,10 +125,14 @@ before loading (upstream's `resolve_model_dir`, the step `from_pretrained`
 takes anyway), so the revision that ran is known;
 `esmfold2.weights` keeps what was asked for and `esmfold2.weights_resolved`
 the directory read. A separate ESMC backbone without a mirror is resolved the
-same way. The numerics the wrapper chose at construction are recorded too:
-`esmfold2.esmc_precision` (bf16 or fp8 changes the LM states),
+same way. The numerics applied at construction are recorded too, as applied rather
+than as requested: `esmfold2.esmc_precision` (bf16 or fp8 changes the LM
+states; the experimental loader always uses bf16, whatever was asked),
 `esmfold2.chunk_size` and `esmfold2.kernel_backend` (both change the order of
-reductions); a change made later directly on `.net` is not tracked. Alongside, and `esmfold2.checkpoint.config_sha256`, the digest
+reductions). Both setters are called with the value given, `None` included --
+`chunk_size=None` disables chunking, `kernel_backend=None` selects upstream's
+reference path -- and a module without the setter is recorded as not having
+applied it. A change made later directly on `.net` is not tracked. Alongside, and `esmfold2.checkpoint.config_sha256`, the digest
 of its `config.json`, which names the architecture and defaults but not the
 weights; the same for a separately attached ESMC backbone; the device the
 module's parameters are on, read off the module rather than the process's

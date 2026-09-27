@@ -183,6 +183,9 @@ def test_the_loaded_model_answers_through_its_seams(model, gold):
     assert provenance["esmfold2.device"].startswith("cuda:")
     assert provenance["esmfold2.device_name"]
     assert provenance["esmfold2.checkpoint.versioning"] == "hub-snapshot"
+    assert provenance["esmfold2.esmc_precision"] == "bf16"
+    assert provenance["esmfold2.chunk_size"] == "64"
+    assert provenance["esmfold2.kernel_backend"] == "None"
     head = model.net.structure_head
     assert record["esmfold2.effective.num_sampling_steps"] == 8
     assert record["esmfold2.effective.noise_scale"] == head.noise_scale

@@ -468,3 +468,30 @@ def test_provenance_records_the_numerics_chosen_at_construction(tmp_path):
     assert record["esmfold2.esmc_precision"] == "fp8"
     assert record["esmfold2.chunk_size"] == "64"
     assert record["esmfold2.kernel_backend"] == "None"
+
+
+def test_a_setter_is_called_with_none_too_and_its_absence_is_recorded():
+    from esmfold2_atomworks.model.esmfold2 import _apply
+
+    calls = []
+    net = SimpleNamespace(set_chunk_size=calls.append)
+    assert _apply(net, "set_chunk_size", None) == "None"
+    assert calls == [None]  # None disables chunking upstream; it is not skipped
+    assert _apply(SimpleNamespace(), "set_chunk_size", 64).startswith("not applied")
+
+
+@pytest.mark.parametrize(
+    ("config_type", "esmc_source", "requested", "applied"),
+    [
+        ("release", "bundled", "fp8", "fp8"),
+        ("experimental", "/mirror/ESMC-6B", "fp8", "bf16"),
+        ("release", "none", "bf16", "none: no backbone"),
+    ],
+)
+def test_the_backbone_precision_recorded_is_the_one_applied(
+    config_type, esmc_source, requested, applied
+):
+    model = AtomWorksESMFold2.__new__(AtomWorksESMFold2)
+    model.net = SimpleNamespace(config=SimpleNamespace(type=config_type))
+    model.esmc_source = esmc_source
+    assert model._applied_esmc_precision(requested) == applied

@@ -70,12 +70,43 @@ parameter. (`early_exit` *is* honoured by the experimental model.)
 They are therefore **not** exposed as config keys; `AtomWorksESMFold2.fold` warns
 if they are passed. Set them on `config.structure_head` instead.
 
-The reverse also holds: `forward` declares `lm_hidden_states`, and a caller that
-supplies it skips the ESMC pass entirely, but `ESMFold2InputBuilder.fold()` does
-not take it — so neither `fold` nor `fold_atom_array` can carry an externally
-computed or substituted ESMC stack. That route is `featurize()`, then
-`model.net(**features, lm_hidden_states=...)`, then `model.builder.decode(...)`
-with the `chain_infos` from `featurize()`.
+## The LM prior is part of the model
+
+`forward` declares `lm_hidden_states`; a caller that supplies it skips the
+ESMC pass. `ESMFold2InputBuilder.fold()` does not take it, so
+`AtomWorksESMFold2.fold` and `fold_atom_array` carry it themselves
+(`lm_hidden_states=`), through a replica of upstream's `fold` body that adds
+only that argument. The replica reads upstream's defaults off its signature
+and pins its parameter list (`REPLICATED_FOLD_PARAMETERS`): a parameter
+upstream adds makes it raise rather than be dropped.
+`compute_lm_hidden_states(features)` returns the states the resident backbone
+would compute, through the native module's own method, which also restores an
+offloaded backbone and applies the FP8 path; the module-level
+`esm.models.esmfold2.layers.compute_lm_hidden_states` does neither.
+
+Supplied states are checked against the live module and the prepared
+features -- batch and token axes against `res_type`, layer count and width
+against the LM shim's own parameters, and the device -- and enter the shim
+detached, as upstream detaches them: no gradient reaches them. `lm_mask_pct`
+acts inside the backbone the states bypass, so passing both raises; mask when
+computing the states instead. `lm_dropout` acts after the shim and applies
+either way.
+
+**A fold without the LM prior is refused.** With no backbone attached and no
+states supplied, the native `forward` leaves the LM pathway out and folds
+anyway. That is not the published model on a smaller input, even for a
+protein-free one: upstream hands the shim zero states for every non-protein
+token, and the trained shim maps zeros to a non-zero pair term, which leaving
+the pathway out removes. So `fold` raises `MissingLanguageModelError` unless a
+backbone is resident (`.esmc`, whatever `load_esmc` said -- a bundled
+checkpoint carries one regardless) or states are given. The raw `.net` keeps
+upstream's flexibility for whoever means to ablate the prior.
+
+`fold(record=...)` fills a caller's dict with the call's own entries:
+`esmfold2.lm_source` is `model` or `caller-supplied`, while
+`provenance()["esmfold2.esmc"]` stays the backbone that was loaded. A record
+that already holds an `esmfold2.*` key raises, so one reused from an earlier
+fold cannot mix two calls.
 
 ## Pipeline
 

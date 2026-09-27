@@ -121,6 +121,11 @@ wrong kind, an alignment built for another sequence — is refused
 (`ChainDeclarationError`): ignoring it is the same failure seen from the
 caller's side.
 
+It holds for the model too. A fold without the LM prior -- no ESMC backbone
+attached, no hidden states supplied -- is a different computation from the
+checkpoint's, which the native `forward` performs without complaint; the
+wrapper refuses it (`MissingLanguageModelError`, [03](03_MODEL.md)).
+
 ### D-006 — A metric the model did not produce stays absent
 
 Never defaulted to `0.0`. A fabricated zero reads downstream as a real

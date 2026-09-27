@@ -18,7 +18,7 @@ subtle divergence would show up as a model that runs, reports plausible
 confidence, and is quietly wrong. Wrapping keeps the weights and the numerics
 exactly as published, and leaves one named seam per component.
 
-Three behaviours of the native model are worth knowing before you wire
+Four behaviours of the native model are worth knowing before you wire
 anything to it; each is asserted or surfaced below rather than left as folklore.
 
 1. **Gradients depend on the inputs, not just the checkpoint.** The release
@@ -36,6 +36,10 @@ anything to it; each is asserted or surfaced below rather than left as folklore.
    a ligand or modified residue is present. Do not index one with the other;
    :func:`esmfold2_atomworks.metrics.plddt_per_token` and
    :func:`~esmfold2_atomworks.metrics.plddt_per_residue` name the two.
+4. **Without an ESMC backbone, ``forward`` folds anyway**, leaving the LM
+   pathway out -- a different computation from the checkpoint's, for any
+   input. :meth:`AtomWorksESMFold2.fold` refuses unless a backbone is resident
+   or the caller supplies the hidden states.
 """
 
 from __future__ import annotations
@@ -53,8 +57,11 @@ if TYPE_CHECKING:
 
 __all__ = [
     "GRADIENT_GATE",
+    "LM_SOURCES",
+    "REPLICATED_FOLD_PARAMETERS",
     "AtomWorksESMFold2",
     "FoldingConfig",
+    "MissingLanguageModelError",
     "attach_esmc",
     "ccd_source",
     "load_native_model_class",
@@ -78,6 +85,49 @@ SILENTLY_IGNORED_BY_RELEASE = (
     "max_inference_sigma",
     "early_exit",
 )
+
+
+#: Where the LM prior of a fold came from, as a call record states it:
+#: computed by the resident ESMC backbone, or handed in by the caller.
+LM_SOURCES = ("model", "caller-supplied")
+
+#: ``ESMFold2InputBuilder.fold``'s parameters, every one of which the fold that
+#: carries caller-supplied LM hidden states reproduces. That fold replicates
+#: upstream's body because upstream's takes no ``lm_hidden_states``; a parameter
+#: upstream adds later would be dropped by the replica, so a signature that no
+#: longer matches this set raises instead (see ``_fold_with_lm_states``).
+REPLICATED_FOLD_PARAMETERS = frozenset(
+    {
+        "model",
+        "input",
+        "num_loops",
+        "num_sampling_steps",
+        "num_diffusion_samples",
+        "seed",
+        "noise_scale",
+        "step_scale",
+        "max_inference_sigma",
+        "lm_mask_pct",
+        "lm_dropout",
+        "early_exit",
+        "msa_max_depth",
+        "msa_column_mask_rate",
+        "msa_subsample_at_inference",
+        "include_embeddings",
+        "complex_id",
+    }
+)
+
+
+class MissingLanguageModelError(RuntimeError):
+    """A fold would run without the LM prior the checkpoint was trained with.
+
+    The native ``forward`` skips the language-model pathway when no ESMC
+    backbone is attached and no hidden states are given, and folds anyway. That
+    is not the published model with a smaller input: its LM shim maps even the
+    all-zero states of a protein-free input to a non-zero pair term, so leaving
+    the pathway out changes every fold, with or without protein chains.
+    """
 
 
 def load_native_model_class() -> tuple[type, str]:
@@ -193,6 +243,18 @@ def _dimension(obj: Any, *paths: str) -> int:
         f"none of {list(paths)} is present on {type(obj).__name__}; the config "
         "schema has moved again, and the width is unknown rather than zero"
     )
+
+
+def _check_record(record: dict[str, Any] | None) -> None:
+    """Raise if ``record`` already holds entries of an earlier call."""
+    if record is None:
+        return
+    stale = sorted(key for key in record if str(key).startswith("esmfold2."))
+    if stale:
+        raise ValueError(
+            f"record already holds {stale}; pass a fresh dict per call, so two "
+            "calls' entries cannot mix"
+        )
 
 
 @dataclass
@@ -431,10 +493,107 @@ class AtomWorksESMFold2:
         """
         return self.builder.prepare_input(spi, seed=seed, device=self.device)
 
+    def compute_lm_hidden_states(
+        self, features: dict[str, Any], *, lm_mask_pct: float | None = None
+    ) -> Any:
+        """The ESMC hidden states a fold of ``features`` would compute itself.
+
+        ``[B, L, n_layers + 1, d_model]``, detached, on the model's device --
+        what :meth:`fold` accepts as ``lm_hidden_states``. ``features`` is the
+        first element of :meth:`featurize`.
+
+        Computed the way ``forward`` computes them, through the native module's
+        own method, which restores an offloaded backbone and applies the FP8
+        precision context and padding; the bare
+        ``esm.models.esmfold2.layers.compute_lm_hidden_states`` does neither.
+        That method is private upstream, so this is the one place that depends
+        on it.
+
+        Args:
+            lm_mask_pct: fraction of residues masked before the backbone.
+                ``None`` means the checkpoint's own ``config.lm_mask_pct``, which
+                is what ``forward`` uses when it computes the states itself. A
+                non-zero fraction draws from the torch RNG, unseeded here.
+
+        Raises:
+            MissingLanguageModelError: no backbone is resident.
+        """
+        if self.esmc is None:
+            raise MissingLanguageModelError(
+                "no ESMC backbone is resident, so there is nothing to compute LM "
+                "hidden states with; construct the model with load_esmc=True"
+            )
+        compute = getattr(self.net, "_compute_lm_hidden_states", None)
+        if compute is None:
+            raise AttributeError(
+                f"{type(self.net).__name__} has no _compute_lm_hidden_states; the "
+                "native module's LM path has moved, and computing the states "
+                "another way would not be the computation forward performs"
+            )
+        if lm_mask_pct is None:
+            lm_mask_pct = getattr(self.config, "lm_mask_pct", 0.0)
+
+        import torch
+
+        with torch.no_grad():
+            return compute(
+                features["input_ids"],
+                features["asym_id"],
+                features["residue_index"],
+                features["mol_type"],
+                # forward's `tok_mask` is this feature, unchanged.
+                features["token_attention_mask"],
+                lm_mask_pct=lm_mask_pct,
+            )
+
+    def _check_lm_hidden_states(self, states: Any, features: dict[str, Any]) -> None:
+        """Raise unless ``states`` can stand in for the ones ``forward`` computes.
+
+        Checked against the live module and the prepared features, not the
+        config: the layer count and width are read off the LM shim's own
+        parameters, and the batch and token axes off ``res_type``. dtype is left
+        alone, because the precision path decides it.
+        """
+        import torch
+
+        if not isinstance(states, torch.Tensor):
+            raise TypeError(
+                f"lm_hidden_states must be a tensor, not {type(states).__name__}"
+            )
+        shim = getattr(self.net, "language_model", None)
+        if shim is None:
+            raise AttributeError(
+                f"{type(self.net).__name__} has no language_model; there is no LM "
+                "pathway for the hidden states to enter"
+            )
+        tokens = features["res_type"]
+        expected = (
+            *tuple(tokens.shape[:2]),
+            int(shim.base_z_combine.numel()),
+            int(shim.base_z_linear[0].normalized_shape[-1]),
+        )
+        if tuple(states.shape) != expected:
+            raise ValueError(
+                f"lm_hidden_states has shape {tuple(states.shape)}; this model and "
+                f"these features need {expected} (batch, tokens, layers, width)"
+            )
+        if not states.is_floating_point():
+            raise TypeError(
+                f"lm_hidden_states must be floating point, not {states.dtype}"
+            )
+        if states.device != tokens.device:
+            raise ValueError(
+                f"lm_hidden_states is on {states.device}, the features on "
+                f"{tokens.device}"
+            )
+
     def fold(
         self,
         spi: Any,
         config: FoldingConfig | None = None,
+        *,
+        lm_hidden_states: Any | None = None,
+        record: dict[str, Any] | None = None,
         **overrides: Any,
     ) -> Any:
         """Fold a ``StructurePredictionInput``.
@@ -442,9 +601,26 @@ class AtomWorksESMFold2:
         Returns a single ``MolecularComplexResult``, or a list of them when
         ``num_diffusion_samples > 1`` -- the native ``decode`` collapses the
         one-sample case, and callers must handle both.
-        """
-        import torch
 
+        Args:
+            lm_hidden_states: ESMC hidden states to fold with instead of those
+                the resident backbone would compute, e.g. from
+                :meth:`compute_lm_hidden_states`, cached or substituted. Checked
+                against this model and the features ``spi`` prepares to. They
+                enter the LM shim detached, as upstream detaches them, so no
+                gradient reaches them. ``lm_mask_pct`` acts only inside the
+                backbone, which this skips, so combining the two raises.
+            record: a dict to write this call's ``esmfold2.*`` entries into:
+                ``esmfold2.lm_source``, one of :data:`LM_SOURCES`. The caller's
+                other keys are kept; an ``esmfold2.*`` key already present
+                raises, so a record reused from an earlier fold cannot mix two
+                calls' entries.
+
+        Raises:
+            MissingLanguageModelError: no backbone is resident and no
+                ``lm_hidden_states`` are given.
+        """
+        _check_record(record)
         config = config or FoldingConfig()
         kwargs = config.as_fold_kwargs()
         kwargs.update(overrides)
@@ -459,8 +635,121 @@ class AtomWorksESMFold2:
                 stacklevel=2,
             )
 
-        with torch.no_grad():
-            return self.builder.fold(self.net, spi, **kwargs)
+        if lm_hidden_states is None:
+            if self.esmc is None:
+                raise MissingLanguageModelError(
+                    "no ESMC backbone is resident and no lm_hidden_states were "
+                    "given, so this fold would run without the LM prior -- a "
+                    "different computation from the checkpoint's, whatever the "
+                    "input holds. Construct the model with load_esmc=True, or "
+                    "pass lm_hidden_states."
+                )
+            import torch
+
+            with torch.no_grad():
+                result = self.builder.fold(self.net, spi, **kwargs)
+            lm_source = "model"
+        else:
+            if kwargs.get("lm_mask_pct") is not None:
+                raise ValueError(
+                    "lm_mask_pct masks residues inside the ESMC backbone, which "
+                    "supplied lm_hidden_states bypass; apply the mask when "
+                    "computing the states (compute_lm_hidden_states(lm_mask_pct=))"
+                )
+            result = self._fold_with_lm_states(spi, kwargs, lm_hidden_states)
+            lm_source = "caller-supplied"
+
+        if record is not None:
+            record["esmfold2.lm_source"] = lm_source
+        return result
+
+    def _fold_with_lm_states(
+        self, spi: Any, kwargs: dict[str, Any], lm_hidden_states: Any
+    ) -> Any:
+        """``ESMFold2InputBuilder.fold``, carrying ``lm_hidden_states`` to ``forward``.
+
+        Upstream's ``fold`` has a fixed keyword list without
+        ``lm_hidden_states``, although ``forward`` declares it. This is that
+        method's body with the one argument added: its defaults are read off
+        its signature, and seeding, the dropout context and decoding are its
+        own helpers, called as it calls them. The helpers are private upstream;
+        this is the one place that imports them. A signature that has moved
+        away from :data:`REPLICATED_FOLD_PARAMETERS` raises, because the
+        replica would silently drop what it does not know.
+        """
+        from contextlib import nullcontext
+
+        import torch
+        from esm.models.esmfold2.processor import _lm_dropout_context, _seed_context
+
+        parameters = inspect.signature(type(self.builder).fold).parameters
+        known = set(parameters) - {"self"}
+        if known != REPLICATED_FOLD_PARAMETERS:
+            raise NotImplementedError(
+                "ESMFold2InputBuilder.fold's parameters have changed "
+                f"(added {sorted(known - REPLICATED_FOLD_PARAMETERS)}, removed "
+                f"{sorted(REPLICATED_FOLD_PARAMETERS - known)}); the fold that "
+                "carries lm_hidden_states replicates it and must be brought up to "
+                "date before it can be trusted"
+            )
+        unknown = set(kwargs) - known
+        if unknown:
+            raise TypeError(
+                f"fold() got unexpected keyword argument(s) {sorted(unknown)}"
+            )
+        args = {
+            name: parameter.default
+            for name, parameter in parameters.items()
+            if parameter.default is not inspect.Parameter.empty
+        }
+        args.update(kwargs)
+
+        if (
+            args["early_exit"] is not None
+            or args["msa_subsample_at_inference"] is not None
+        ):
+            warnings.warn(
+                "fold(): ignoring early_exit and msa_subsample_at_inference. "
+                "Use msa_max_depth instead; early_exit was never supported.",
+                DeprecationWarning,
+                stacklevel=3,
+            )
+
+        seed = args["seed"]
+        features, chain_infos = self.builder.prepare_input(
+            spi, seed=seed, device=self.net.device
+        )
+        self._check_lm_hidden_states(lm_hidden_states, features)
+
+        sampler_kwargs = {
+            name: args[name]
+            for name in ("noise_scale", "step_scale", "max_inference_sigma")
+            if args[name] is not None
+        }
+        with (
+            torch.no_grad(),
+            _seed_context(seed) if seed is not None else nullcontext(),
+            _lm_dropout_context(self.net, args["lm_dropout"]),
+        ):
+            output = self.net(
+                **features,
+                lm_hidden_states=lm_hidden_states,
+                num_loops=args["num_loops"],
+                num_sampling_steps=args["num_sampling_steps"],
+                num_diffusion_samples=args["num_diffusion_samples"],
+                msa_max_depth=args["msa_max_depth"],
+                msa_column_mask_rate=args["msa_column_mask_rate"],
+                include_embeddings=args["include_embeddings"],
+                **sampler_kwargs,
+            )
+
+        return self.builder.decode(
+            output,
+            features,
+            chain_infos,
+            num_diffusion_samples=args["num_diffusion_samples"],
+            complex_id=args["complex_id"],
+        )
 
     def fold_atom_array(
         self,
@@ -470,6 +759,8 @@ class AtomWorksESMFold2:
         config: FoldingConfig | None = None,
         ligand_residue_name: str | None = None,
         adapter_kwargs: dict[str, Any] | None = None,
+        lm_hidden_states: Any | None = None,
+        record: dict[str, Any] | None = None,
         **overrides: Any,
     ) -> tuple[AtomArray, Any]:
         """Fold an AtomWorks structure and answer with one.
@@ -522,12 +813,19 @@ class AtomWorksESMFold2:
             result_to_atom_array,
         )
 
+        _check_record(record)
         if ligand_residue_name is not None:
             check_residue_name(ligand_residue_name)
         spi = atom_array_to_structure_prediction_input(
             atoms, chain_info=chain_info, **(adapter_kwargs or {})
         )
-        result = self.fold(spi, config=config, **overrides)
+        result = self.fold(
+            spi,
+            config=config,
+            lm_hidden_states=lm_hidden_states,
+            record=record,
+            **overrides,
+        )
 
         def structure(one: Any) -> AtomArray:
             return result_to_atom_array(one, ligand_residue_name=ligand_residue_name)

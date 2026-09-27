@@ -76,6 +76,9 @@ prediction of the wrong molecule:
 - a chain that holds more than one molecule — a protein, its ligands and its
   waters under one author chain id — is an **error**, whether its annotations
   say so or a declared kind is contradicted by the CCD;
+- a fold with no ESMC backbone attached and no LM hidden states supplied is
+  **refused**: the native model would fold anyway, without the LM prior the
+  checkpoint was trained with;
 - a chain that cannot be expressed, a covalent bond that cannot be placed, a
   chain kind that would have to be guessed, or a modification whose position is
   unknown each **raises** by default — accepted only by name, on every path,

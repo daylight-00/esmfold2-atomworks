@@ -190,3 +190,86 @@ def test_the_loaded_model_answers_through_its_seams(model, gold):
         gold("lysozyme"), config=FoldingConfig(num_sampling_steps=8, seed=0)
     )
     assert result.plddt is not None
+
+
+@pytest.fixture
+def deterministic():
+    """Deterministic kernels for one test, restored after it.
+
+    cuBLAS reads its workspace setting when CUDA starts, so the variable has to
+    be in the environment of the process, not set here; without it the test
+    skips rather than claiming a determinism it cannot have.
+    """
+    torch = pytest.importorskip("torch")
+    if not os.environ.get("CUBLAS_WORKSPACE_CONFIG"):
+        pytest.skip(
+            "run with CUBLAS_WORKSPACE_CONFIG=:4096:8 for deterministic kernels"
+        )
+    previous = torch.are_deterministic_algorithms_enabled()
+    torch.use_deterministic_algorithms(True)
+    try:
+        yield
+    finally:
+        torch.use_deterministic_algorithms(previous)
+
+
+def test_supplied_states_reproduce_the_models_own_fold(model, gold, deterministic):
+    """Folding with the states the backbone computes is the same fold.
+
+    The fold that carries supplied states replicates upstream's ``fold``; under
+    deterministic kernels, handing it exactly what ``forward`` would compute
+    must give back exactly what the ordinary path gives.
+    """
+    from esmfold2_atomworks.model.esmfold2 import FoldingConfig
+
+    assert model.config.lm_mask_pct == 0.0, "a masked backbone pass is not replayable"
+    spi = gold("lysozyme")
+    config = FoldingConfig(num_loops=1, num_sampling_steps=8, seed=0)
+
+    own_record: dict = {}
+    own = model.fold(spi, config=config, record=own_record)
+    features, _ = model.featurize(spi, seed=0)
+    states = model.compute_lm_hidden_states(features)
+    supplied_record: dict = {}
+    supplied = model.fold(
+        spi, config=config, lm_hidden_states=states, record=supplied_record
+    )
+
+    diff = compare_results(own, supplied)
+    print(f"\nown vs supplied: {diff.metrics}")
+    assert own_record == {"esmfold2.lm_source": "model"}
+    assert supplied_record == {"esmfold2.lm_source": "caller-supplied"}
+    assert diff.metrics["atom_name_mismatches"] == 0
+    assert diff.metrics["coord_max_abs"] == 0.0
+    assert diff.metrics["plddt_max_abs"] == 0.0
+
+
+def test_a_checkpoint_without_its_backbone_refuses_to_fold(model, gold):
+    """The separate-layout checkpoint, loaded without its backbone.
+
+    Before the guard this folded without the LM prior and returned a
+    plausible structure. It must refuse, and fold once handed the states.
+    """
+    from esmfold2_atomworks.model.esmfold2 import (
+        AtomWorksESMFold2,
+        FoldingConfig,
+        MissingLanguageModelError,
+    )
+
+    weights = paths.ESMFOLD2_WEIGHTS.experimental
+    if not weights.is_dir():
+        pytest.skip(f"no experimental checkpoint at {weights}")
+    trunk = AtomWorksESMFold2(weights, load_esmc=False)
+    try:
+        assert trunk.esmc is None
+        spi = gold("lysozyme")
+        config = FoldingConfig(num_loops=1, num_sampling_steps=8, seed=0)
+        with pytest.raises(MissingLanguageModelError):
+            trunk.fold(spi, config=config)
+
+        features, _ = model.featurize(spi, seed=0)
+        states = model.compute_lm_hidden_states(features).to(trunk.device)
+        result = trunk.fold(spi, config=config, lm_hidden_states=states)
+        assert result.plddt is not None
+    finally:
+        del trunk

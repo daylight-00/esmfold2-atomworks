@@ -113,8 +113,9 @@ upstream loads it. `provenance()["esmfold2.esmc"]` records which applied, and `d
 reports it for every local mirror.
 
 `load_esmc=False` leaves a separate-layout checkpoint without a backbone, so
-several folding models can share one instance, or a caller can supply
-`lm_hidden_states` itself (see [03](03_MODEL.md)). It cannot remove a bundled
+several folding models can share one instance. Such a model folds only when
+handed `lm_hidden_states`; without them `fold` refuses rather than folding
+without the LM prior (see [03](03_MODEL.md)). It cannot remove a bundled
 backbone, which arrives with the trunk.
 
 ## Provenance: `UPSTREAM.lock`

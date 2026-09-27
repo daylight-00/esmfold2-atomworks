@@ -64,6 +64,9 @@ class ESMFold2InferenceEngine:
         num_diffusion_samples: int = 1,
         lm_dropout: float | None = 0.3,
         lm_mask_pct: float | None = None,
+        noise_scale: float | None = None,
+        step_scale: float | None = None,
+        max_inference_sigma: float | None = None,
         seed: int | None = None,
         chunk_size: int | None = 64,
         load_esmc: bool = True,
@@ -86,6 +89,9 @@ class ESMFold2InferenceEngine:
             num_diffusion_samples=num_diffusion_samples,
             lm_dropout=lm_dropout,
             lm_mask_pct=lm_mask_pct,
+            noise_scale=noise_scale,
+            step_scale=step_scale,
+            max_inference_sigma=max_inference_sigma,
             seed=seed,
         )
         self._model: AtomWorksESMFold2 | None = None

@@ -183,6 +183,27 @@ def test_the_loaded_model_answers_through_its_seams(model, gold):
     assert provenance["esmfold2.device"].startswith("cuda:")
     assert provenance["esmfold2.device_name"]
     assert provenance["esmfold2.checkpoint.versioning"] == "hub-snapshot"
+    head = model.net.structure_head
+    assert record["esmfold2.effective.num_sampling_steps"] == 8
+    assert record["esmfold2.effective.noise_scale"] == head.noise_scale
+    assert record["esmfold2.effective.step_scale"] == head.step_scale
+
+
+def test_a_sampler_knob_reaches_the_release_model(model, gold, deterministic):
+    """esm >= 3.4 declares the scales on forward; setting one changes the fold."""
+    import warnings
+
+    from esmfold2_atomworks.model.esmfold2 import FoldingConfig
+
+    spi = gold("lysozyme")
+    config = FoldingConfig(num_loops=1, num_sampling_steps=8, seed=0)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        default = model.fold(spi, config=config)
+        scaled = model.fold(
+            spi, config=config, step_scale=model.net.structure_head.step_scale * 0.5
+        )
+    assert compare_results(default, scaled).metrics["coord_max_abs"] > 0.0
 
 
 @pytest.fixture

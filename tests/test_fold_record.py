@@ -38,6 +38,9 @@ class _Builder:
         lm_mask_pct=None,
         lm_dropout=0.3,
         msa_max_depth=1024,
+        noise_scale=None,
+        step_scale=None,
+        max_inference_sigma=None,
     ):
         return "result"
 
@@ -327,3 +330,141 @@ def test_every_engine_output_describes_itself(monkeypatch, samples):
         assert output.metadata["esmfold2.fold.seed"] == 0
         # The sample index is the output's own, never the call record's.
         assert output.metadata.get("sample") == (index if samples > 1 else None)
+
+
+# -- effective settings ------------------------------------------------------
+
+
+class _Forward:
+    """A module whose forward declares the sampler knobs, as esm >= 3.4 does."""
+
+    def forward(self, *, noise_scale=None, step_scale=None, max_inference_sigma=256.0):
+        return None
+
+
+def _live(**config):
+    model = _model(**config)
+    net = _Forward()
+    net.esmc = object()
+    net.config = model.net.config
+    net.structure_head = SimpleNamespace(
+        inference_num_steps=200, noise_scale=1.003, step_scale=1.5
+    )
+    model.net = net
+    return model
+
+
+def test_every_setting_left_to_the_model_is_resolved_against_it():
+    model = _live(
+        num_diffusion_samples=5,
+        msa_encoder=SimpleNamespace(max_depth=512, column_mask_rate=0.2),
+        lm_encoder=SimpleNamespace(lm_dropout=0.1, per_loop_lm_dropout=True),
+    )
+    args = {"num_loops": None, "num_diffusion_samples": None, "lm_dropout": None}
+    entries = model._effective_settings(args, "model")
+    assert entries["esmfold2.effective.num_loops"] == 3
+    assert entries["esmfold2.effective.num_diffusion_samples"] == 5
+    assert entries["esmfold2.effective.num_sampling_steps"] == 200
+    assert entries["esmfold2.effective.noise_scale"] == 1.003
+    assert entries["esmfold2.effective.step_scale"] == 1.5
+    assert entries["esmfold2.effective.max_inference_sigma"] == 256.0
+    assert entries["esmfold2.effective.msa_max_depth"] == 512
+    assert entries["esmfold2.effective.msa_column_mask_rate"] == 0.2
+    assert entries["esmfold2.effective.lm_mask_pct"] == 0.1
+    assert entries["esmfold2.effective.lm_dropout"] == 0.1
+
+
+def test_a_requested_setting_is_the_effective_one():
+    entries = _live()._effective_settings(
+        {"num_sampling_steps": 8, "noise_scale": 1.0, "lm_dropout": 0.3}, "model"
+    )
+    assert entries["esmfold2.effective.num_sampling_steps"] == 8
+    assert entries["esmfold2.effective.noise_scale"] == 1.0
+    assert entries["esmfold2.effective.lm_dropout"] == 0.3
+
+
+def test_release_lm_dropout_applies_only_per_loop():
+    model = _live(lm_encoder=SimpleNamespace(lm_dropout=0.2, per_loop_lm_dropout=False))
+    assert model._configured_lm_dropout() == 0.0
+
+
+def test_experimental_lm_dropout_is_its_configured_rate():
+    model = _live(type="experimental", lm_dropout=0.25)
+    assert model._configured_lm_dropout() == 0.25
+
+
+def test_a_setting_the_module_does_not_expose_is_none_not_guessed():
+    entries = _model()._effective_settings({}, "model")
+    assert entries["esmfold2.effective.num_sampling_steps"] is None
+    assert entries["esmfold2.effective.max_inference_sigma"] is None
+
+
+# -- sampler knobs -----------------------------------------------------------
+
+
+def test_a_declared_sampler_knob_is_not_warned_about(recwarn):
+    _live().fold(_spi(), noise_scale=1.0)
+    assert not [w for w in recwarn if "discarded" in str(w.message)]
+
+
+def test_a_knob_the_module_does_not_declare_is_warned_about():
+    model = _model()
+
+    class _Bare:  # a forward that declares no sampler knob, as the old fork's
+        def forward(self, **kwargs):
+            return None
+
+    bare = _Bare()
+    bare.esmc = object()
+    bare.config = model.net.config
+    model.net = bare
+    with pytest.warns(RuntimeWarning, match="noise_scale"):
+        model.fold(_spi(), noise_scale=1.0)
+
+
+# -- Hub resolution ----------------------------------------------------------
+
+
+def test_a_directory_is_its_own_snapshot(tmp_path):
+    from esmfold2_atomworks.model.esmfold2 import snapshot_dir
+
+    assert snapshot_dir(str(tmp_path)) == str(tmp_path)
+
+
+def test_a_hub_id_is_resolved_to_its_snapshot(monkeypatch, tmp_path):
+    hub = pytest.importorskip("esm.models.hub")
+    from esmfold2_atomworks.model.esmfold2 import snapshot_dir
+
+    seen = []
+    monkeypatch.setattr(
+        hub, "resolve_model_dir", lambda source: seen.append(source) or str(tmp_path)
+    )
+    assert snapshot_dir("biohub/ESMFold2") == str(tmp_path)
+    assert seen == ["biohub/ESMFold2"]
+
+
+def test_provenance_names_the_snapshot_a_hub_id_resolved_to(tmp_path):
+    snapshot = _snapshot(tmp_path, "biohub/ESMFold2", "69869f73")
+    model = _loaded(snapshot)
+    model.weights = "biohub/ESMFold2"
+    model.weights_resolved = str(snapshot)
+    record = model.provenance()
+    assert record["esmfold2.weights"] == "biohub/ESMFold2"
+    assert record["esmfold2.checkpoint.revision"] == "69869f73"
+    assert record["esmfold2.checkpoint.versioning"] == "hub-snapshot"
+
+
+def test_the_sampler_knobs_are_config_fields_passed_only_when_set():
+    assert "noise_scale" not in FoldingConfig().as_fold_kwargs()
+    kwargs = FoldingConfig(noise_scale=1.0, max_inference_sigma=80.0).as_fold_kwargs()
+    assert kwargs["noise_scale"] == 1.0 and kwargs["max_inference_sigma"] == 80.0
+    assert "step_scale" not in kwargs
+
+
+def test_provenance_records_the_numerics_chosen_at_construction(tmp_path):
+    model = _loaded(tmp_path / "w")
+    model.esmc_precision, model.chunk_size, model.kernel_backend = "fp8", 64, None
+    record = model.provenance()
+    assert record["esmfold2.esmc_precision"] == "fp8"
+    assert record["esmfold2.chunk_size"] == "64"
+    assert record["esmfold2.kernel_backend"] == "None"

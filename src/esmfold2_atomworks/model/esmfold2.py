@@ -26,11 +26,12 @@ anything to it; each is asserted or surfaced below rather than left as folklore.
    experimental one gates autograd on ``res_type_soft`` being supplied, so
    loading it is necessary and not sufficient -- see
    :meth:`AtomWorksESMFold2.will_produce_gradients`.
-2. **``fold()`` accepts sampler knobs the release model ignores.**
-   ``noise_scale``, ``step_scale``, ``max_inference_sigma`` and ``early_exit``
-   are forwarded into ``forward(**kwargs)`` and silently discarded; only
-   ``lm_mask_pct`` is a declared parameter. Passing them and expecting an
-   effect is a real trap, so :meth:`fold` names them.
+2. **A sampler knob reaches the model only if its ``forward`` declares it.**
+   esm >= 3.4 declares ``noise_scale``, ``step_scale`` and
+   ``max_inference_sigma`` and hands them to the structure head; the
+   ``transformers`` fork of esm <= 3.3 did not, and dropped them. :meth:`fold`
+   warns about any it would drop, read off the loaded module's own signature.
+   ``early_exit`` is deprecated and ignored by upstream's ``fold``.
 3. **pLDDT is on 0--1, not 0--100**, and ``result.plddt`` (model tokens) is a
    different length from ``result.complex.plddt`` (collapsed residues) whenever
    a ligand or modified residue is present. Do not index one with the other;
@@ -59,6 +60,7 @@ __all__ = [
     "GRADIENT_GATE",
     "LM_SOURCES",
     "REPLICATED_FOLD_PARAMETERS",
+    "SAMPLER_KNOBS",
     "AtomWorksESMFold2",
     "FoldingConfig",
     "MissingLanguageModelError",
@@ -66,6 +68,7 @@ __all__ = [
     "ccd_source",
     "input_record",
     "load_native_model_class",
+    "snapshot_dir",
     "tensor_record",
 ]
 
@@ -76,17 +79,13 @@ __all__ = [
 #: differentiable.
 GRADIENT_GATE = "res_type_soft"
 
-#: ``fold()`` forwards these into the release ``forward``, which does not
-#: declare them, so they land in ``**kwargs`` and are dropped: the sampler is
-#: called with hardcoded defaults. ``early_exit`` is additionally deprecated in
-#: esm >= 3.4, where passing it raises a ``DeprecationWarning`` and does nothing
-#: ("early_exit was never supported").
-SILENTLY_IGNORED_BY_RELEASE = (
-    "noise_scale",
-    "step_scale",
-    "max_inference_sigma",
-    "early_exit",
-)
+#: Sampler knobs ``fold()`` forwards to ``forward`` when set. A module whose
+#: ``forward`` does not declare one drops it -- the ``transformers`` fork of
+#: esm <= 3.3 did, esm >= 3.4 declares all three -- so :meth:`fold` checks the
+#: loaded module's signature and warns about any it would drop.
+#: (``early_exit`` is deprecated upstream and ignored by ``fold`` itself, with
+#: a ``DeprecationWarning`` of its own.)
+SAMPLER_KNOBS = ("noise_scale", "step_scale", "max_inference_sigma")
 
 
 #: Where the LM prior of a fold came from, as a call record states it:
@@ -198,6 +197,21 @@ def _bundles_esmc(config: Any) -> bool:
     return getattr(config, "esmc_config", None) is not None
 
 
+def snapshot_dir(source: str) -> str:
+    """``source`` as a local directory: itself if it is one, else its Hub snapshot.
+
+    A Hub id is resolved through upstream's own ``resolve_model_dir``, into the
+    Hugging Face store (``HF_HUB_CACHE``), downloading only what is missing --
+    the step ``from_pretrained`` would take anyway, taken first so that the
+    snapshot, and so its revision, is known to whoever loaded it.
+    """
+    if Path(source).is_dir():
+        return str(source)
+    from esm.models.hub import resolve_model_dir
+
+    return str(resolve_model_dir(source))
+
+
 def attach_esmc(net: Any, precision: str = "bf16") -> str:
     """Attach the ESMC backbone ``net``'s checkpoint needs; say where it came from.
 
@@ -205,8 +219,9 @@ def attach_esmc(net: Any, precision: str = "bf16") -> str:
     native loader has already attached. Otherwise the checkpoint names a
     separate one in ``config.esmc_id``, which is resolved through
     :func:`esmfold2_atomworks.paths.resolve_esmc` -- a local mirror first --
-    rather than handed to ``from_pretrained`` as written. The resolved location
-    is returned.
+    rather than handed to ``from_pretrained`` as written; a Hub id with no
+    mirror is resolved to its snapshot (:func:`snapshot_dir`). The local
+    directory it was loaded from is returned.
 
     ``precision`` reaches the release model only: the experimental model's
     ``load_esmc`` takes none and always loads bf16, as its own
@@ -214,7 +229,7 @@ def attach_esmc(net: Any, precision: str = "bf16") -> str:
     """
     if _bundles_esmc(net.config):
         return "bundled"
-    source = str(paths.resolve_esmc(net.config.esmc_id))
+    source = snapshot_dir(str(paths.resolve_esmc(net.config.esmc_id)))
     if "precision" in inspect.signature(net.load_esmc).parameters:
         net.load_esmc(source, precision=precision)
     else:
@@ -364,8 +379,8 @@ def input_record(spi: Any) -> dict[str, Any]:
             [
                 [
                     d.chain_id,
-                    np.asarray(d.distogram).shape,
-                    np.asarray(d.distogram).tobytes().hex(),
+                    np.asarray(d.distogram, dtype=np.float32).shape,
+                    np.asarray(d.distogram, dtype=np.float32).tobytes().hex(),
                 ]
                 for d in distogram
             ]
@@ -433,7 +448,14 @@ class FoldingConfig:
     lm_dropout: float | None = 0.3
     lm_mask_pct: float | None = None
     seed: int | None = None
-    #: Forwarded for completeness; see SILENTLY_IGNORED_BY_RELEASE.
+    #: The sampler's knobs (:data:`SAMPLER_KNOBS`). ``None`` leaves each to the
+    #: loaded model: the scales to its structure head's config, the sigma cap
+    #: to ``forward``'s default -- as the call record's ``esmfold2.effective.*``
+    #: then states.
+    noise_scale: float | None = None
+    step_scale: float | None = None
+    max_inference_sigma: float | None = None
+    #: Further ``ESMFold2InputBuilder.fold`` arguments, passed through as given.
     extra: dict[str, Any] = field(default_factory=dict)
 
     def as_fold_kwargs(self) -> dict[str, Any]:
@@ -449,6 +471,9 @@ class FoldingConfig:
         }
         if self.lm_mask_pct is not None:
             kwargs["lm_mask_pct"] = self.lm_mask_pct
+        for knob in SAMPLER_KNOBS:
+            if getattr(self, knob) is not None:
+                kwargs[knob] = getattr(self, knob)
         kwargs.update(self.extra)
         return kwargs
 
@@ -484,17 +509,27 @@ class AtomWorksESMFold2:
             device = "cuda" if torch.cuda.is_available() else "cpu"
 
         self.weights = str(weights)
+        #: Execution settings this wrapper applied, for provenance(). Changes
+        #: made later directly on ``.net`` are not tracked.
+        self.esmc_precision = esmc_precision
+        self.chunk_size = chunk_size
+        self.kernel_backend = kernel_backend
+        #: The directory the weights were read from: ``weights`` itself when it
+        #: is one, otherwise the Hub snapshot it names, resolved before loading
+        #: so that the revision that ran is known (``provenance()``).
+        self.weights_resolved = self.weights
         self.device = torch.device(device)
         model_class, self.flavour = load_native_model_class()
 
         if self.flavour == "esm":
+            self.weights_resolved = snapshot_dir(self.weights)
             # esm >= 3.4 places the model on `device` during construction, which
             # avoids materializing it on CPU first. A bundled backbone comes in
             # with the trunk regardless of `load_esmc`; a separate one is
             # attached here rather than from the checkpoint's `esmc_id` (see
             # attach_esmc).
             self.net = model_class.from_pretrained(
-                self.weights,
+                self.weights_resolved,
                 load_esmc=False,
                 esmc_precision=esmc_precision,
                 device=str(self.device),
@@ -800,11 +835,15 @@ class AtomWorksESMFold2:
         kwargs = config.as_fold_kwargs()
         kwargs.update(overrides)
 
-        ignored = [k for k in SILENTLY_IGNORED_BY_RELEASE if k in kwargs]
-        if ignored and not self.supports_soft_sequence_design:
+        ignored = [
+            k
+            for k in SAMPLER_KNOBS
+            if kwargs.get(k) is not None and k not in self._forward_parameters()
+        ]
+        if ignored:
             warnings.warn(
                 f"{ignored} are accepted by ESMFold2InputBuilder.fold but are not "
-                "declared by the release ESMFold2Model.forward, so they are "
+                f"declared by {type(self.net).__name__}.forward, so they are "
                 "discarded. Set them on config.structure_head instead.",
                 RuntimeWarning,
                 stacklevel=2,
@@ -843,36 +882,110 @@ class AtomWorksESMFold2:
             record.update(execution)
         return result
 
+    def _forward_parameters(self) -> dict[str, Any]:
+        """The loaded module's ``forward`` parameters, by name."""
+        forward = getattr(type(self.net), "forward", None)
+        if forward is None:
+            return {}
+        return dict(inspect.signature(forward).parameters)
+
+    def _effective_settings(
+        self, args: dict[str, Any], lm_source: str
+    ) -> dict[str, Any]:
+        """What the model ran with, where a request left a setting to it.
+
+        Read off the live module and config the way upstream's forward at the
+        pinned revision resolves each ``None``: the loop count and sample count
+        from the config, the step count and both sampler scales from the
+        structure head, the sigma cap from ``forward``'s own default (``fold``
+        omits it when unset), the MSA depth and column-mask rate from the MSA
+        encoder's config (they act only on an input with an alignment), the
+        mask fraction from the config when the backbone runs (``None`` with
+        supplied states, which no mask reaches), and the LM dropout from the
+        config when the call sets none. A setting the loaded module does not
+        expose is recorded as ``None`` rather than guessed.
+        """
+
+        def chosen(name: str, fallback: Any) -> Any:
+            value = args.get(name)
+            return fallback() if value is None else value
+
+        config = self.config
+        head = getattr(self.net, "structure_head", None)
+        msa = getattr(config, "msa_encoder", None)
+        sigma = self._forward_parameters().get("max_inference_sigma")
+        effective = {
+            "num_loops": chosen("num_loops", lambda: config.num_loops),
+            "num_diffusion_samples": chosen(
+                "num_diffusion_samples",
+                lambda: getattr(config, "num_diffusion_samples", None),
+            ),
+            "num_sampling_steps": chosen(
+                "num_sampling_steps", lambda: getattr(head, "inference_num_steps", None)
+            ),
+            "noise_scale": chosen(
+                "noise_scale", lambda: getattr(head, "noise_scale", None)
+            ),
+            "step_scale": chosen(
+                "step_scale", lambda: getattr(head, "step_scale", None)
+            ),
+            "max_inference_sigma": chosen(
+                "max_inference_sigma",
+                lambda: (
+                    None
+                    if sigma is None or sigma.default is inspect.Parameter.empty
+                    else sigma.default
+                ),
+            ),
+            "msa_max_depth": chosen(
+                "msa_max_depth", lambda: getattr(msa, "max_depth", None)
+            ),
+            "msa_column_mask_rate": chosen(
+                "msa_column_mask_rate", lambda: getattr(msa, "column_mask_rate", None)
+            ),
+            "lm_mask_pct": chosen("lm_mask_pct", lambda: config.lm_mask_pct)
+            if lm_source == "model"
+            else None,
+            "lm_dropout": args.get("lm_dropout") or self._configured_lm_dropout(),
+        }
+        return {
+            f"esmfold2.effective.{name}": value
+            for name, value in sorted(effective.items())
+        }
+
+    def _configured_lm_dropout(self) -> float:
+        """The LM dropout the checkpoint's config applies when a call sets none.
+
+        The release model drops out per loop only when its LM encoder config
+        asks for it; the experimental model's shim applies its configured rate
+        on every fold.
+        """
+        config = self.config
+        encoder = getattr(config, "lm_encoder", None)
+        if encoder is not None and getattr(config, "type", None) != "experimental":
+            rate = float(getattr(encoder, "lm_dropout", 0.0) or 0.0)
+            return rate if getattr(encoder, "per_loop_lm_dropout", False) else 0.0
+        return float(getattr(config, "lm_dropout", 0.0) or 0.0)
+
     def _call_record(
         self, spi: Any, kwargs: dict[str, Any], lm_source: str
     ) -> dict[str, Any]:
         """This call's ``esmfold2.*`` entries: what was asked, what ran, on what.
 
-        ``esmfold2.fold.<name>`` is every argument the fold ran with, upstream's
-        defaults included. ``esmfold2.effective.*`` resolves the two a request
-        can leave to the checkpoint: ``num_loops=None`` is the checkpoint's
-        count, and ``lm_mask_pct=None`` its fraction when the backbone runs; with
-        supplied states no mask is applied at the fold, which is recorded as
-        ``None``. :func:`input_record` names every entity folded and every
+        ``esmfold2.fold.<name>`` is every argument of upstream's ``fold`` call,
+        its defaults included -- what was requested. ``esmfold2.effective.*``
+        is what the model executed with, every ``None`` resolved against the
+        live module (:meth:`_effective_settings`). :func:`input_record` names every entity folded and every
         condition by digest, so a record says which sequence and which
         alignment ran, not only where they came from.
         """
         args = self._fold_arguments(kwargs)
-        num_loops = args.get("num_loops")
-        if num_loops is None:
-            num_loops = self.config.num_loops
-        if lm_source == "model":
-            lm_mask_pct = args.get("lm_mask_pct")
-            if lm_mask_pct is None:
-                lm_mask_pct = self.config.lm_mask_pct
-        else:
-            lm_mask_pct = None
-        return {
-            **{f"esmfold2.fold.{name}": value for name, value in sorted(args.items())},
-            "esmfold2.effective.num_loops": int(num_loops),
-            "esmfold2.effective.lm_mask_pct": lm_mask_pct,
-            "esmfold2.lm_source": lm_source,
-        } | input_record(spi)
+        return (
+            {f"esmfold2.fold.{name}": value for name, value in sorted(args.items())}
+            | self._effective_settings(args, lm_source)
+            | {"esmfold2.lm_source": lm_source}
+            | input_record(spi)
+        )
 
     def _fold_arguments(self, kwargs: dict[str, Any]) -> dict[str, Any]:
         """What ``ESMFold2InputBuilder.fold`` runs with: its defaults, then ``kwargs``.
@@ -1089,9 +1202,10 @@ class AtomWorksESMFold2:
         """
         import torch
 
+        resolved = Path(getattr(self, "weights_resolved", self.weights))
         checkpoint = (
-            paths.checkpoint_identity(Path(self.weights))
-            if Path(self.weights).is_dir()
+            paths.checkpoint_identity(resolved)
+            if resolved.is_dir()
             else {"repo": self.weights, "revision": ""}
         )
         device = self._placement()
@@ -1100,15 +1214,24 @@ class AtomWorksESMFold2:
         )
         return {
             "esmfold2.weights": self.weights,
+            "esmfold2.weights_resolved": str(resolved),
             "esmfold2.checkpoint.repo": checkpoint.get("repo", ""),
             "esmfold2.checkpoint.revision": checkpoint.get("revision", ""),
-            "esmfold2.checkpoint.versioning": checkpoint.get("versioning", "hub-id"),
+            "esmfold2.checkpoint.versioning": checkpoint.get(
+                "versioning", "unresolved"
+            ),
             "esmfold2.checkpoint.config_sha256": checkpoint.get("config_sha256", ""),
             "esmfold2.device": str(device),
             "esmfold2.device_name": device_name,
             "esmfold2.torch": torch.__version__,
             "esmfold2.torch_cuda": str(torch.version.cuda),
             "esmfold2.config_type": str(getattr(self.config, "type", "release")),
+            # Numerics the wrapper chose at construction: the backbone's
+            # precision (bf16 or fp8) changes the LM states; the chunk size and
+            # kernel backend change the order of reductions.
+            "esmfold2.esmc_precision": str(getattr(self, "esmc_precision", "")),
+            "esmfold2.chunk_size": str(getattr(self, "chunk_size", "")),
+            "esmfold2.kernel_backend": str(getattr(self, "kernel_backend", "")),
             # Which packaging supplied the module; the two are different code
             # paths, so a result is only comparable against one of them.
             "esmfold2.flavour": self.flavour,

@@ -119,6 +119,16 @@ def test_the_experimental_signature_is_respected(models):
     assert net.calls == [(source,)]
 
 
+def test_an_unmirrored_hub_backbone_is_loaded_from_its_snapshot(models, monkeypatch):
+    """Resolved before loading, so the directory -- and its revision -- is known."""
+    hub = pytest.importorskip("esm.models.hub")
+    snapshot = models / "snapshot-of-otherorg-ESMC"
+    monkeypatch.setattr(hub, "resolve_model_dir", lambda source: str(snapshot))
+    net = _ReleaseNet(esmc_id="otherorg/ESMC-6B")
+    assert attach_esmc(net) == str(snapshot)
+    assert net.calls == [(str(snapshot), "bf16")]
+
+
 # -- ccd_dir -----------------------------------------------------------------
 
 

@@ -59,16 +59,20 @@ off. `AtomWorksESMFold2.supports_soft_sequence_design` reports the first half,
 `ESMFold2Trainer` checks the real condition against the assembled inputs on
 every step, not just the checkpoint flavour once at construction.
 
-## Sampler knobs that do nothing
+## Sampler knobs reach the model only if its `forward` declares them
 
-`ESMFold2InputBuilder.fold()` accepts `noise_scale`, `step_scale`,
-`max_inference_sigma` and `early_exit`, forwards them into `forward(**kwargs)`,
-and the release `forward` does not declare them — so they are discarded. The
-sampler is called with hardcoded defaults. Only `lm_mask_pct` is a real
-parameter. (`early_exit` *is* honoured by the experimental model.)
-
-They are therefore **not** exposed as config keys; `AtomWorksESMFold2.fold` warns
-if they are passed. Set them on `config.structure_head` instead.
+`ESMFold2InputBuilder.fold()` accepts `noise_scale`, `step_scale` and
+`max_inference_sigma` and forwards each one that is set. esm >= 3.4 declares
+all three on `forward` and hands them to the structure head's sampler; the
+`transformers` fork of esm <= 3.3 did not, and dropped them. So
+`AtomWorksESMFold2.fold` reads the loaded module's own `forward` signature
+and warns about any knob it would drop, rather than assuming either
+packaging. The three are typed fields of `FoldingConfig` and keys of the
+engine's Hydra config (`configs/inference_engine/base.yaml`), `null` by
+default. Left unset, the two scales and the step count come from the
+structure head's config and the sigma cap from `forward`'s default -- which
+the call record states as `esmfold2.effective.*` (below). `early_exit` is
+deprecated upstream and ignored by `fold` with a warning of its own.
 
 ## The LM prior is part of the model
 
@@ -114,9 +118,17 @@ where the directory says, by Hub repo and revision
 (`esmfold2.checkpoint.repo`/`.revision`, read by `paths.checkpoint_identity`
 through the workspace pin into the Hugging Face store), with
 `esmfold2.checkpoint.versioning` saying which answer applies -- `hub-snapshot`,
-`hub-local-dir`, `unversioned` for a directory whose name is all there is (its
-repo and revision stay empty rather than read off the name), or `hub-id` for
-weights named by Hub id -- and `esmfold2.checkpoint.config_sha256`, the digest
+`hub-local-dir`, or `unversioned` for a directory whose name is all there is
+(its repo and revision stay empty rather than read off the name). Weights
+named by Hub id are resolved to their snapshot in the Hugging Face store
+before loading (upstream's `resolve_model_dir`, the step `from_pretrained`
+takes anyway), so the revision that ran is known;
+`esmfold2.weights` keeps what was asked for and `esmfold2.weights_resolved`
+the directory read. A separate ESMC backbone without a mirror is resolved the
+same way. The numerics the wrapper chose at construction are recorded too:
+`esmfold2.esmc_precision` (bf16 or fp8 changes the LM states),
+`esmfold2.chunk_size` and `esmfold2.kernel_backend` (both change the order of
+reductions); a change made later directly on `.net` is not tracked. Alongside, and `esmfold2.checkpoint.config_sha256`, the digest
 of its `config.json`, which names the architecture and defaults but not the
 weights; the same for a separately attached ESMC backbone; the device the
 module's parameters are on, read off the module rather than the process's
@@ -129,9 +141,14 @@ the call's own entries:
 - `esmfold2.fold.<name>`: every argument the fold ran with, upstream's defaults
   included, read off its signature -- so `num_sampling_steps=8` and `100` are
   visibly different calls, and a default upstream changes is the one recorded.
-- `esmfold2.effective.num_loops` and `.lm_mask_pct`: what a request left to the
-  checkpoint resolved to. With supplied LM states no mask is applied at the
-  fold, recorded as `None`.
+- `esmfold2.effective.<name>`: what the model executed with -- every setting a
+  request left to the checkpoint resolved against the live module, as the
+  pinned upstream forward resolves it: loop and sample counts from the config;
+  step count, noise and step scale from the structure head; the sigma cap from
+  `forward`'s default; MSA depth and column-mask rate from the MSA encoder's
+  config; the mask fraction from the config when the backbone runs (`None`
+  with supplied states); LM dropout from the config when the call sets none.
+  `esmfold2.fold.*` is the request, this is the execution.
 - `esmfold2.lm_source`: `model` or `caller-supplied`; with supplied states,
   `esmfold2.lm_states` names them by a full SHA-256 of their bytes, shape and
   dtype, hashed in chunks before the fold, so two different states cannot

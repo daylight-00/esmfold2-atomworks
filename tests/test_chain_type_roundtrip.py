@@ -62,3 +62,25 @@ def test_chains_are_matched_under_the_adapters_chain_key():
     source = _atoms(["A1", "B1"], [POLYPEPTIDE_L, RNA], key="chain_iid")
     out = copy_chain_types(_atoms(["A1", "B1"]), source, chain_key="chain_iid")
     assert out.chain_type.tolist() == [POLYPEPTIDE_L, RNA]
+
+
+def test_fold_atom_array_copies_under_a_non_default_chain_key(monkeypatch):
+    """The whole plumbing, not just the helper: chain_key reaches the copy."""
+    from test_roundtrip_ligand_name import _Result
+
+    from esmfold2_atomworks.model.esmfold2 import AtomWorksESMFold2
+
+    model = AtomWorksESMFold2.__new__(AtomWorksESMFold2)
+    monkeypatch.setattr(model, "fold", lambda spi, **kwargs: _Result(), raising=False)
+    monkeypatch.setattr(
+        "esmfold2_atomworks.data.atomworks_to_esm.atom_array_to_structure_prediction_input",
+        lambda atoms, **kwargs: object(),
+    )
+    # The decoded complex names its chains A and B; the source keys them by
+    # chain_iid, with a chain_id that would match nothing.
+    source = _atoms(["A", "B"], [POLYPEPTIDE_L, NON_POLYMER], key="chain_iid")
+    folded, _ = model.fold_atom_array(source, adapter_kwargs={"chain_key": "chain_iid"})
+    by_chain = dict(
+        zip(folded.chain_id.tolist(), folded.chain_type.tolist(), strict=True)
+    )
+    assert by_chain == {"A": POLYPEPTIDE_L, "B": NON_POLYMER}

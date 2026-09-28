@@ -8,6 +8,7 @@ reproduce -- is a survey, not a pass/fail gate.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -27,7 +28,9 @@ class ParityOutcome:
 
 
 def _native_counterpart(spi: Any, chain_info: dict) -> Any:
-    """Rebuild *spi* with sequences re-read from ``chain_info``.
+    """*spi* with its chains' sequences re-read from ``chain_info``.
+
+    Every other field (covalent bonds, conditioning) is kept as it is.
 
     **This is a self-consistency check, not an independent one**, and the
     difference matters. Chain ids, ligand CCD codes and modifications are taken
@@ -47,7 +50,6 @@ def _native_counterpart(spi: Any, chain_info: dict) -> Any:
         LigandInput,
         ProteinInput,
         RNAInput,
-        StructurePredictionInput,
     )
 
     def canonical(chain_id: str) -> str | None:
@@ -69,7 +71,7 @@ def _native_counterpart(spi: Any, chain_info: dict) -> Any:
             )
         else:
             entries.append(LigandInput(id=entry.id, smiles=entry.smiles, ccd=entry.ccd))
-    return StructurePredictionInput(sequences=entries)
+    return replace(spi, sequences=entries)
 
 
 def parity_for_structure(path: Path, *, seed: int = 0) -> ParityOutcome:

@@ -293,13 +293,23 @@ the later token, and a span claiming none would drop a residue that
 `result.complex.plddt` still counts. The polymer/ligand split is the model's own
 hetero flags, never a CCD lookup.
 
+Ligand names are restored per chain. ESMFold2 writes `LIG` on a ligand it was
+given as SMILES, and anything that matches ligands by name needs the caller's
+name instead. `fold_atom_array` gives each chain declared with a `LigandSpec`
+that spec's `residue_name` (`apply_ligand_labels`), so a ligand, a cofactor and
+an ion beside it keep their own names. A declaration of several CCD components
+has no single name — they are several residues — so `residue_name` is refused
+there and the chain is left as the model wrote it (see below).
+
 `ligand_residue_name` — on `result_to_atom_array`, and on `fold_atom_array`,
-which passes it through — gives **every** hetero residue the caller's name in
-place of ESMFold2's `LIG`. ESMFold2 marks each non-polymer chain hetero and
-nothing else, so an ion or cofactor beside the ligand is renamed with it: the
-option is for an output whose hetero residues are all one molecule. For
-several, convert without it and relabel chain by chain. A name longer than a
-residue name's five characters raises rather than being truncated.
+which passes it through — is the blanket form: **every** hetero residue gets
+the caller's name. ESMFold2 marks each non-polymer chain hetero and nothing
+else, so an ion or cofactor beside the ligand is renamed with it; the option is
+for an output whose hetero residues are all one molecule. Given together with
+`LigandSpec`s, it is accepted only if it restates every declared chain's label
+— a spec's default label counts, and a multi-component declaration has none —
+and refused rather than overriding a declaration otherwise. A name longer than a residue name's five
+characters raises rather than being truncated.
 
 `chain_type` is not something `G` can write: the model's output knows polymer
 from non-polymer, not an L- from a D-polypeptide or DNA from RNA, so
@@ -313,6 +323,30 @@ into a `ChainType`, which would state more than the declaration did. Residue
 numbering is a separate matter -- the output numbers each chain from 1, and
 the folded sequence can include residues the source never resolved, so the
 source's `res_id` and insertion codes do not map back one to one.
+
+### What `G` does not return
+
+The output is the predicted geometry and atom-level labels — coordinates,
+atom names, elements, residue names, chains, polymer/non-polymer — and not the
+molecule's topology. Two things a source structure can carry do not come back:
+
+- **Bonds.** The returned `AtomArray` has no `BondList`. `MolecularComplex`
+  records none, so nothing the model reports would support one. Rebuilding only
+  the covalent bonds the input declared would produce a `BondList` that looks
+  complete and is not — no bond inside a residue, no peptide bond — which is
+  worse than none for a consumer that reads its presence as the topology. The
+  returned structure alone does not hold enough to recover every bond: a
+  declared cross-link between residues, or a SMILES ligand's bond orders, is
+  not implied by atom names and elements. A consumer that needs topology
+  rebuilds it from an authoritative chemistry source — the CCD, the input's
+  `LigandSpec`s and covalent bonds — not from the output.
+- **Components of a multi-component ligand.** A non-polymer chain declared as
+  several CCD components — a glycan, or `7ubd`'s cyclic D-peptide as one
+  eight-component ligand — is tokenized component by component, but ESMFold2's
+  output builder returns each non-polymer chain as one residue named by its
+  first component. The atoms are all there; the residue boundaries between
+  them are not. That is upstream behaviour, recorded here so a round trip is not
+  read as preserving them.
 
 ## The report
 

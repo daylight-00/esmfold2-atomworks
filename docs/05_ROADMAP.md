@@ -14,7 +14,8 @@ build on this repository keep their own.
   non-deterministic scatter characterized separately.
 - **esm ≥ 3.4**, verified on CPU and GPU — as was the esm ≤ 3.3 `transformers`
   fork while it was still published.
-- **Inference**: engine, CLI, configs, AtomWorks round trip.
+- **Inference**: engine, CLI, configs, AtomWorks round trip — atoms, names and
+  chains, not topology ([01](01_ADAPTER.md), "What `G` does not return").
 - **Covalent bonds** carried across, with indices read back from the tokenizer.
 - **MSA** transfer and cross-chain pairing by `key=<taxid>`.
 - **Nucleic acid and SMILES branches** covered.
@@ -34,6 +35,27 @@ it is validation that continues rather than a missing piece.
 **Corpus coverage.** `esmfold2-atomworks parity <dir>/*.cif` over a larger set,
 to enumerate the chain types and ligands the adapter cannot yet express. The
 useful output is the failure list, not the pass rate.
+
+## Limited by an upstream
+
+Each of these is a gap in what an upstream records, so the fix belongs there;
+this repository documents it and refuses rather than guesses meanwhile.
+
+- **Residue boundaries of a multi-component ligand** (esm). ESMFold2's output
+  builder returns each non-polymer chain as one residue, although its
+  tokenizer keeps the component index of every atom. Once it returns one
+  residue per component, each declared component comes back under its own code
+  with no change here.
+- **Bonds in the output** (esm). `MolecularComplex` has no bond field, so the
+  returned structure carries none.
+- **Insertion-coded positions in PDB files** (AtomWorks). Parsed from a PDB
+  file, `res_id` is the author numbering and `chain_info` lists a repeated
+  number once per insertion code with no code beside it, so covalent bonds and
+  labels on such a chain are refused or skipped. AtomWorks' parser also drops
+  the coordinates of all but one residue sharing a number, restoring them as
+  unresolved, so such a chain's labels would be wrong even if placed. mmCIF
+  input is unaffected
+  ([02](02_PARITY.md), "Chains whose insertion codes cannot be placed").
 
 ## Missing for training
 

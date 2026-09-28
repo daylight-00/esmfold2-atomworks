@@ -17,44 +17,63 @@ structure:
 
 ## Corpus survey
 
-`esmfold2-atomworks parity` over every structure in the AtomWorks test corpus:
+`esmfold2-atomworks parity` over every structure file under AtomWorks'
+`tests/data` (17 at the pinned revision):
 
 ```
-[ok ] 6lyz.bcif                           all 29 tensors identical
-[ok ] 2hhb.cif.gz                         all 29 tensors identical
-[ok ] 1a8o_modified.cif                   all 29 tensors identical
-[ok ] 101m_arginine_nh1nh2_swapped.cif    all 29 tensors identical
-[ok ] 8cjg_from_af3.cif                   all 29 tensors identical
-[ok ] test_cif_loading_4q8n.cif.gz        all 29 tensors identical
-[ok ] 1qfe.pdb                            all 29 tensors identical
-[ok ] 7ubd_from_af3.cif                   all 29 tensors identical
-[ok ] UniRef50_..._AF2_predicted.pdb      all 29 tensors identical
+[ok ] 101m_arginine_nh1nh2_swapped.cif           all 29 tensors identical
+[ok ] 1a8o_modified.cif                          all 29 tensors identical
+[ok ] 1qfe.pdb                                   all 29 tensors identical
+[ok ] 2hhb.cif.gz                                all 29 tensors identical
+[ok ] 6lyz.bcif                                  all 29 tensors identical
+[ok ] 7ubd_from_af3.cif                          all 29 tensors identical
+[ok ] 8cjg_from_af3.cif                          all 29 tensors identical
+[ok ] example_conditional_generation_output.cif  all 29 tensors identical
+[ok ] test_cif_loading_4q8n.cif.gz               all 29 tensors identical
+[ok ] UniRef50_A0A0S8JQ92_AF2_predicted.pdb      all 29 tensors identical
+[ok ] UniRef50_A0A1H9L980.cif                    all 29 tensors identical
+[ok ] UniRef50_A0A1Q4X5U9.cif                    all 29 tensors identical
+[ok ] UniRef50_UPI000A006E95.cif                 all 29 tensors identical
 [FAIL] 9cox_with_unknown_ccd.cif          LigandIdentityError: chain 'C' is labelled ['UNKNOWN_CCD']
 [FAIL] example_distillation_output.cif    LigandIdentityError: chain 'B' is labelled ['UNL']
+[FAIL] example_ncaa.cif                   LigandIdentityError: chain 'B' is labelled ['C:0']
+[FAIL] test_unl_ligand_with_bonds.cif     LigandIdentityError: chain 'A' is labelled ['UNL']
 
-feature parity: 9/11 structures reproduce
+feature parity: 13/17 structures reproduce
 ```
 
-Both failures are **correct refusals**, not gaps:
+The four failures are **correct refusals**, not gaps:
 
 - `9cox_with_unknown_ccd` carries a residue named `UNKNOWN_CCD`, which is not in
   the component dictionary, so it cannot be used as a CCD code and there is no
   chemistry to fold. The adapter checks the name against the CCD and refuses it
-  by name; previously it was passed through and failed inside the featurizer
-  with `CCD component UNKNOWN_CCD not found`, which named neither the chain nor
-  the remedy. The same check catches AtomWorks' placeholder names for ligands
-  built from SMILES or an SDF (`L:0`, `C:0`).
-- `example_distillation_output` carries a `UNL` ligand, which D-004 refuses.
-  Declaring it with a `LigandSpec` makes it fold — `tests/` asserts exactly that
-  round trip.
+  by name, rather than letting it fail inside the featurizer with
+  `CCD component UNKNOWN_CCD not found`, which names neither the chain nor the
+  remedy.
+- `example_ncaa` carries `C:0`, AtomWorks' placeholder name for a component
+  built from SMILES or an SDF; the same check catches it.
+- `example_distillation_output` and `test_unl_ligand_with_bonds` carry `UNL`
+  ligands, which D-004 refuses. Declaring one with a `LigandSpec` makes it
+  fold — `tests/` asserts exactly that round trip.
 
 That distinction is the reason the survey prints the exception rather than a
-count: a refusal and a bug look the same in a pass rate.
+count: a refusal and a bug look the same in a pass rate. For the same reason
+`tests/test_corpus_survey.py` pins each file's outcome — reproduces, or refused
+with the named error on the named chain — and fails on a corpus file it does not
+classify, so a new AtomWorks revision shows up as a test to update rather than
+a stale table.
 
-Coverage in the nine that pass: PDB and mmCIF and binary CIF, monomer and
-multimer, an AFDB-style prediction, four cofactor/metal ligand types
-(HEM, FAD, UV3, ZN, NBN, DHS), D-amino acids as a non-polymer chain (`7ubd`),
-and four selenomethionines (`1a8o`).
+The survey is a self-consistency check, not an independent one: its reference
+side is the adapter's own input with the sequences re-read from `chain_info`
+(`parity/run.py`). It finds structures the adapter cannot process; it does not
+prove that the ones it can are right. That is what the gold fixtures above are
+for.
+
+Coverage in the thirteen that pass: PDB and mmCIF and binary CIF, monomer and
+multimer, AFDB-style predictions, cofactor/metal ligands (HEM, FAD, UV3, ZN,
+NBN), a covalently bound ligand on each of two chains (DHS on `1qfe`), a cyclic
+D-peptide given as one eight-component non-polymer chain (`7ubd`), and four
+selenomethionines (`1a8o`).
 
 Reproduce with:
 
@@ -78,10 +97,12 @@ rather than known-good.
 |---|---|
 | protein monomer | exact feature parity |
 | protein multimer | exact feature parity |
-| CCD ligand / cofactor / metal | exact feature parity (HEM, FAD, UV3, ZN, NBN, DHS) |
+| CCD ligand / cofactor / metal | exact feature parity (HEM, FAD, UV3, ZN); survey only for NBN and DHS |
 | modified residue | exact feature parity (4 × MSE, positions asserted) |
-| D-amino acids | exact feature parity (`7ubd`) |
-| covalent bond | carried and placed; changes `token_bonds` and nothing else. Backbone adjacency judged by residue order, so an insertion-coded peptide bond is not declared; an unplaceable bond raises |
+| D-amino acids as a non-polymer chain | survey only (`7ubd`): self-consistent, not compared against a frozen input |
+| D-polypeptide chain (`POLYPEPTIDE_D`) | implemented, not exercised: no fixture carries one |
+| multi-component non-polymer chain | survey only (`7ubd`, eight components); returned as one residue (docs/01, "What `G` does not return") |
+| covalent bond | survey only for deposited bonds (`1qfe`, `7ubd`); carried and placed; changes `token_bonds` and nothing else. Backbone adjacency judged by residue order, so an insertion-coded peptide bond is not declared; an unplaceable bond raises |
 | MSA, single chain | exact feature parity against a hand-written input |
 | MSA, paired heteromer | pairing verified by row content, not just shape |
 | MSA binding | refused unless the query row is the folded sequence, which upstream would clamp into place; lookup by chain id verified by swapping alignments between identical chains |
@@ -291,12 +312,16 @@ applied, and the record does not claim otherwise.
   declared as SMILES on one side and CCD on the other will differ in `ref_pos`
   legitimately. `compare_features` takes `atol` for this case.
 - **Chains whose insertion codes cannot be placed.** `chain_info` records no
-  insertion code, so for a chain numbered 100/100A/100B whose sequence comes
-  from there, residues cannot be tied to sequence positions. The fold input is
-  unaffected, but the chain's labels are skipped (and named in
+  insertion code. From mmCIF that does not matter: AtomWorks' `res_id` is
+  `label_seq_id`, one number per position, so an insertion-coded chain maps
+  like any other (thrombin, `1PPB`: its covalently bound inhibitor's bonds to
+  His57 and Ser195 are placed). From a PDB file `res_id` is the author
+  numbering, where 100/100A/100B share a number and `chain_info` repeats it, so
+  residues cannot be tied to sequence positions. For such a chain the fold
+  input is unaffected, but its labels are skipped (and named in
   `label_skipped_chains`) and a covalent bond on it raises as unplaceable,
   rather than either being attached to whichever residue happened to be
-  written last.
+  written last. The mmCIF form of the same entry avoids it.
 - **Anything with a `chain_type` the mapping does not know.** Raises
   `UnsupportedChainError` rather than being folded; it can be dropped by name
   (`allow_unsupported_chains`).

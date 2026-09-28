@@ -17,6 +17,7 @@ index table; nothing here is inferred that the model did not report.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -25,6 +26,7 @@ if TYPE_CHECKING:
     from biotite.structure import AtomArray
 
 __all__ = [
+    "apply_ligand_labels",
     "check_residue_name",
     "copy_chain_types",
     "molecular_complex_to_atom_array",
@@ -178,7 +180,8 @@ def rename_ligand_residues(atoms: AtomArray, residue_name: str) -> AtomArray:
     **Every** hetero residue: ESMFold2 marks each non-polymer chain hetero and
     nothing else (a modified polymer residue is not), so an ion or a cofactor
     beside the ligand is renamed with it. This is for an output whose hetero
-    residues are all one molecule. For several, relabel chain by chain.
+    residues are all one molecule. For several, declare each chain with a
+    ``LigandSpec`` and use :func:`apply_ligand_labels`.
 
     Raises:
         ValueError: a name a residue name cannot hold -- empty, or longer than
@@ -192,6 +195,34 @@ def rename_ligand_residues(atoms: AtomArray, residue_name: str) -> AtomArray:
         res_name = np.asarray(result.res_name, dtype="U5").copy()
         res_name[mask] = residue_name
         result.set_annotation("res_name", res_name)
+    return result
+
+
+def apply_ligand_labels(structure: AtomArray, ligands: Mapping[str, Any]) -> AtomArray:
+    """Give each declared ligand chain its ``LigandSpec.label``, as a copy.
+
+    *ligands* maps output chain labels to specs. A multi-component declaration
+    has no label and is left as the model wrote it.
+
+    Raises:
+        ValueError: a declared chain missing from the output or holding
+            polymer atoms.
+    """
+    chains = np.asarray(structure.chain_id).astype(str)
+    hetero = np.asarray(structure.hetero, dtype=bool)
+    res_name = np.asarray(structure.res_name, dtype="U5").copy()
+    for chain, spec in ligands.items():
+        label = spec.label
+        if label is None:
+            continue
+        mask = chains == str(chain)
+        if not mask.any():
+            raise ValueError(f"ligand chain {chain!r} is not in the folded structure")
+        if not hetero[mask].all():
+            raise ValueError(f"ligand chain {chain!r} holds polymer atoms")
+        res_name[mask] = label
+    result = structure.copy()
+    result.set_annotation("res_name", res_name)
     return result
 
 

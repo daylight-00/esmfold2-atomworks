@@ -132,9 +132,9 @@ class LigandSpec:
         chain_id: chain label in the source ``AtomArray``.
         smiles: SMILES string; ESMFold2 generates a conformer from it.
         ccd: one or more CCD codes, for a ligand that genuinely is a CCD entry.
-        residue_name: label to write on the resulting atoms. Defaults to the
-            first CCD code, or to ``LIG`` for a SMILES ligand -- matching what
-            ESMFold2 itself emits.
+        residue_name: the residue name ``fold_atom_array`` writes on this
+            chain. Defaults to the CCD code, or ``LIG`` for SMILES (what
+            ESMFold2 emits). Refused with several CCD components.
         expected_formula: heavy-atom composition to verify against. Optional;
             when given, :meth:`verify_against` enforces it.
     """
@@ -153,13 +153,24 @@ class LigandSpec:
             )
         if self.ccd is not None and not self.ccd:
             raise ValueError(f"ligand {self.chain_id!r}: ccd= is empty")
+        if self.residue_name is not None:
+            from esmfold2_atomworks.data.molecular_complex import check_residue_name
+
+            check_residue_name(self.residue_name)
+            if self.ccd is not None and len(self.ccd) > 1:
+                raise ValueError(
+                    f"ligand {self.chain_id!r}: one residue_name cannot label "
+                    f"{len(self.ccd)} CCD components"
+                )
 
     @property
-    def label(self) -> str:
-        """The residue name to write on these atoms."""
+    def label(self) -> str | None:
+        """The residue name to write on these atoms; ``None`` for several components."""
         if self.residue_name is not None:
             return self.residue_name
-        return self.ccd[0] if self.ccd else "LIG"
+        if self.ccd is None:
+            return "LIG"
+        return self.ccd[0] if len(self.ccd) == 1 else None
 
     def verify_against(self, atoms: AtomArray) -> None:
         """Check *atoms* against the declaration, raising on disagreement.

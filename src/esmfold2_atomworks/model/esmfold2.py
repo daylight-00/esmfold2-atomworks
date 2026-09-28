@@ -1142,9 +1142,12 @@ class AtomWorksESMFold2:
                 caller's. **Every** hetero residue means every non-polymer
                 chain, an ion or cofactor beside the ligand included, so this is
                 for an output whose hetero residues are all one molecule. For
-                several, omit it and relabel chain by chain. Checked before the
-                fold: a name longer than a residue name's five characters
-                raises rather than being truncated.
+                several, declare each with a ``LigandSpec`` in
+                ``adapter_kwargs["ligands"]``; each declared chain gets its
+                spec's label. Giving both is refused unless every declared
+                chain's label equals this name. Checked before the fold: a name longer than a
+                residue name's five characters raises rather than being
+                truncated.
             lm_hidden_states: as for :meth:`fold`.
             record: as for :meth:`fold`, plus ``esmfold2.sequence_source``:
                 where each chain's folded sequence came from
@@ -1160,18 +1163,32 @@ class AtomWorksESMFold2:
             a kind known only from ``chain_kinds`` is not turned into one.
         """
         from esmfold2_atomworks.data.atomworks_to_esm import (
+            _index_ligand_specs,
             atom_array_to_structure_prediction_input,
         )
         from esmfold2_atomworks.data.molecular_complex import (
+            apply_ligand_labels,
             check_residue_name,
             copy_chain_types,
+            rename_ligand_residues,
             result_to_atom_array,
         )
 
         _check_record(record)
+        adapter_kwargs = dict(adapter_kwargs or {})
+        ligand_specs = _index_ligand_specs(adapter_kwargs.get("ligands"))
         if ligand_residue_name is not None:
             check_residue_name(ligand_residue_name)
-        adapter_kwargs = dict(adapter_kwargs or {})
+            conflicting = sorted(
+                chain
+                for chain, spec in ligand_specs.items()
+                if spec.label != ligand_residue_name
+            )
+            if conflicting:
+                raise ValueError(
+                    f"ligand_residue_name={ligand_residue_name!r} contradicts the "
+                    f"LigandSpec of chains {conflicting}"
+                )
         if record is not None and adapter_kwargs.get("report") is None:
             from esmfold2_atomworks.data.atomworks_to_esm import AdapterReport
 
@@ -1194,7 +1211,11 @@ class AtomWorksESMFold2:
         chain_key = (adapter_kwargs or {}).get("chain_key", "chain_id")
 
         def structure(one: Any) -> AtomArray:
-            folded = result_to_atom_array(one, ligand_residue_name=ligand_residue_name)
+            folded = result_to_atom_array(one)
+            if ligand_specs:
+                folded = apply_ligand_labels(folded, ligand_specs)
+            if ligand_residue_name is not None:
+                folded = rename_ligand_residues(folded, ligand_residue_name)
             return copy_chain_types(folded, atoms, chain_key=chain_key)
 
         if isinstance(result, list):

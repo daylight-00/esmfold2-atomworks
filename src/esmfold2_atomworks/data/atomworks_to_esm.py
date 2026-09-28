@@ -36,7 +36,7 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -1046,8 +1046,6 @@ def _attach_covalent_bonds(
     because the atom indices ESM wants are positions in the tokenizer's own
     per-residue ordering (see :mod:`esmfold2_atomworks.data.bonds`).
     """
-    from esm.models.esmfold2.types import StructurePredictionInput
-
     from esmfold2_atomworks.data.bonds import (
         covalent_bond_candidates,
         resolve_covalent_bonds,
@@ -1104,11 +1102,7 @@ def _attach_covalent_bonds(
     report.unresolved_covalent_bonds = skipped
     if not bonds:
         return spi
-    return StructurePredictionInput(
-        sequences=list(spi.sequences),
-        distogram_conditioning=spi.distogram_conditioning,
-        covalent_bonds=bonds,
-    )
+    return replace(spi, covalent_bonds=bonds)
 
 
 def _residue_index_map(
@@ -1126,33 +1120,33 @@ def _residue_index_map(
     Two sources, and which one is usable depends on the chain:
 
     * ``chain_info`` lists every residue of the entity, including those never
-      resolved, which is what makes it the right basis for the sequence. But it
-      carries **no insertion code**, so for a chain that uses them it cannot say
-      which of ``100``/``100A`` a given entry is.
+      resolved, which is what makes it the right basis for the sequence. It
+      carries ``res_id`` but no insertion code.
     * The observed residues carry both, but omit anything unresolved.
 
-    So when the sequence came from ``chain_info`` *and* the chain uses insertion
-    codes, the two cannot be reconciled here. That chain is left out of the map
-    and named in the report, rather than silently attached to whichever residue
-    happened to overwrite the others: a bond on it then fails to resolve --
-    which raises unless unresolved bonds are accepted -- and its labels are
-    skipped with a reason.
+    From mmCIF, ``res_id`` is ``label_seq_id`` and names a residue on its own;
+    from a PDB file it is the author numbering, which repeats across insertion
+    codes. A chain whose ``res_id`` repeats on either side is left out of the
+    map and named in the report rather than guessed: a bond on it then fails
+    to resolve, and its labels are skipped with a reason.
     """
     mapping: dict[tuple[str, int, str], int] = {}
     for record in records:
-        observed_uses_ins_codes = any(code for code in record.ins_codes)
-
         entry = _chain_info_entry(chain_info, record.chain_id)
         res_ids = entry.get("res_id") if entry else None
 
-        if res_ids is not None and observed_uses_ins_codes:
-            if report is not None:
-                report.unrepresentable_insertion_codes.append(record.chain_id)
-            continue
-
         if res_ids is not None:
-            for index, res_id in enumerate(res_ids):
-                mapping[(record.chain_id, int(res_id), "")] = index
+            index_of = {int(res_id): i for i, res_id in enumerate(res_ids)}
+            observed = [int(res_id) for res_id in record.residue_ids]
+            if len(index_of) < len(res_ids) or len(set(observed)) < len(observed):
+                if report is not None:
+                    report.unrepresentable_insertion_codes.append(record.chain_id)
+                continue
+            for res_id, index in index_of.items():
+                mapping[(record.chain_id, res_id, "")] = index
+            for res_id, ins_code in zip(observed, record.ins_codes, strict=False):
+                if res_id in index_of:
+                    mapping[(record.chain_id, res_id, str(ins_code))] = index_of[res_id]
             continue
 
         # No chain_info: the sequence came from the observed residues, so their

@@ -168,8 +168,48 @@ def test_the_residue_map_distinguishes_insertion_codes_without_chain_info():
     assert mapping[("A", 100, "B")] == 2
 
 
+def _label_numbered_chain():
+    """mmCIF form (e.g. 1PPB): ``res_id`` is ``label_seq_id``, author codes beside it."""
+    atoms = _chain_with_insertion_codes()
+    atoms.res_id = np.array([1, 1, 2, 2, 3, 3], dtype=int)
+    atoms.ins_code = np.array(["", "", "A", "A", "B", "B"], dtype="U1")
+    return atoms
+
+
+def test_a_label_numbered_chain_with_insertion_codes_is_mapped():
+    records = chain_records(_label_numbered_chain())
+    report = AdapterReport()
+
+    mapping = _residue_index_map(
+        records,
+        {"A": {"res_id": ["1", "2", "3", "4"], "res_name": ["CYS"] * 4}},
+        report,
+    )
+
+    assert mapping[("A", 1, "")] == 0
+    assert mapping[("A", 2, "A")] == 1
+    assert mapping[("A", 3, "B")] == 2
+    assert mapping[("A", 4, "")] == 3
+    assert report.unrepresentable_insertion_codes == []
+
+
+def test_repeated_numbers_with_the_codes_dropped_are_refused_not_guessed():
+    """AtomWorks' PDB-file parse drops the codes, leaving bare repeated numbers."""
+    atoms = _chain_with_insertion_codes()
+    atoms.ins_code = np.full(atoms.array_length(), "", dtype="U1")
+    records = chain_records(atoms)
+    report = AdapterReport()
+
+    mapping = _residue_index_map(
+        records, {"A": {"res_id": [100, 100, 100], "res_name": ["CYS"] * 3}}, report
+    )
+
+    assert mapping == {}
+    assert report.unrepresentable_insertion_codes == ["A"]
+
+
 def test_a_chain_info_backed_chain_with_insertion_codes_is_refused_not_guessed():
-    """chain_info records no insertion codes, so the alignment is unknowable.
+    """PDB-file form: author numbers repeat and chain_info has no codes.
 
     Previously the map simply overwrote, keeping the last residue -- which
     attaches labels and bonds to the wrong one without saying so.

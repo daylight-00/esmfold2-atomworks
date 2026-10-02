@@ -56,6 +56,13 @@ this repository documents it and refuses rather than guesses meanwhile.
   unresolved, so such a chain's labels would be wrong even if placed. mmCIF
   input is unaffected
   ([02](02_PARITY.md), "Chains whose insertion codes cannot be placed").
+- **`lm_dropout=0`** (esm). `fold` documents `0` as switching the LM dropout
+  off, but upstream treats `0` like `None` and leaves the checkpoint's rate,
+  `0.25` in the released ESMFold2 and ESMFold2-Fast configs
+  ([Biohub/esm#418](https://github.com/Biohub/esm/issues/418)).
+  `esmfold2.effective.lm_dropout` states the rate that applies, so a fold's
+  record shows it; switching the dropout off means setting it on the loaded
+  model's config.
 
 ## Missing for training
 

@@ -388,6 +388,22 @@ def test_release_lm_dropout_applies_only_per_loop():
     assert model._configured_lm_dropout() == 0.0
 
 
+def test_the_reported_lm_dropout_is_the_rate_upstream_applies():
+    """Upstream's ``_lm_dropout_context`` decides what runs; the record must agree.
+
+    It leaves the checkpoint's rate for ``0``, so a request of ``0`` reports the
+    configured one. When upstream makes ``0`` switch the dropout off this fails,
+    and the report in ``_effective_settings`` is what to change.
+    """
+    context = pytest.importorskip("esm.models.esmfold2.processor")._lm_dropout_context
+    model = _live(lm_encoder=SimpleNamespace(lm_dropout=0.1, per_loop_lm_dropout=True))
+    for requested in (None, 0.0, 0.3):
+        with context(model.net, requested):
+            applied = model.net.config.lm_encoder.lm_dropout
+        entries = model._effective_settings({"lm_dropout": requested}, "model")
+        assert entries["esmfold2.effective.lm_dropout"] == applied
+
+
 def test_experimental_lm_dropout_is_its_configured_rate():
     model = _live(type="experimental", lm_dropout=0.25)
     assert model._configured_lm_dropout() == 0.25

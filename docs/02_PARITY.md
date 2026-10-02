@@ -279,14 +279,16 @@ which would need a separate process started without the variable.
 
 These describe one pair of runs on this device and stack; the scatter varies
 from run to run, with the input, and with the schedule in no fixed direction,
-so they characterize its size rather than bound it. `lm_dropout` is not
-the cause: it defaults to `0.3` and stays active at inference on purpose (it
-is the ensembling mechanism), but measured on the reference checkpoint,
-setting it to `0` left the scatter where it was -- its mask is drawn from the
-seeded RNG like everything else. What removed the scatter here is turning
-torch's deterministic algorithms on under that workspace, which is why the
-parity check runs with both, and why a scatter budget -- only as tight as the scatter happens to be on
-the input at hand -- is not used as one.
+so they characterize its size rather than bound it. `lm_dropout` defaults to
+`0.3` and stays active at inference on purpose (it is the ensembling
+mechanism). Its mask is drawn from the seeded RNG like everything else, but
+whether it contributes to this scatter is not established: a run with
+`lm_dropout=0` showed the same scatter, yet `0` is no control, because upstream
+leaves the checkpoint's own rate in place for it
+([05](05_ROADMAP.md), "Limited by an upstream"). What removed the scatter here
+is turning torch's deterministic algorithms on under that workspace, which is
+why the parity check runs with both, and why a scatter budget -- only as tight
+as the scatter happens to be on the input at hand -- is not used as one.
 
 `test_nondeterministic_scatter_is_characterized` prints the measurement and
 asserts only the bookkeeping: atom names and order are not sampled, so they

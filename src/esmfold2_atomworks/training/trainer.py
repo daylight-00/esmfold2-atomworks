@@ -89,16 +89,17 @@ def make_trainer_class() -> Any:
             """Instantiate the wrapper and register its native module.
 
             Foundry's base implementation instantiates ``train_cfg.model.net``
-            and optionally wraps it in EMA. ESMFold2's architecture comes from
-            the checkpoint rather than from config, so this instantiates the
-            wrapper and registers ``wrapper.net`` -- the actual ``nn.Module`` --
-            as the trainer's model, keeping optimizer and checkpoint handling
-            pointed at real parameters.
+            and optionally wraps it in EMA; ``train_cfg.model.optimizer`` and
+            ``.lr_scheduler`` sit beside it. ESMFold2's architecture comes from
+            the checkpoint rather than from config, so ``model.net`` here is the
+            wrapper's config (``AtomWorksESMFold2``), and ``wrapper.net`` -- the
+            actual ``nn.Module`` -- is registered as the trainer's model, keeping
+            optimizer and checkpoint handling pointed at real parameters.
             """
             import hydra
 
             wrapper = hydra.utils.instantiate(
-                self.state["train_cfg"].model, _recursive_=False
+                self.state["train_cfg"].model.net, _recursive_=False
             )
             if self.require_gradients and not wrapper.supports_soft_sequence_design:
                 raise GradientsUnavailableError(
@@ -106,6 +107,13 @@ def make_trainer_class() -> Any:
                     + " Pass require_gradients=False to run this trainer for "
                     "evaluation only."
                 )
+
+            # The language-model prior is not trained: the model computes it
+            # without autograd and feeds the trunk a detached copy. Left
+            # trainable, its parameters would sit in the optimizer, and in every
+            # checkpoint's trainable set, for nothing.
+            if wrapper.esmc is not None:
+                wrapper.esmc.requires_grad_(False)
 
             self.wrapper = wrapper
             self.initialize_or_update_trainer_state({"model": wrapper.net})

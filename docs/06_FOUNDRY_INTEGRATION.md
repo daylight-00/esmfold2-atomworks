@@ -106,3 +106,30 @@ gradient precondition
 ([03](03_MODEL.md#gradients-depend-on-the-inputs-not-only-the-checkpoint))
 against the assembled inputs on every step. What it deliberately lacks is an
 objective — see [05](05_ROADMAP.md).
+
+**Configuration.** `train_cfg.model` follows Foundry's layout: `net` is the
+wrapper's config (`_target_: esmfold2_atomworks.model.esmfold2.AtomWorksESMFold2`,
+`weights: ...`), and `optimizer` and `lr_scheduler` sit beside it, built by
+Foundry's own `construct_optimizer` and `construct_scheduler`. `construct_model`
+freezes the ESMC backbone — about 6.3 B parameters that the model runs without
+autograd and hands the trunk a detached copy of — so the optimizer's parameters
+are the trunk, embedders and heads (about 226 M for the experimental
+checkpoint).
+
+**What can be trained.** The experimental `forward` turns autograd on when it is
+given a soft sequence (`res_type_soft`, `[L, 33]`) and returns `distogram_logits`
+with a gradient path through the trunk. The diffusion sampler runs under
+`torch.no_grad()`, so a coordinate or diffusion loss reaches nothing: the trainable
+objective is on the trunk's distogram, or on the soft sequence. The pipeline's
+`attach_labels=True` supplies target coordinates, and the example has to carry
+`res_type_soft`.
+
+**A run.** `scripts/smoke_training_step.py` takes steps through Foundry's `fit`
+loop on one GPU — the experimental checkpoint built by `construct_model`, one
+AtomWorks structure through the pipeline, an AdamW optimizer, and a distogram
+cross-entropy against the structure's own coordinates — and checks that each loss
+is finite, every step has gradients, and the trunk's parameters change.
+[`reproducibility/training_smoke.json`](../reproducibility/training_smoke.json)
+records a run; `tests/test_training_gpu.py` repeats it under `pytest -m gpu`. The
+objective there is the script's own, and its bin range is its choice, not the
+checkpoint's.

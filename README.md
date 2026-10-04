@@ -21,7 +21,7 @@ AtomWorks AtomArray ──adapter──> ESMFold2 (unmodified) ──adapter─�
 |---|---|
 | **AtomWorks ↔ ESMFold2** — adapter and its reverse, AtomWorks pipeline, supervision labels | done; feature parity exact on 5 fixtures |
 | **Inference** — model wrapper, engine, CLI, a provenance record per fold | done; output parity exact on a GPU under deterministic kernels |
-| **Foundry integration** (optional) — trainer, Hydra configs | contracts verified against the pinned Foundry checkout, the runtime ones also against rc-foundry 0.2.0; the objective is the caller's ([docs/05](docs/05_ROADMAP.md)) |
+| **Foundry integration** (optional) — trainer, Hydra configs | contracts verified against the pinned Foundry checkout, the runtime ones also against rc-foundry 0.2.0; training steps run on a GPU ([docs/06](docs/06_FOUNDRY_INTEGRATION.md)); the objective is the caller's ([docs/05](docs/05_ROADMAP.md)) |
 
 The core milestone is met: for monomer, multimer, metal, cofactor and
 modified-residue systems, the input the adapter derives from a structure

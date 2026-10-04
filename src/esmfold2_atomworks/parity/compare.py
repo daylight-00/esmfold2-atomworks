@@ -23,8 +23,9 @@ ipTM and the distogram from a real fold. It needs a GPU and the weights, and it
 confirms rather than diagnoses, so it is not the primary test.
 
 Running only the second is a trap: the structure head is a diffusion sampler,
-and with the default GPU kernels a seeded fold is not repeatable, so a paired
-run cannot distinguish an implementation difference from run-to-run scatter.
+and with torch's deterministic algorithms off a seeded fold is not repeatable, so
+a paired run cannot distinguish an implementation difference from run-to-run
+scatter.
 Under deterministic kernels it can, and the two paths then agree exactly
 (docs/02).
 """
@@ -46,9 +47,9 @@ __all__ = [
     "featurize",
 ]
 
-#: The feature tensors the release ``ESMFold2Model.forward`` actually declares
-#: as parameters. ``prepare_esmfold2_input`` emits 29 tensors; these 23 are the
-#: ones the model reads.
+#: The feature tensors the release ``EsmFold2Model.forward`` declares as
+#: parameters. ``prepare_esmfold2_input`` emits 29 tensors; these 25 are the
+#: ones the model reads (a set ``disto_cond_mask`` makes ``forward`` raise).
 MODEL_CONSUMED_FEATURES = frozenset(
     {
         "token_index",
@@ -74,10 +75,12 @@ MODEL_CONSUMED_FEATURES = frozenset(
         "has_deletion",
         "deletion_mean",
         "msa_attention_mask",
+        "disto_cond",
+        "disto_cond_mask",
     }
 )
 
-#: The remaining six. They are produced by the featurizer and land in
+#: The remaining four. They are produced by the featurizer and land in
 #: ``forward(**kwargs)``, where they are discarded -- ``gt_coords`` and
 #: ``is_resolved`` are zeros/False at inference by construction, and
 #: ``pocket_feature`` is zeroed unconditionally (``prepare_input.py`` marks it
@@ -88,8 +91,6 @@ TRAINING_ONLY_FEATURES = frozenset(
         "gt_coords",
         "is_resolved",
         "frames_idx",
-        "disto_cond",
-        "disto_cond_mask",
         "pocket_feature",
     }
 )
@@ -139,13 +140,14 @@ class FeatureDiff:
 
     @property
     def consumed_mismatches(self) -> list[str]:
-        """Differing tensors that ``forward`` declares as parameters."""
+        """Differing or uncomparable tensors that ``forward`` declares as parameters."""
         return sorted(
             set(
                 self._fatal(self.only_in_native)
                 + self._fatal(self.only_in_adapted)
                 + self._fatal(self.shape_mismatch)
                 + self._fatal(self.value_mismatch)
+                + self._fatal(self.uncomparable)
             )
         )
 
@@ -153,7 +155,7 @@ class FeatureDiff:
     def ok(self) -> bool:
         """True when nothing the model reads differs.
 
-        Deliberately not "nothing differs at all": six of the 29 tensors are
+        Deliberately not "nothing differs at all": four of the 29 tensors are
         discarded by ``forward``, so a difference there cannot change a
         prediction, and failing on it would make the check cry wolf.
         :attr:`identical` is the stricter statement.
@@ -168,6 +170,7 @@ class FeatureDiff:
             or self.only_in_adapted
             or self.shape_mismatch
             or self.value_mismatch
+            or self.uncomparable
         )
 
     def report(self) -> str:
@@ -258,7 +261,8 @@ class ResultDiff:
 
     @property
     def ok(self) -> bool:
-        return all(
+        """True when something was compared and every metric is within tolerance."""
+        return bool(self.metrics) and all(
             value <= self.tolerances.get(key, 0.0)
             for key, value in self.metrics.items()
         )
@@ -297,6 +301,8 @@ def compare_results(
     b_xyz = _as_numpy(adapted.complex.atom_positions)
     if a_xyz is None or b_xyz is None:
         diff.notes.append("one result has no coordinates")
+        diff.metrics["coordinates_missing"] = 1.0
+        diff.tolerances["coordinates_missing"] = 0.0
         return diff
     if a_xyz.shape != b_xyz.shape:
         diff.notes.append(f"atom count differs: {a_xyz.shape} vs {b_xyz.shape}")

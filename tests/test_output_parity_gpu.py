@@ -56,12 +56,6 @@ def model():
     return AtomWorksESMFold2()
 
 
-def _native_counterpart(spi, chain_info):  # retained for ad-hoc use
-    from esmfold2_atomworks.parity.run import _native_counterpart as build
-
-    return build(spi, chain_info)
-
-
 @pytest.mark.parametrize(
     "fixture", ["lysozyme", "hemoglobin", "modified", "zinc", "flavoprotein"]
 )
@@ -88,6 +82,11 @@ def test_adapted_input_folds_identically(parsed, model, gold, fixture, determini
     repeat = compare_results(native_a, native_b)
     cross = compare_results(native_a, adapted_a)
     print(f"\n{fixture}: repeat {repeat.metrics}\n{fixture}: cross  {cross.metrics}")
+    required = {"coord_max_abs", "atom_name_mismatches", "plddt_max_abs"}
+    assert required <= set(repeat.metrics) and required <= set(cross.metrics), (
+        "a comparison that reports nothing is not a pass: "
+        f"{sorted(repeat.metrics)} / {sorted(cross.metrics)}"
+    )
     assert all(value == 0.0 for value in repeat.metrics.values()), (
         "the same input did not fold identically twice, so deterministic "
         f"execution is not in force and no cross-path claim can be made: {repeat.metrics}"
@@ -266,7 +265,7 @@ def test_supplied_states_reproduce_the_models_own_fold(model, gold, deterministi
 def test_a_checkpoint_without_its_backbone_refuses_to_fold(model, gold):
     """The separate-layout checkpoint, loaded without its backbone.
 
-    Before the guard this folded without the LM prior and returned a
+    Without the guard this would fold without the LM prior and return a
     plausible structure. It must refuse, and fold once handed the states.
     """
     from esmfold2_atomworks.model.esmfold2 import (

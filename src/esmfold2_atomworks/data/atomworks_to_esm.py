@@ -1,9 +1,8 @@
 """``AtomWorks AtomArray`` -> ``ESMFold2 StructurePredictionInput``.
 
-This is the core of the package, and all the parity milestone needs: with
-it, any AtomWorks-sourced example -- PDB, AFDB, a synthetic dimer, a PLINDER
-protein-ligand pair -- can be folded by the *unmodified* ESMFold2, and the
-result compared against what the native path produces.
+Converts an AtomWorks ``AtomArray`` (and optional ``chain_info``) to the
+``StructurePredictionInput`` that ESMFold2's own featurizer consumes, so any
+AtomWorks-sourced example can be folded by the *unmodified* ESMFold2.
 
 **Why the adapter targets ``StructurePredictionInput`` and not the tensors.**
 Both stacks featurize to an AF3-like layout, and the names overlap enough to
@@ -262,9 +261,7 @@ class AdapterReport:
         return {name: hit for name, hit in self._degradations().items() if hit}
 
     def _degradations(self) -> dict[str, list[str]]:
-        # One entry per DEGRADATIONS name, empty or not. tests/test_strictness.py
-        # holds the two to the same keys, so a degradation cannot be added
-        # without saying where its acceptance is recorded.
+        # One entry per DEGRADATIONS name, empty or not.
         return {
             "unsupported_chains": [
                 chain for chain, reason in self.dropped if reason != "water"
@@ -350,8 +347,8 @@ def sequence_of_chain(
 def _chain_info_entry(chain_info: dict | None, chain_id: str) -> dict | None:
     """The ``chain_info`` record for *chain_id*.
 
-    ``atomworks.io.parse`` keys this dict with ``numpy.str_``, which does not
-    hash equal to a plain ``str`` in every numpy version, so look both up.
+    Keys are compared as strings, so an integer or numpy key matches the chain it
+    spells.
     """
     if not chain_info:
         return None
@@ -386,10 +383,10 @@ def _residue_names_from_chain_info(
 ) -> list[str] | None:
     """The chain's residue names, aligned 1:1 with its canonical sequence.
 
-    Verified on ``1a8o_modified``: ``chain_info["A"]["res_name"]`` has the same
-    length as ``processed_entity_canonical_sequence`` (70), and the four ``MSE``
-    entries sit at the indices whose canonical letter is ``M``. That alignment
-    is what makes a ``Modification`` position meaningful.
+    ``chain_info[chain]["res_name"]`` has one entry per position of
+    ``processed_entity_canonical_sequence``, and a non-standard residue sits at
+    an index whose canonical letter is its parent's. That alignment is what makes
+    a ``Modification`` position meaningful.
     """
     entry = _chain_info_entry(chain_info, chain_id)
     if entry is None:
@@ -539,6 +536,13 @@ def _one_per_chain(chain_id: str, annotation: str, values: np.ndarray) -> Any:
         shown = " and ".join(name(value) for value in unique)
     else:
         shown = " and ".join(str(value) for value in unique)
+    if annotation == "transformation_id":
+        raise MixedChainError(
+            f"chain {chain_id!r} is carried by the assembly copies {shown}. "
+            "ESMFold2 takes one input per chain, so the copies would be folded "
+            "as one molecule. Pass chain_key='chain_iid' to give each copy its "
+            "own chain, or fold the asymmetric unit."
+        )
     raise MixedChainError(
         f"chain {chain_id!r} holds more than one kind of molecule: its atoms "
         f"carry {annotation} {shown}. ESMFold2 takes one input per chain, so "
@@ -670,7 +674,8 @@ def chain_records(
 
     Raises:
         MixedChainError: a chain whose atoms carry more than one ``chain_type``,
-            or more than one ``is_polymer`` value.
+            ``is_polymer`` or ``transformation_id`` value (assembly copies
+            sharing a ``chain_id``; ``chain_key="chain_iid"`` separates them).
         ChainDeclarationError: a ``chain_kinds`` entry that names no chain,
             gives a kind that cannot be declared, or that the chain's
             annotations or residues contradict.
@@ -691,6 +696,11 @@ def chain_records(
         if "is_polymer" in categories
         else None
     )
+    transformation_ids = (
+        np.asarray(atoms.get_annotation("transformation_id")).astype(str)
+        if "transformation_id" in categories
+        else None
+    )
 
     # First-appearance order, not np.unique's lexicographic order.
     _, first_index = np.unique(labels, return_index=True)
@@ -700,6 +710,8 @@ def chain_records(
     for chain_id in ordered:
         mask = labels == chain_id
         chain = atoms[mask]
+        if transformation_ids is not None:
+            _one_per_chain(chain_id, "transformation_id", transformation_ids[mask])
         ctype = (
             int(_one_per_chain(chain_id, "chain_type", chain_types[mask]))
             if chain_types is not None
@@ -999,7 +1011,6 @@ def atom_array_to_structure_prediction_input(
                 )
             continue
 
-        # Non-polymer.
         chain_atoms = atoms[labels == chain_id]
         spec = spec_by_chain.get(chain_id)
         if spec is None:
@@ -1044,7 +1055,8 @@ def _attach_covalent_bonds(
     Short-circuits before doing any work when the structure has no such bond,
     which is the common case: resolving them costs one extra featurization,
     because the atom indices ESM wants are positions in the tokenizer's own
-    per-residue ordering (see :mod:`esmfold2_atomworks.data.bonds`).
+    per-residue ordering, read from a tokenization that already treats the
+    bonded chains as bonded (see :mod:`esmfold2_atomworks.data.bonds`).
     """
     from esmfold2_atomworks.data.bonds import (
         covalent_bond_candidates,
@@ -1080,14 +1092,41 @@ def _attach_covalent_bonds(
 
     from esm.models.esmfold2.prepare_input import prepare_esmfold2_input
     from esm.models.esmfold2.processor import clean_esmfold2_input
+    from esm.models.esmfold2.types import CovalentBond
 
-    features, chain_infos = prepare_esmfold2_input(clean_esmfold2_input(spi), seed=0)
-    bonds, skipped = resolve_covalent_bonds(
-        placeable,
-        features,
-        chain_infos,
-        _residue_index_map(records, chain_info, report),
-    )
+    bonds: list[Any] = []
+    skipped: list[str] = []
+    if placeable:
+        # ESMFold2 drops the atoms the CCD flags as leaving from a ligand chain
+        # that takes part in a covalent bond, which shifts the atom indices of
+        # everything after them. The indices have to be read from a
+        # tokenization in which the bonded chains are already flagged, so the
+        # probe carries one placeholder bond (first atom of the first residue)
+        # per pair of bonded chains; the real bonds replace it below.
+        pairs = sorted({(str(c.chain_1), str(c.chain_2)) for c in placeable})
+        probe = replace(
+            spi,
+            covalent_bonds=[
+                CovalentBond(
+                    chain_id1=first,
+                    res_idx1=0,
+                    atom_idx1=0,
+                    chain_id2=second,
+                    res_idx2=0,
+                    atom_idx2=0,
+                )
+                for first, second in pairs
+            ],
+        )
+        features, chain_infos = prepare_esmfold2_input(
+            clean_esmfold2_input(probe), seed=0
+        )
+        bonds, skipped = resolve_covalent_bonds(
+            placeable,
+            features,
+            chain_infos,
+            _residue_index_map(records, chain_info, report),
+        )
     skipped = unrepresented + skipped
     report.covalent_bonds = list(candidates)
     if skipped and not allow_unresolved:
@@ -1438,8 +1477,7 @@ def _spec_from_ccd_annotation(
     # an SDF (`L:0`, `C:0`) and anything the depositor invented. Left
     # unchecked, those reach the featurizer and fail there with
     # "CCD component L:0 not found", which points at neither the chain nor the
-    # fix. Checking here turns "trust the label" into "verify the label",
-    # which is what D-004 asks for.
+    # fix.
     unknown = sorted(name for name in set(names) if not _is_ccd_code(name))
     if unknown:
         raise LigandIdentityError(
@@ -1454,19 +1492,12 @@ def _spec_from_ccd_annotation(
 def _is_ccd_code(name: str) -> bool:
     """Whether *name* names a component in the CCD.
 
-    Returns ``True`` when the dictionary cannot be consulted at all: refusing
-    every ligand because an optional asset is missing would be worse than the
-    late failure this check exists to improve on.
+    A dictionary that cannot be loaded raises instead of answering: a check that
+    passes every name when it cannot look anything up would let a placeholder
+    such as ``L:0`` through D-004.
     """
-    try:
-        from esm.models.esmfold2.conformers import load_ccd
+    from esm.models.esmfold2.conformers import load_ccd
 
-        from esmfold2_atomworks import paths
+    from esmfold2_atomworks import paths
 
-        ccd = load_ccd(paths.ccd_dir())
-    except Exception:  # noqa: BLE001 - absence of the CCD must not be fatal here
-        return True
-    try:
-        return name in ccd
-    except TypeError:
-        return True
+    return name in load_ccd(paths.ccd_dir())

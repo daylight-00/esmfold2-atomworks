@@ -242,3 +242,71 @@ def test_a_non_backbone_bond_between_consecutive_residues_is_kept():
     )
     (candidate,) = covalent_bond_candidates(atoms)
     assert candidate.describe() == "A/1/SG - A/2/SG"
+
+
+def test_a_bond_lands_on_its_atom_when_the_tokenizer_drops_leaving_atoms(ccd):
+    """ESMFold2 drops a CCD ligand's leaving atoms once its chain is bonded.
+
+    NAG's ``O1`` is flagged leaving, so every atom after it moves up one place
+    in a bonded chain. An index read from the tokenization without that drop
+    would bond ``O5`` where the source bonds ``O4``.
+    """
+    import biotite.structure as struc
+
+    from esmfold2_atomworks.data.atomworks_to_esm import (
+        atom_array_to_structure_prediction_input,
+    )
+    from esmfold2_atomworks.data.bonds import _atom_names_by_residue
+
+    sugar = [
+        "C1",
+        "C2",
+        "C3",
+        "C4",
+        "C5",
+        "C6",
+        "C7",
+        "C8",
+        "N2",
+        "O1",
+        "O3",
+        "O4",
+        "O5",
+        "O6",
+        "O7",
+    ]
+    rows = [
+        ("A", i, name, name[0]) for i in (1, 2, 3) for name in ("N", "CA", "C", "O")
+    ]
+    rows += [("B", 1, name, name[0]) for name in sugar]
+    atoms = struc.AtomArray(len(rows))
+    atoms.coord = np.arange(len(rows) * 3, dtype=np.float32).reshape(-1, 3)
+    atoms.set_annotation("chain_id", np.array([r[0] for r in rows], dtype="U4"))
+    atoms.set_annotation("res_id", np.array([r[1] for r in rows]))
+    atoms.set_annotation("ins_code", np.array([""] * len(rows), dtype="U1"))
+    atoms.set_annotation(
+        "res_name",
+        np.array(["GLY" if r[0] == "A" else "NAG" for r in rows], dtype="U5"),
+    )
+    atoms.set_annotation("atom_name", np.array([r[2] for r in rows], dtype="U6"))
+    atoms.set_annotation("element", np.array([r[3] for r in rows], dtype="U2"))
+    atoms.set_annotation("is_polymer", np.array([r[0] == "A" for r in rows]))
+    atoms.bonds = struc.BondList(len(rows))
+    carbonyl = next(i for i, r in enumerate(rows) if r[:3] == ("A", 2, "C"))
+    o4 = next(i for i, r in enumerate(rows) if r[0] == "B" and r[2] == "O4")
+    atoms.bonds.add_bond(carbonyl, o4, struc.BondType.SINGLE)
+
+    spi = atom_array_to_structure_prediction_input(
+        atoms, chain_kinds={"A": "protein", "B": "ligand"}
+    )
+    (bond,) = spi.covalent_bonds
+    assert (bond.chain_id1, bond.chain_id2) == ("A", "B")
+
+    from esm.models.esmfold2.prepare_input import prepare_esmfold2_input
+    from esm.models.esmfold2.processor import clean_esmfold2_input
+
+    features, chain_infos = prepare_esmfold2_input(clean_esmfold2_input(spi), seed=0)
+    ordering = _atom_names_by_residue(features, chain_infos)
+    assert "O1" not in ordering[("B", 0)], "the tokenizer no longer drops leaving atoms"
+    assert ordering[("B", bond.res_idx2)][bond.atom_idx2] == "O4"
+    assert ordering[("A", bond.res_idx1)][bond.atom_idx1] == "C"

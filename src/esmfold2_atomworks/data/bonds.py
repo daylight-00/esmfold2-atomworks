@@ -14,8 +14,9 @@ wrong molecule.
 indexes that residue's atoms *in the order the tokenizer built them* -- CCD
 order for a ligand, ``PROTEIN_HEAVY_ATOMS`` order for a standard residue, minus
 leaving atoms. Reimplementing that ordering here would duplicate upstream logic
-that changes independently of this package, which is the mistake D-001 exists
-to prevent. So the structure is featurized once without bonds, the atom
+that changes independently of this package. So the structure is featurized once
+with a placeholder bond between each pair of bonded chains -- the tokenizer drops
+a ligand's leaving atoms only once its chain takes part in a bond -- the atom
 ordering is decoded from the resulting ``ref_atom_name_chars`` and
 ``atom_to_token``, and the indices are looked up in it.
 
@@ -236,7 +237,7 @@ def resolve_covalent_bonds(
     candidates: list[BondCandidate],
     features: dict[str, Any],
     chain_infos: list[Any],
-    residue_index_of: dict[tuple[str, int], int],
+    residue_index_of: dict[tuple[str, int, str], int],
 ) -> tuple[list[Any], list[str]]:
     """Turn source-space bonds into ESM ``CovalentBond`` objects.
 

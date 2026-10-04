@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from biotite.structure import AtomArray
 
 __all__ = [
+    "GENERIC_LIGAND_NAMES",
     "ChainDeclarationError",
     "CovalentBondResolutionError",
     "InferredChainKindError",
@@ -84,7 +85,7 @@ class InferredChainKindError(ValueError):
 
     ``is_polymer`` cannot tell protein from DNA or RNA, nor water from a
     ligand. A DNA duplex arriving without ``chain_type`` is otherwise folded as
-    a protein of unknown residues -- measured: sequence ``XXXXXXXX``.
+    a protein of unknown residues (a sequence of ``X``).
     """
 
 
@@ -145,6 +146,13 @@ class LigandSpec:
     expected_formula: dict[str, int] | None = field(default=None)
 
     def __post_init__(self) -> None:
+        if isinstance(self.ccd, str):
+            # ``ccd="ATP"`` is one component, not the characters A, T and P.
+            object.__setattr__(self, "ccd", (self.ccd,))
+        elif self.ccd is not None:
+            object.__setattr__(self, "ccd", tuple(self.ccd))
+        if self.smiles is not None and not self.smiles.strip():
+            raise ValueError(f"ligand {self.chain_id!r}: smiles= is empty")
         if (self.smiles is None) == (self.ccd is None):
             raise ValueError(
                 f"ligand {self.chain_id!r}: declare exactly one of smiles= or ccd= "

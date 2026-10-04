@@ -45,9 +45,6 @@ def _token_atom_spans(token_to_atoms: Any, n_atoms: int) -> list[np.ndarray]:
 
     Either an ``(n_tokens, 2)`` ``[start, end)`` range table -- what the current
     ``MolecularComplex`` documents -- or an ``(n_tokens, k)`` padded index table.
-    Deciding from the data rather than pinning a version keeps this working
-    across ESM releases, which is worth the few lines given that both upstreams
-    are explicitly mid-cleanup.
     """
     table = _to_numpy(token_to_atoms)
     if table.ndim == 1:
@@ -133,7 +130,8 @@ def molecular_complex_to_atom_array(complex_: Any) -> AtomArray:
             "that drops or reassigns atoms, or loses a residue"
         )
 
-    per_atom_chain = np.empty(n_atoms, dtype="U8")
+    longest_label = max((len(str(label)) for label in chain_ids), default=1)
+    per_atom_chain = np.empty(n_atoms, dtype=f"U{max(longest_label, 1)}")
     per_atom_res_name = np.empty(n_atoms, dtype="U5")
     per_atom_res_id = np.zeros(n_atoms, dtype=int)
 

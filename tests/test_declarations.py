@@ -219,3 +219,16 @@ def test_an_msa_follows_the_sequence_being_folded(parsed, ccd, gold_document):
 def test_something_that_is_not_an_msa_is_refused():
     with pytest.raises(TypeError, match="not an esm.utils.msa.MSA"):
         _check_msa_binds("A", "GAAG", "GAAG")
+
+
+def test_an_unreadable_ccd_is_an_error_not_a_pass(monkeypatch):
+    conformers = pytest.importorskip("esm.models.esmfold2.conformers")
+
+    def unreadable(*args, **kwargs):
+        raise OSError("ccd.pkl is unreadable")
+
+    monkeypatch.setattr(conformers, "load_ccd", unreadable)
+    from esmfold2_atomworks.data.atomworks_to_esm import _is_ccd_code
+
+    with pytest.raises(OSError):
+        _is_ccd_code("L:0")

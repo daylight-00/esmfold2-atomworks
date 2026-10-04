@@ -85,6 +85,20 @@ def test_every_atom_keeps_its_position_name_and_element(protein_and_ligand):
     assert list(atoms.element) == [e.upper() for e in protein_and_ligand.atom_elements]
 
 
+def test_chain_labels_longer_than_eight_characters_are_not_truncated():
+    complex_ = FakeComplex(
+        sequence=["ALA", "GLY"],
+        atom_names=["N", "CA", "C", "N", "CA", "C"],
+        atom_elements=["N", "C", "C", "N", "C", "C"],
+        atom_hetero=[False] * 6,
+        token_to_atoms=[[0, 3], [3, 6]],
+        chain_id=[0, 1],
+        chain_lookup={0: "receptor_A", 1: "receptor_B"},
+    )
+    atoms = molecular_complex_to_atom_array(complex_)
+    assert sorted(set(map(str, atoms.chain_id))) == ["receptor_A", "receptor_B"]
+
+
 def test_every_ligand_atom_survives(protein_and_ligand):
     ligand = molecular_complex_to_atom_array(protein_and_ligand)
     ligand = ligand[_hetero(ligand)]

@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "esmfold2_atomworks_commit": "1c79d3611d403c3623c5e900f2fdfccaa8a0dc99",
+  "esmfold2_atomworks_commit": "3b2399f9acdf491cbd3dc6ee2ddfca21a2859371",
   "esmfold2_atomworks_dirty": false,
   "device": "NVIDIA RTX 6000 Ada Generation",
   "torch": "2.14.0+cu132",
@@ -19,14 +19,14 @@
   "trainable_parameters": 225752669,
   "pairs_in_the_loss": 9604,
   "loss_per_step": [
-    2.7936625480651855,
-    2.385740041732788,
-    2.1426143646240234
+    2.807541847229004,
+    2.3863229751586914,
+    2.147425413131714
   ],
   "gradient_norm_per_step": [
-    49.34898376464844,
-    42.639278411865234,
-    34.788414001464844
+    49.8176383972168,
+    42.83241653442383,
+    34.83564758300781
   ],
-  "largest_change_of_first_trainable_tensor": 0.0003026723861694336
+  "largest_change_of_first_trainable_tensor": 0.00030350685119628906
 }

@@ -8,8 +8,8 @@ Foundry integration. What a resolver picks follows the upstreams' own pins; the
 versions the suite has run against are in the table below. Two of those pins
 constrain the interpreter:
 
-- atomworks pins `biotite==1.4.0`, which has wheels for CPython 3.11–3.13 only;
-  on 3.14 it builds from source.
+- atomworks 2.2.1 pins `biotite==1.4.0`, which has wheels for CPython 3.11–3.13
+  only; on 3.14 it builds from source.
 - rc-foundry supports Python 3.12 only, and so does the `foundry` extra.
 
 `.python-version` therefore selects 3.12 for `uv sync`.
@@ -165,7 +165,7 @@ a deliberate property, not a coincidence: see [02_PARITY.md](02_PARITY.md).
 
 - **Importing `atomworks` monkey-patches biotite globally**, for every consumer
   in the process.
-- **Hydrogens that `atomworks.io.parse` adds (`hydrogen_policy="infer"`) can
+- **Hydrogens that AtomWorks 2.x's `parse` adds (`hydrogen_policy="infer"`) can
   carry NaN coordinates.** This adapter is unaffected — ESMFold2 takes sequences and CCD
   codes, not input coordinates — but anything computing an RMSD downstream is.
 - **`processed_entity_canonical_sequence` is meaningful for polymers only.**

@@ -1152,9 +1152,12 @@ class AtomWorksESMFold2:
             **overrides,
         )
         if record is not None:
+            from esmfold2_atomworks.data.loading import atomworks_version
+
             record["esmfold2.sequence_source"] = dict(
                 adapter_kwargs["report"].sequence_source
             )
+            record["atomworks.version"] = atomworks_version()
 
         chain_key = (adapter_kwargs or {}).get("chain_key", "chain_id")
 

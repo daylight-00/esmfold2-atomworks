@@ -281,8 +281,9 @@ name.
 
 `LigandSpec.verify_against` compares **heavy atoms only**. Whether hydrogens are
 present at all depends on the source and the parser settings: `parse` keeps
-them where the source has them and can add them (`hydrogen_policy="infer"`),
-Rosetta rebuilds them on load, ESMFold2 reports none. Heavy atoms are the only
+them where the source has them and, in AtomWorks 2.x, can add them
+(`hydrogen_policy="infer"`; 3.x protonates in a separate step), Rosetta rebuilds
+them on load, ESMFold2 reports none. Heavy atoms are the only
 comparison that means the same thing on every side.
 
 ## Why `G` does not go through mmCIF

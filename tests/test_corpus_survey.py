@@ -41,6 +41,12 @@ EXPECTED: dict[str, tuple[str, str] | None] = {
     ),
 }
 
+#: Files that reproduce when AtomWorks parses them, and that a stricter AtomWorks
+#: rejects at parse time (before this package sees them), with the text of its error.
+PARSE_MAY_REJECT = {
+    "io/1a8o_modified.cif": "matches neither standard nor alternative CCD names",
+}
+
 _SUFFIXES = (".cif", ".cif.gz", ".bcif", ".pdb")
 
 
@@ -73,7 +79,10 @@ def test_survey_outcomes_are_as_pinned(data_dir, ccd):
         outcome = parity_for_structure(path)
         expected = EXPECTED[key]
         if expected is None:
-            if not outcome.ok:
+            rejected_by_parse = (
+                key in PARSE_MAY_REJECT and PARSE_MAY_REJECT[key] in outcome.detail
+            )
+            if not outcome.ok and not rejected_by_parse:
                 wrong.append(f"{key}: expected to reproduce, got {outcome.detail}")
         else:
             error, text = expected

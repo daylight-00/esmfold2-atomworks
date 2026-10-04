@@ -137,7 +137,7 @@ def main() -> int:
     import torch
     from atomworks.io import parse
     from compare_checkpoints import identity
-    from conftest import FIXTURES, _atomworks_data_dir, gold_structure_prediction_input
+    from conftest import gold_structure_prediction_input, locate_fixture
 
     from esmfold2_atomworks import paths
     from esmfold2_atomworks.data.atomworks_to_esm import (
@@ -171,7 +171,10 @@ def main() -> int:
     previous = torch.are_deterministic_algorithms_enabled()
     try:
         for fixture, schedule in CASES:
-            parsed = parse(_atomworks_data_dir() / FIXTURES[fixture])
+            path = locate_fixture(fixture)
+            if path is None:
+                raise FileNotFoundError(f"fixture {fixture} is not available")
+            parsed = parse(path)
             adapted = atom_array_to_structure_prediction_input(
                 parsed["asym_unit"][0], chain_info=parsed["chain_info"]
             )

@@ -181,7 +181,9 @@ the call's own entries:
   `esmfold2.pocket_sha256` / `esmfold2.distogram_conditioning_sha256`, `None`
   when the condition is absent. Every digest is a full SHA-256.
 - `esmfold2.sequence_source` (from `fold_atom_array`): where each chain's
-  folded sequence came from, as `AdapterReport` records it.
+  folded sequence came from, as `AdapterReport` records it; `atomworks.version`:
+  the AtomWorks release in use. The engine adds `atomworks.parse_config` for an
+  input it parsed itself.
 - `esmfold2.deterministic_algorithms`, `esmfold2.cublas_workspace_config`: the
   execution state observed at the call ([02](02_PARITY.md)).
 
@@ -225,6 +227,13 @@ neither subclasses nor imports it: that engine resolves a checkpoint against
 Foundry's registry and loads a `.pt` carrying the training `cfg`, whereas
 ESMFold2 loads HF safetensors plus `config.json`, with a second repo for the ESMC
 backbone and a featurizer that takes no config.
+
+A path input is read with `atomworks.io.parse`, whose defaults differ between
+AtomWorks releases. `parse_config=` (a mapping of options, or a `ParseConfig` in
+AtomWorks 3.x; the `parse_config` key of the Hydra engine config) sets how, and
+each output's JSON records it with the AtomWorks version. A file that AtomWorks
+reads as one result per model (a multi-model file of variable topology) is
+refused: parse the model you want and pass its `AtomArray` and `chain_info`.
 
 ## Reading confidence
 

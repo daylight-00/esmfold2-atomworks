@@ -26,6 +26,25 @@ FIXTURES: dict[str, str] = {
 }
 
 
+#: Structures that ship with the repository (see data/structures/README.md); the
+#: rest are read from an AtomWorks checkout beside it.
+VENDORED_DIR = Path(__file__).parent / "data" / "structures"
+VENDORED: dict[str, str] = {
+    "lysozyme": "6lyz.bcif",
+    "hemoglobin": "2hhb.cif.gz",
+    "zinc": "4q8n.cif.gz",
+    "modified": "1a8o.cif",
+}
+
+
+def locate_fixture(name: str) -> Path | None:
+    """The file for fixture *name*, or ``None`` when it is not available."""
+    if name in VENDORED:
+        return VENDORED_DIR / VENDORED[name]
+    path = _atomworks_data_dir() / FIXTURES[name]
+    return path if path.exists() else None
+
+
 def _atomworks_data_dir() -> Path:
     return paths.DESIGN_ROOT / "atomworks" / "tests" / "data" / "io"
 
@@ -46,13 +65,13 @@ def ccd() -> None:
 
 
 @pytest.fixture(scope="session")
-def parsed(data_dir):
+def parsed():
     """``name -> (atom_array, chain_info)``, parsed once and memoized.
 
-    Skips rather than errors when the source trees are absent, so that a test
-    requesting this fixture behind a `gpu`/weights guard reports "skipped"
-    instead of a collection error in an environment that was never expected to
-    have them.
+    Skips rather than errors when AtomWorks is absent or the file is not
+    available, so that a test requesting this fixture behind a `gpu`/weights
+    guard reports "skipped" instead of a collection error in an environment that
+    was never expected to have them.
     """
     parse = pytest.importorskip("atomworks.io").parse
 
@@ -60,9 +79,11 @@ def parsed(data_dir):
 
     def _get(name: str):
         if name not in cache:
-            path = data_dir / FIXTURES[name]
-            if not path.exists():
-                pytest.skip(f"fixture {name} missing at {path}")
+            path = locate_fixture(name)
+            if path is None:
+                pytest.skip(
+                    f"fixture {name} is not available (needs an AtomWorks checkout)"
+                )
             result = parse(path)
             cache[name] = (result["asym_unit"][0], result["chain_info"])
         return cache[name]

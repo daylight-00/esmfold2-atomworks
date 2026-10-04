@@ -37,11 +37,17 @@ class ESMFold2Output:
         import json
 
         from atomworks.io.utils.io_utils import to_cif_file
+        from biotite.structure import BondList
 
         out_dir = Path(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
         structure_path = out_dir / f"{self.example_id}.cif"
-        to_cif_file(self.atom_array, structure_path)
+        atoms = self.atom_array
+        if atoms.bonds is None:
+            # AtomWorks 3.x's writer walks the bond list; no bonds is an empty one.
+            atoms = atoms.copy()
+            atoms.bonds = BondList(atoms.array_length())
+        to_cif_file(atoms, structure_path)
         (out_dir / f"{self.example_id}.json").write_text(
             json.dumps(self.metadata, indent=2, sort_keys=True, default=float)
         )
@@ -71,8 +77,10 @@ class ESMFold2InferenceEngine:
         load_esmc: bool = True,
         verbose: bool = False,
         allow: Any = (),
+        parse_config: Any = None,
     ) -> None:
         self.ckpt_path = ckpt_path
+        self.parse_config = parse_config
         self.device = device
         self.load_esmc = load_esmc
         self.chunk_size = chunk_size
@@ -143,6 +151,7 @@ class ESMFold2InferenceEngine:
             One :class:`ESMFold2Output` per input, in input order.
         """
         from esmfold2_atomworks.data.atomworks_to_esm import AdapterReport
+        from esmfold2_atomworks.data.loading import parse_provenance
         from esmfold2_atomworks.metrics import fold_metrics
 
         self.initialize()
@@ -151,7 +160,8 @@ class ESMFold2InferenceEngine:
 
         outputs: list[ESMFold2Output] = []
         for example_id, item in named.items():
-            atoms, chain_info = _load(item)
+            atoms, chain_info = _load(item, self.parse_config)
+            parsed_here = isinstance(item, (str, Path))
             report = AdapterReport()
             record: dict[str, Any] = {}
             structure, result = self.model.fold_atom_array(
@@ -165,6 +175,8 @@ class ESMFold2InferenceEngine:
             # Every output carries what it needs to be read on its own: the
             # model, the call that produced it, and what the adapter accepted.
             described = provenance | record | _accepted_degradations(report)
+            if parsed_here:
+                described |= parse_provenance(self.parse_config)
             if isinstance(structure, list):
                 # num_diffusion_samples > 1: emit one output per sample. The
                 # call record describes all of them; the index is the output's.
@@ -226,13 +238,12 @@ def _canonicalize_inputs(inputs: Any) -> dict[str, Any]:
     return {"pred": inputs}
 
 
-def _load(item: Any) -> tuple[Any, dict | None]:
+def _load(item: Any, parse_config: Any = None) -> tuple[Any, dict | None]:
     """``(atom_array, chain_info)`` for a path or an already-parsed structure."""
     if isinstance(item, (str, Path)):
-        from atomworks.io import parse
+        from esmfold2_atomworks.data.loading import parse_structure
 
-        parsed = parse(item)
-        return parsed["asym_unit"][0], parsed["chain_info"]
+        return parse_structure(item, parse_config)
     if isinstance(item, tuple) and len(item) == 2:
         return item
     return item, None

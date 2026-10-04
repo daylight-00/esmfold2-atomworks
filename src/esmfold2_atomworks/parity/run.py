@@ -76,16 +76,14 @@ def _native_counterpart(spi: Any, chain_info: dict) -> Any:
 
 def parity_for_structure(path: Path, *, seed: int = 0) -> ParityOutcome:
     """Check one structure, converting any failure into an outcome rather than a raise."""
-    from atomworks.io import parse
-
     from esmfold2_atomworks.data.atomworks_to_esm import (
         atom_array_to_structure_prediction_input,
     )
+    from esmfold2_atomworks.data.loading import parse_structure
     from esmfold2_atomworks.parity.compare import compare_features, featurize
 
     try:
-        parsed = parse(path)
-        atoms, chain_info = parsed["asym_unit"][0], parsed["chain_info"]
+        atoms, chain_info = parse_structure(path)
         adapted = atom_array_to_structure_prediction_input(atoms, chain_info=chain_info)
         native = _native_counterpart(adapted, chain_info)
         diff = compare_features(

@@ -9,6 +9,9 @@ seed: null
 # Degradations to accept by name instead of raising; empty = strict.
 # Whatever is accepted is recorded per output under adapter.degradations.
 allow: []
+# How atomworks.io.parse reads a path: null for its defaults, or a mapping of
+# its options. Recorded per output under atomworks.parse_config.
+parse_config: null
 
 # Sampling. num_loops: null defers to the loaded checkpoint's config.num_loops,
 # which differs between checkpoint revisions (3 and 20, docs/04), so a number

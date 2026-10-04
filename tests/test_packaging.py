@@ -26,6 +26,15 @@ def _yaml(path):
     return pytest.importorskip("omegaconf").OmegaConf.load(path)
 
 
+@pytest.fixture
+def checkout():
+    """The repository root; the checks that read its files need a source checkout."""
+    root = paths.REPO_ROOT
+    if not (root / "pyproject.toml").is_file():
+        pytest.skip("reads files that ship with a source checkout, not the package")
+    return root
+
+
 EXPECTED_GROUP_TARGETS = {
     "model/esmfold2.yaml": "esmfold2_atomworks.model.esmfold2.AtomWorksESMFold2",
     "data/atomworks.yaml": "esmfold2_atomworks.data.pipelines.build_esmfold2_pipeline",
@@ -50,21 +59,21 @@ def test_group_configs_carry_their_targets(relative):
 
 
 @pytest.mark.offline
-def test_the_package_version_is_declared_once():
+def test_the_package_version_is_declared_once(checkout):
     import esmfold2_atomworks
 
-    pyproject = tomllib.loads((paths.REPO_ROOT / "pyproject.toml").read_text())
+    pyproject = tomllib.loads((checkout / "pyproject.toml").read_text())
     assert pyproject["project"]["version"] == esmfold2_atomworks.__version__
 
 
 @pytest.mark.offline
-def test_the_wheel_is_told_to_ship_the_configs():
+def test_the_wheel_is_told_to_ship_the_configs(checkout):
     """Guards the force-include, without building a wheel.
 
     A source checkout works whether or not this mapping is declared, so nothing
     else in the fast test suite would notice it being dropped.
     """
-    pyproject = tomllib.loads((paths.REPO_ROOT / "pyproject.toml").read_text())
+    pyproject = tomllib.loads((checkout / "pyproject.toml").read_text())
     force_include = pyproject["tool"]["hatch"]["build"]["targets"]["wheel"][
         "force-include"
     ]
@@ -104,7 +113,7 @@ def test_searchpath_lists_only_this_packages_configs():
 
 
 @pytest.mark.offline
-def test_the_console_script_imports_only_declared_dependencies():
+def test_the_console_script_imports_only_declared_dependencies(checkout):
     """The CLI is the first thing a plain install runs, so an undeclared import
     breaks it there -- while every source checkout, which has the trees'
     dependencies anyway, keeps working.
@@ -112,7 +121,7 @@ def test_the_console_script_imports_only_declared_dependencies():
     Its module-level imports must be the standard library, this package, or a
     runtime dependency: the wheel's metadata is all an installer reads.
     """
-    source = (paths.REPO_ROOT / "src" / "esmfold2_atomworks" / "cli.py").read_text()
+    source = (checkout / "src" / "esmfold2_atomworks" / "cli.py").read_text()
     imported = set()
     for node in ast.parse(source).body:
         if isinstance(node, ast.Import):
@@ -121,7 +130,7 @@ def test_the_console_script_imports_only_declared_dependencies():
             imported.add(node.module.split(".")[0])
     third_party = imported - set(sys.stdlib_module_names) - {"esmfold2_atomworks"}
 
-    with (paths.REPO_ROOT / "pyproject.toml").open("rb") as handle:
+    with (checkout / "pyproject.toml").open("rb") as handle:
         requirements = tomllib.load(handle)["project"]["dependencies"]
     declared = {
         re.split(r"[<>=!~\[; ]", r, maxsplit=1)[0].lower() for r in requirements

@@ -45,6 +45,12 @@ author chain read any other way need not be one molecule. Read with author
 fields — biotite's default — chain `A` of 101M is the protein, a heme, NBN, a
 sulfate and 138 waters.
 
+A built assembly has the same problem in another form: its copies repeat a
+`chain_id` under each `transformation_id`, and one `chain_id` read as one chain
+would fold a homodimer as a monomer. A chain label that spans several
+`transformation_id` values raises `MixedChainError`; `chain_key="chain_iid"`
+labels each copy.
+
 Such a structure carries no `chain_type`, so it is refused until the caller says
 what its chains are. `chain_kinds` is how:
 
@@ -141,7 +147,10 @@ Three decisions worth knowing:
   token bond for a standard residue's backbone at all. `100/SG – 100A/SG` is a
   disulphide and is declared; `100/C – 100B/N` skips a residue and is declared.
 - **Indices are read back from the tokenizer**, not re-derived — `data/bonds.py`
-  says why.
+  says why. They come from a tokenization in which the bonded chains already
+  count as bonded, because the tokenizer drops a CCD ligand's leaving atoms (NAG's
+  `O1`) once its chain takes part in a bond, which moves every later atom up one
+  place.
 - **An unplaceable bond raises.** Dropping it folds a connected system as though
   it were disconnected, and the direct `fold_atom_array` path returns no report,
   so nothing would tell the caller. `allow_unresolved_covalent_bonds=True` opts
@@ -266,7 +275,9 @@ LigandSpec(chain_id=..., smiles=...) or ccd=...
 `LIG`, `UNL`, `UNK` and `UNX` are refused (D-004). A CCD code that came through
 `atomworks.io.parse` is accepted, because parsing reconciled it against the
 component dictionary — it is a real statement about chemistry rather than a
-label a model wrote on its own output.
+label a model wrote on its own output. The check looks the name up in esm's CCD
+dictionary; a dictionary that cannot be loaded raises instead of accepting every
+name.
 
 `LigandSpec.verify_against` compares **heavy atoms only**. Whether hydrogens are
 present at all depends on the source and the parser settings: `parse` keeps

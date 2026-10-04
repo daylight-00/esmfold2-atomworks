@@ -76,8 +76,9 @@ prediction of the wrong molecule:
   to exactly the chain it names — a typo, the wrong kind of chain, an alignment
   built for another sequence — is an **error**, not a no-op;
 - a chain that holds more than one molecule — a protein, its ligands and its
-  waters under one author chain id — is an **error**, whether its annotations
-  say so or a declared kind is contradicted by the CCD;
+  waters under one author chain id, or the copies of a built assembly under one
+  `chain_id` — is an **error**, whether its annotations say so or a declared kind
+  is contradicted by the CCD;
 - a fold with no ESMC backbone attached and no LM hidden states supplied is
   **refused**: the native model would fold anyway, without the LM prior the
   checkpoint was trained with;

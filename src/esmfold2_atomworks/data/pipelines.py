@@ -1,10 +1,8 @@
 """AtomWorks transform pipeline that emits ESMFold2 features.
 
-This is what lets an AtomWorks dataset -- PDB, AFDB, a distillation parquet, a
-PLINDER protein-ligand corpus -- feed ESMFold2 without any of them knowing about
-each other. The pipeline is an ordinary ``atomworks.ml.transforms.Compose``, so
-it composes with AtomWorks' crop, filter and MSA transforms -- the ones
-Foundry's models are built from too.
+This is what lets an AtomWorks dataset feed ESMFold2. The pipeline is an
+ordinary ``atomworks.ml.transforms.Compose``, so it composes with AtomWorks'
+crop, filter and MSA transforms.
 
 **The featurizer is one transform, and it goes last.** ESMFold2 builds its own
 tensors from a ``StructurePredictionInput``; it does not consume AtomWorks'
@@ -15,10 +13,9 @@ the end. Transforms that write ``data["feats"]`` in AF3 terms --
 ``AggregateFeaturesLikeAF3`` and friends -- are deliberately not part of it;
 they would compute a featurization nothing here reads.
 
-The consequence worth stating plainly: cropping composes, but a cropped chain is
-a *different sequence*, and ESMFold2 folds sequences. Crop before the featurizer
-and you fold the crop, which is usually what training wants and almost never
-what an evaluation wants.
+Cropping composes, but a cropped chain is a *different sequence*, and ESMFold2
+folds sequences: a crop applied before the featurizer folds the crop, which
+suits training and rarely an evaluation.
 
 Importing this module requires ``atomworks.ml``. The adapter itself
 (:mod:`esmfold2_atomworks.data.atomworks_to_esm`) does not, so a caller that only

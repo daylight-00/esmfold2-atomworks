@@ -3,7 +3,7 @@
 ``python -m esmfold2_atomworks.doctor`` (or ``esmfold2-atomworks doctor``)
 reports where the upstreams come from, checks the imports and the weights, and
 runs a real parity check when AtomWorks' test structures are available,
-printing what is wrong rather than failing later inside a fold. ``tests/test_environment.py`` asserts the same things.
+printing what is wrong rather than failing later inside a fold.
 
 Only a missing import or a failed parity check is a failure. Source trees,
 ``UPSTREAM.lock`` and AtomWorks' test structures belong to the reference
@@ -103,38 +103,25 @@ def check_imports() -> bool:
         else:
             _optional(module, _ONLY_FOR_FOUNDRY)
 
-    # The model module is packaged differently across esm versions, and its
-    # absence is a distinct and easily-missed failure -- the input pipeline
-    # imports fine without it.
     found, detail = _find_model_module()
     ok &= _check("ESMFold2 model class", found, detail)
     return ok
 
 
 def _find_model_module() -> tuple[bool, str]:
-    """Whether a native ESMFold2 module is importable, and from where."""
-    for module, detail in (
-        ("esm.models.esmfold2.model", "esm >= 3.4"),
-        (
-            "transformers.models.esmfold2.modeling_esmfold2",
-            "transformers fork, esm <= 3.3",
-        ),
-    ):
-        try:
-            if importlib.util.find_spec(module) is not None:
-                return True, detail
-        except (ImportError, ValueError, ModuleNotFoundError):
-            continue
-    return False, "install esm >= 3.4, which ships the model"
+    """Whether esm's ESMFold2 module is importable."""
+    try:
+        if importlib.util.find_spec("esm.models.esmfold2.model") is not None:
+            return True, "esm >= 3.4"
+    except (ImportError, ValueError):
+        pass
+    return False, "install esm >= 3.4.1.post1, which ships the model"
 
 
 def check_upstream_revisions() -> bool:
     """Report the source trees' revisions against ``UPSTREAM.lock``.
 
-    Drift is reported but never fails the check. The adapter is deliberately
-    version-tolerant, so a newer tree is something to re-verify rather than
-    something to refuse -- and refusing would make ``doctor`` useless on the
-    day an upstream releases.
+    Drift is reported, never fatal: a newer tree is something to re-verify.
     """
     print("upstream revisions")
     locked = paths.read_upstream_lock()
@@ -235,9 +222,8 @@ def _esmc_detail(checkpoint: Path) -> str:
 def check_adapter() -> bool:
     """Exercise the adapter end to end on CPU, without weights.
 
-    This is the check that matters most: it is the core milestone in
-    miniature, and it fails for every reason the others do plus a few of its
-    own.
+    Runs feature parity on AtomWorks' ``2hhb`` test structure, on CPU and
+    without weights.
     """
     print("adapter")
     fixture = paths.DESIGN_ROOT / "atomworks" / "tests" / "data" / "io" / "2hhb.cif.gz"

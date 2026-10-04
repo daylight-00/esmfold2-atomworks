@@ -69,11 +69,8 @@ location a caller passes. `doctor` reports which source applies, and
 unknown when something loaded the dictionary before the model, since esm keeps
 no record of where it came from.
 
-`load_native_model_class()` also recognises the `transformers`-fork layout of
-esm ≤ 3.3 (`ESMFold2Model`, moved with `.to(device)` after loading).
 `transformers` ≥ 5 ships its own ESMFold2 and cannot share an environment with
 esm 3.4 (esm requires `transformers<5`).
-`AtomWorksESMFold2.provenance()` records which packaging produced a result.
 
 ### Two checkpoint layouts, and where the ESMC backbone comes from
 

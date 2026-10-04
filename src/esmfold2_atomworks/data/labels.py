@@ -11,10 +11,9 @@ This module supplies the missing half: the deposited coordinates, permuted into
 the order the model's atom axis uses, with a mask saying which of those atoms
 the source actually provides.
 
-**It deliberately stops short of a loss.** Where the supervision goes --
-diffusion, distogram, an interface term, something else -- is a modelling
-decision belonging to whatever is being trained, and several such projects are
-expected to share this package. Two consequences for the design:
+**No loss is defined here.** Where the supervision goes -- diffusion,
+distogram, an interface term, something else -- is a modelling decision
+belonging to whatever is being trained. Two consequences for the design:
 
 * **Unresolved atoms are masked, never imputed.** Filling them with a
   placeholder would be a choice with a silent effect on any loss that averages
@@ -66,12 +65,10 @@ class StructureLabels:
     def coverage(self) -> float:
         """Fraction of the model's **real** atoms the source supplied.
 
-        The denominator excludes padding. Counting it would make a perfectly
-        resolved structure report less than 1.0 -- lysozyme matches all 1000 of
-        its real atoms but sits on a 1024-long axis, so dividing by the axis
-        gives 0.977. That matters because ``require_coverage`` is a public
-        knob: a caller asking for 0.99 would have had complete structures
-        rejected for a reason having nothing to do with their structure.
+        The denominator excludes padding, so a fully resolved structure reports
+        1.0: lysozyme matches all 1000 of its real atoms but sits on a
+        1024-long axis, which would give 0.977 if the axis were counted and
+        make ``require_coverage=0.99`` reject a complete structure.
         """
         if self.n_model_atoms <= 0:
             return 0.0

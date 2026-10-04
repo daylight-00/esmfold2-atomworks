@@ -244,7 +244,6 @@ def _loaded(weights: Path, esmc_source: str = "bundled") -> AtomWorksESMFold2:
     weights.mkdir(parents=True, exist_ok=True)
     (weights / "config.json").write_text('{"type": "release"}')
     model.device = torch.device("cpu")
-    model.flavour = "esm"
     model.esmc_source = esmc_source
     model.ccd_source = "ccd.pkl"
     return model

@@ -33,7 +33,7 @@ def parity(
 ) -> None:
     """Check that the adapter featurizes a structure like a hand-written input.
 
-    Runs on CPU and needs no weights. This is the core milestone check.
+    Runs on CPU and needs no weights.
     """
     from esmfold2_atomworks.parity.run import run_feature_parity
 

@@ -3,8 +3,7 @@
 ``initialize`` loads the model once; ``run`` (also ``__call__``) folds a path, a
 list of paths, an ``AtomArray`` or a mapping of them, and writes CIF plus
 metrics when given an ``out_dir``. The surface matches Foundry's
-``BaseInferenceEngine``, so call sites read the same, but nothing here imports
-Foundry; why it does not subclass it is in docs/03.
+``BaseInferenceEngine``; Foundry is not imported (docs/03).
 """
 
 from __future__ import annotations
@@ -25,8 +24,8 @@ __all__ = ["ESMFold2InferenceEngine", "ESMFold2Output"]
 class ESMFold2Output:
     """One prediction, in AtomWorks terms plus the model's own confidence.
 
-    Mirrors ``RFD3Output`` / ``RF3Output``: an ``AtomArray``, a metadata dict
-    and an ``example_id``, with a ``dump`` that writes the pair.
+    An ``AtomArray``, a metadata dict and an ``example_id``; ``dump`` writes
+    ``<example_id>.cif`` and ``<example_id>.json``.
     """
 
     atom_array: AtomArray

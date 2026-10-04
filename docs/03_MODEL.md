@@ -75,8 +75,7 @@ states from the discrete sequence it chooses and pass them in.
 `ESMFold2InputBuilder.fold()` accepts `noise_scale`, `step_scale` and
 `max_inference_sigma` and forwards each one that is set. esm >= 3.4 declares
 all three on `forward` and hands them to the structure head's sampler; a module
-whose `forward` does not (the `transformers`-fork layout of esm <= 3.3) would
-drop them. So `AtomWorksESMFold2.fold` reads the loaded module's own `forward`
+whose `forward` does not declare them would drop them. So `AtomWorksESMFold2.fold` reads the loaded module's own `forward`
 signature and warns about any knob it would drop, rather than assuming either
 packaging. The three are typed fields of `FoldingConfig` and keys of the
 engine's Hydra config (`configs/inference_engine/base.yaml`), `null` by
@@ -150,8 +149,7 @@ Two halves, kept apart because they change at different rates.
 - `esmfold2.device` and `esmfold2.device_name`, read off the module's parameters
   rather than the process's current device; `esmfold2.torch` and
   `esmfold2.torch_cuda`.
-- `esmfold2.config_type`, `esmfold2.flavour` (the packaging), `esmfold2.esmc`
-  (the backbone's source) and `esmfold2.ccd` (the CCD's).
+- `esmfold2.config_type`, `esmfold2.esmc` (the backbone's source) and `esmfold2.ccd` (the CCD's).
 
 `fold(record=...)` and `fold_atom_array(record=...)` fill a caller's dict with
 the call's own entries:

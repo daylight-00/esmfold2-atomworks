@@ -6,9 +6,7 @@ whatever trains or serves it -- the optional Foundry integration in
 :mod:`esmfold2_atomworks.training`, or anything else -- works with the native
 module rather than a reimplementation.
 
-The module ships in ``esm`` >= 3.4. Up to 3.3 it lived in a fork of
-``transformers``, under a slightly different name; :func:`load_native_model_class`
-also recognises that layout.
+The module ships in ``esm`` >= 3.4.
 
 The reason for the indirection: both upstreams' APIs change between releases, so
 a full rewrite would have to track them, and any subtle divergence would show up
@@ -16,8 +14,7 @@ as a model that runs, reports plausible confidence, and is quietly wrong.
 Wrapping keeps the weights and the numerics
 exactly as published, and leaves one named seam per component.
 
-Four behaviours of the native model are worth knowing before you wire
-anything to it; each is asserted or surfaced below rather than left as folklore.
+Behaviours of the native model that callers need to know:
 
 1. **Gradients depend on the inputs, not just the checkpoint.** The release
    ``forward`` is ``@torch.inference_mode()`` and can never produce them. The
@@ -26,9 +23,9 @@ anything to it; each is asserted or surfaced below rather than left as folklore.
    :meth:`AtomWorksESMFold2.will_produce_gradients`.
 2. **A sampler knob reaches the model only if its ``forward`` declares it.**
    esm >= 3.4 declares ``noise_scale``, ``step_scale`` and
-   ``max_inference_sigma`` and hands them to the structure head; the
-   ``transformers`` fork of esm <= 3.3 did not, and dropped them. :meth:`fold`
-   warns about any it would drop, read off the loaded module's own signature.
+   ``max_inference_sigma`` and hands them to the structure head. :meth:`fold`
+   warns about any a module would drop, read off the loaded module's own
+   signature.
    ``early_exit`` is deprecated and ignored by upstream's ``fold``.
 3. **pLDDT is on 0--1, not 0--100**, and ``result.plddt`` (model tokens) is a
    different length from ``result.complex.plddt`` (collapsed residues) whenever
@@ -65,7 +62,6 @@ __all__ = [
     "attach_esmc",
     "ccd_source",
     "input_record",
-    "load_native_model_class",
     "snapshot_dir",
     "tensor_record",
 ]
@@ -78,9 +74,8 @@ __all__ = [
 GRADIENT_GATE = "res_type_soft"
 
 #: Sampler knobs ``fold()`` forwards to ``forward`` when set. A module whose
-#: ``forward`` does not declare one drops it -- the ``transformers`` fork of
-#: esm <= 3.3 did, esm >= 3.4 declares all three -- so :meth:`fold` checks the
-#: loaded module's signature and warns about any it would drop.
+#: ``forward`` does not declare one drops it, so :meth:`fold` checks the loaded
+#: module's signature and warns about any it would drop.
 #: (``early_exit`` is deprecated upstream and ignored by ``fold`` itself, with
 #: a ``DeprecationWarning`` of its own.)
 SAMPLER_KNOBS = ("noise_scale", "step_scale", "max_inference_sigma")
@@ -133,37 +128,6 @@ class MissingLanguageModelError(RuntimeError):
     all-zero states of a protein-free input to a non-zero pair term, so leaving
     the pathway out changes every fold, with or without protein chains.
     """
-
-
-def load_native_model_class() -> tuple[type, str]:
-    """The native ESMFold2 class, and which packaging it came from.
-
-    Up to esm 3.3 the ``esm`` package shipped only the input pipeline and the
-    ``nn.Module`` lived in a fork of ``transformers``; from esm 3.4 the model is
-    in ``esm`` itself. The two also differ in name (``ESMFold2Model`` vs ``EsmFold2Model``) and in how the
-    device is chosen, so supporting both is a few lines here rather than a
-    version constraint the caller has to satisfy.
-
-    Returns:
-        ``(class, flavour)`` where flavour is ``"esm"`` (>= 3.4) or
-        ``"transformers-fork"`` (<= 3.3).
-    """
-    try:
-        from esm.models.esmfold2.model import EsmFold2Model
-
-        return EsmFold2Model, "esm"
-    except ImportError:
-        pass
-    try:
-        from transformers.models.esmfold2.modeling_esmfold2 import ESMFold2Model
-
-        return ESMFold2Model, "transformers-fork"
-    except ImportError as error:
-        raise ImportError(
-            "No ESMFold2 model class found. Install esm >= 3.4, which ships "
-            "the model. (esm <= 3.3 relied on a fork of transformers that is no "
-            "longer published.) See docs/04_ENVIRONMENT.md."
-        ) from error
 
 
 def ccd_source(ccd_cache: Any) -> str:
@@ -491,9 +455,8 @@ class FoldingConfig:
 class AtomWorksESMFold2:
     """A resident ESMFold2, fed from AtomWorks and answering in AtomWorks terms.
 
-    This is intentionally *not* an ``nn.Module`` subclass yet. Until something
-    introduces trainable parameters of its own, wrapping in a module would add a
-    parameter namespace that every checkpoint has to agree about, for no gain.
+    Not an ``nn.Module``: it holds no parameters of its own, and wrapping it in a
+    module would add a parameter namespace every checkpoint has to agree about.
     :attr:`net` is the native module and is what a trainer should register.
     """
 
@@ -524,36 +487,31 @@ class AtomWorksESMFold2:
         #: so that the revision that ran is known (``provenance()``).
         self.weights_resolved = self.weights
         self.device = torch.device(device)
-        model_class, self.flavour = load_native_model_class()
+        try:
+            from esm.models.esmfold2.model import EsmFold2Model
+        except ImportError as error:
+            raise ImportError(
+                "No ESMFold2 model class found. Install esm >= 3.4.1.post1, which "
+                "ships the model. See docs/04_ENVIRONMENT.md."
+            ) from error
 
-        if self.flavour == "esm":
-            self.weights_resolved = snapshot_dir(self.weights)
-            # esm >= 3.4 places the model on `device` during construction, which
-            # avoids materializing it on CPU first. A bundled backbone comes in
-            # with the trunk regardless of `load_esmc`; a separate one is
-            # attached here rather than from the checkpoint's `esmc_id` (see
-            # attach_esmc).
-            self.net = model_class.from_pretrained(
-                self.weights_resolved,
-                load_esmc=False,
-                esmc_precision=esmc_precision,
-                device=str(self.device),
-            ).eval()
-            if load_esmc:
-                self.esmc_source = attach_esmc(self.net, esmc_precision)
-            elif _bundles_esmc(self.net.config):
-                self.esmc_source = "bundled"
-            else:
-                self.esmc_source = "none"
+        self.weights_resolved = snapshot_dir(self.weights)
+        # esm places the model on `device` during construction, which avoids
+        # materializing it on CPU first. A bundled backbone comes in with the
+        # trunk regardless of `load_esmc`; a separate one is attached here rather
+        # than from the checkpoint's `esmc_id` (see attach_esmc).
+        self.net = EsmFold2Model.from_pretrained(
+            self.weights_resolved,
+            load_esmc=False,
+            esmc_precision=esmc_precision,
+            device=str(self.device),
+        ).eval()
+        if load_esmc:
+            self.esmc_source = attach_esmc(self.net, esmc_precision)
+        elif _bundles_esmc(self.net.config):
+            self.esmc_source = "bundled"
         else:
-            self.esmc_source = "checkpoint esmc_id" if load_esmc else "none"
-            self.net = (
-                model_class.from_pretrained(
-                    self.weights, load_esmc=load_esmc, esmc_precision=esmc_precision
-                )
-                .to(self.device)
-                .eval()
-            )
+            self.esmc_source = "none"
 
         # Both are applied as given, None included: set_chunk_size(None)
         # disables chunking, and set_kernel_backend(None) selects upstream's
@@ -593,11 +551,6 @@ class AtomWorksESMFold2:
         so an experimental checkpoint fed an ordinary integer ``res_type``
         still runs with autograd *off*. Use :meth:`will_produce_gradients` to
         ask the question that actually matters.
-
-        Deliberately not named ``supports_gradients``: that name invited
-        exactly the reading that loading the experimental checkpoint was
-        enough, which produces a loss with no ``grad_fn`` and a flat training
-        curve whose cause has to be guessed at.
         """
         return getattr(self.config, "type", "release") == "experimental"
 
@@ -631,15 +584,14 @@ class AtomWorksESMFold2:
     def representation_dims(self) -> dict[str, int]:
         """The single and pair widths, read off the live config.
 
-        Read off the live config, under the names it uses now: ``EsmFold2Config``
-        migrates a pre-alignment ``config.json`` on load and drops the old field
-        names, so ``d_pair`` or ``c_token`` are absent from a config that was
-        written with them. The old name is read only when the new one is
-        missing, for a module that predates the migration. A width that is
-        missing under both, or not positive, raises: an unknown dimension
-        reported as ``0`` reads downstream as a measurement.
+        ``EsmFold2Config`` migrates a pre-alignment ``config.json`` on load and
+        drops the old field names, so ``d_pair`` or ``c_token`` are absent from a
+        config that was written with them; the current names are read, and the
+        old ones only when a current one is missing. A width that is missing
+        under both, or not positive, raises: an unknown dimension reported as
+        ``0`` reads downstream as a measurement.
 
-        The keys are this method's own and did not move with upstream.
+        The keys are this method's own, not upstream's.
         """
         config = self.config
         diffusion = _field(config, "structure_head.diffusion_module")
@@ -652,11 +604,10 @@ class AtomWorksESMFold2:
         }
 
     # -- component seams ---------------------------------------------------
-    # Named accessors for the three components the plan eventually separates.
-    # They exist now so that a later change is a change of implementation
-    # rather than a change of every call site. Only `.esmc` has a real absent
-    # state; the trunk and the head raise rather than answer None, which a
-    # caller would read as a component that is legitimately missing.
+    # Named accessors for the ESMC backbone, the folding trunk and the structure
+    # head. Only `.esmc` has a real absent state; the trunk and the head raise
+    # rather than answer None, which a caller would read as a component that is
+    # legitimately missing.
 
     @property
     def esmc(self) -> Any:
@@ -1259,9 +1210,6 @@ class AtomWorksESMFold2:
             "esmfold2.esmc_precision": str(getattr(self, "esmc_precision", "")),
             "esmfold2.chunk_size": str(getattr(self, "chunk_size", "")),
             "esmfold2.kernel_backend": str(getattr(self, "kernel_backend", "")),
-            # Which packaging supplied the module; the two are different code
-            # paths, so a result is only comparable against one of them.
-            "esmfold2.flavour": self.flavour,
             # "bundled", "none", or where a separate backbone was loaded from.
             "esmfold2.esmc": self.esmc_source,
             # The CCD pickle ligand and modified-residue conformers come from.

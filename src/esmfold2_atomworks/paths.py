@@ -1,8 +1,7 @@
 """Resolved filesystem locations for source trees, weights, and run outputs.
 
-Everything is overridable by environment variable so the same code runs from the
-repo, from a git worktree, and on a cluster where the trees are staged
-elsewhere. ``reproducibility/env.sh`` sets the same variables for the shell.
+Everything is overridable by environment variable.
+``reproducibility/env.sh`` sets the same variables for the shell.
 
 ``DESIGN_ROOT`` is *discovered* rather than fixed at ``REPO_ROOT.parent``: a git
 worktree can live several levels below the repository, where a fixed parent

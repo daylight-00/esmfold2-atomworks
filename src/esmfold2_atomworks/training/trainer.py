@@ -1,8 +1,5 @@
 """Foundry ``FabricTrainer`` integration for ESMFold2.
 
-Status: **the Foundry trainer contract is wired up; the objective is not, and
-the gradient path has a precondition that is easy to miss.**
-
 *Gradients.* The release ``forward`` is ``@torch.inference_mode()``; tensors it
 produces are inference tensors and can never carry autograd history. The
 experimental ``forward`` can, but gates it on an **input**::

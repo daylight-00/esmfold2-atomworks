@@ -8,7 +8,7 @@ elsewhere. ``reproducibility/env.sh`` sets the same variables for the shell.
 worktree can live several levels below the repository, where a fixed parent
 names the directory holding the worktree and every source tree would silently
 vanish. Searching upward for the directory that actually holds the trees is
-correct from both, and survives the next reorganization of the tree.
+correct from both.
 """
 
 from __future__ import annotations
@@ -234,7 +234,9 @@ def read_upstream_lock(path: Path | None = None) -> dict[str, dict[str, str]]:
     """Parse ``UPSTREAM.lock`` into ``{tree: {key: value}}``.
 
     Hand-rolled rather than via ``configparser`` so the file can carry comment
-    lines that explain themselves, which is most of its value.
+    lines that explain themselves, which is most of its value. A line that is
+    neither a comment, a ``[section]`` nor ``key = value`` inside a section
+    raises ``ValueError``.
     """
     path = path or UPSTREAM_LOCK
     if not path.exists():
@@ -251,6 +253,8 @@ def read_upstream_lock(path: Path | None = None) -> dict[str, dict[str, str]]:
         elif "=" in line and section:
             key, _, value = line.partition("=")
             locked[section][key.strip()] = value.strip()
+        else:
+            raise ValueError(f"{path.name}: malformed line {raw!r}")
     return locked
 
 

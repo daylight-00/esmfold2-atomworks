@@ -111,3 +111,13 @@ def test_esm_still_keeps_the_ccd_where_ccd_source_looks():
     conformers = pytest.importorskip("esm.models.esmfold2.conformers")
     assert hasattr(conformers, "_CCD_MOLECULES")
     assert hasattr(conformers, "CCD_PICKLE_PATH")
+
+
+@pytest.mark.offline
+def test_a_malformed_lock_line_raises(tmp_path):
+    path = tmp_path / "x.lock"
+    path.write_text("# comment\n[a]\nk = v\n")
+    assert paths.read_upstream_lock(path) == {"a": {"k": "v"}}
+    path.write_text("[a]\nk = v\nthis line is not a pair\n")
+    with pytest.raises(ValueError, match="malformed"):
+        paths.read_upstream_lock(path)

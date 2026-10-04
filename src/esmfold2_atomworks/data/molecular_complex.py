@@ -6,9 +6,8 @@ It is in memory, and it hands back AtomWorks' full annotation set for free.
 It is also **silently lossy for ligands**. ESMFold2 labels a SMILES-specified
 ligand ``LIG``; ``LIG`` is a real CCD code for an unrelated molecule, so
 AtomWorks reconciles the ligand against that component and keeps only the atoms
-whose names happen to match. In one observed case that turned 19 correct ligand
-atoms into 8 carbons -- and the result still parsed and still validated.
-Nothing downstream noticed.
+whose names happen to match -- and the result still parses and still validates.
+Nothing downstream would notice.
 
 So the flat arrays are read directly instead. ``MolecularComplex`` already
 stores per-atom positions, names, elements and hetero flags, and a token->atom

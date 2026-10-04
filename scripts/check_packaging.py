@@ -12,10 +12,9 @@ sit at the repo root, `pkg://esmfold2_atomworks.configs` expects them inside the
 package, and nothing in a normal test run notices that the wheel shipped
 without them.
 
-It also composes rather than merely listing files, because two of the defects
-found when this was first written -- a searchpath that could not resolve, and a
-`_target_` landing under a group namespace instead of the root -- are visible
-only once Hydra actually assembles the config.
+It also composes rather than merely listing files: a searchpath that cannot
+resolve, or a `_target_` landing under a group namespace instead of the root, is
+visible only once Hydra actually assembles the config.
 """
 
 from __future__ import annotations

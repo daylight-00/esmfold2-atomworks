@@ -4,9 +4,8 @@ A residue name is a *label*, not an identity. ``LIG`` is a real CCD code, and so
 are ``UNL`` and ``UNK``; a model that emitted a SMILES ligand under the label
 ``LIG`` and a depositor who crystallized CCD ``LIG`` produce the same three
 characters and different molecules. Reconciling the first against the CCD
-silently replaces the ligand: in one observed case that turned 19 correct ligand
-atoms into 8 carbons while leaving a structure that still parsed and still
-validated.
+silently replaces the ligand, leaving a structure that still parses and still
+validates.
 
 So this module exists to make ligand identity something the caller *declares*
 and this code *verifies*, rather than something inferred from a string. The

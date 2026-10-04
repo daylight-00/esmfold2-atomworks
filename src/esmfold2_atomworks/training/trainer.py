@@ -187,8 +187,8 @@ def make_trainer_class() -> Any:
 
             Left unimplemented on purpose. ESMFold2 ships no training loss, and
             the objective is the experiment -- diffusion loss on the structure,
-            distogram loss on the trunk, or the joint latent/structure objective
-            the project is aiming at. Guessing one here would put an arbitrary
+            distogram loss on the trunk, or a joint latent/structure objective.
+            Guessing one here would put an arbitrary
             choice in the base class where it would be inherited silently.
             """
             raise NotImplementedError(

@@ -12,8 +12,7 @@ build on this repository keep their own.
   reference inputs ([02_PARITY.md](02_PARITY.md)).
 - **Output parity on a GPU**, exact under deterministic kernels, with the
   non-deterministic scatter characterized separately.
-- **esm ≥ 3.4**, verified on CPU and GPU — as was the esm ≤ 3.3 `transformers`
-  fork while it was still published.
+- **esm 3.4.1.post1**, verified on CPU and GPU.
 - **Inference**: engine, CLI, configs, AtomWorks round trip — atoms, names and
   chains, not topology ([01](01_ADAPTER.md), "What `G` does not return").
 - **Covalent bonds** carried across, with indices read back from the tokenizer.
@@ -22,6 +21,19 @@ build on this repository keep their own.
 - **Packaged configs** compose from an installed wheel (checked in CI).
 - **Optional Foundry integration** verified against the pinned checkout, not just
   described.
+- **Declared chain kinds**, verified against `chain_type`, `is_polymer` and the CCD
+  (`chain_kinds=`); a chain that holds more than one molecule is refused
+  ([01](01_ADAPTER.md)).
+- **The return leg's names and kinds**: each declared ligand chain keeps its name, and
+  each chain's source `chain_type` is carried to the output.
+- **Folding with supplied LM hidden states** (`compute_lm_hidden_states`,
+  `fold(lm_hidden_states=)`); a fold with no LM prior is refused
+  ([03](03_MODEL.md)).
+- **Provenance**: a record per fold call (`fold(record=)`) and the model's by revision
+  (`provenance()`); the checkpoint, ESMC backbone and CCD pinned by digest in
+  `reproducibility/ARTIFACTS.lock`.
+- **Metrics**: the scalar sources as a read-only table (`SCALAR_METRIC_SOURCES`), and
+  the two pLDDT axes by name (`plddt_per_token`, `plddt_per_residue`).
 - **AtomWorks' own MSA loader**, `LoadPolymerMSAs`, wired in with
   `build_esmfold2_pipeline(msa_loader=...)`: what it loads features exactly like
   the file it came from, heteromer rows pair by its TaxIDs, and an alignment it

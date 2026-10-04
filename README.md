@@ -19,7 +19,7 @@ AtomWorks AtomArray ──adapter──> ESMFold2 (unmodified) ──adapter─�
 | part | state |
 |---|---|
 | **AtomWorks ↔ ESMFold2** — adapter and its reverse, AtomWorks pipeline, supervision labels | done; feature parity exact on 5 fixtures |
-| **Inference** — model wrapper, engine, CLI | done; output parity exact on a GPU under deterministic kernels |
+| **Inference** — model wrapper, engine, CLI, a provenance record per fold | done; output parity exact on a GPU under deterministic kernels |
 | **Foundry integration** (optional) — trainer, Hydra configs | contracts verified against the pinned Foundry checkout, the runtime ones also against rc-foundry 0.2.0; the objective is the caller's ([docs/05](docs/05_ROADMAP.md)) |
 
 The core milestone is met: for monomer, multimer, metal, cofactor and

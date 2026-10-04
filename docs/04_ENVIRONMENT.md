@@ -18,6 +18,21 @@ suite passes, feature parity and the Foundry contract tests included, given
 AtomWorks' test structures: they come with an atomworks checkout rather than
 with the package, and without them the tests that read them skip.
 
+## Verified against
+
+| | ordinary install | reference environment |
+|---|---|---|
+| CPython | 3.12 | 3.14.6 |
+| esm | 3.4.1.post1 | source tree at the `UPSTREAM.lock` revision |
+| atomworks | 2.2.1 | source tree at the `UPSTREAM.lock` revision |
+| rc-foundry (`foundry` extra) | 0.2.0 | source tree at the `UPSTREAM.lock` revision |
+| torch | 2.11, CPU | 2.14.0, CUDA 13.2 |
+| biotite | 1.4.0 | 1.6 |
+
+The suite passes in both; the GPU tests run only in the reference environment. A version
+outside this table is untested, not refused: `doctor` reports how an installed upstream
+differs from `UPSTREAM.lock`.
+
 The published parity results were produced in a different, pinned environment:
 Python 3.14 and torch 2.14, with the upstreams as source trees at the revisions
 in `reproducibility/UPSTREAM.lock`. It is defined, and its choices explained, under

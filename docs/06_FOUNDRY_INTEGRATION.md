@@ -133,4 +133,4 @@ steps, and the trunk's parameters change.
 [`reproducibility/training_smoke.json`](../reproducibility/training_smoke.json)
 records a run; `tests/test_training_gpu.py` repeats it under `pytest -m gpu`. The
 objective there is the script's own, and its bin range is its choice, not the
-checkpoint's.
+checkpoint's: the run shows that the integration trains, not how well.

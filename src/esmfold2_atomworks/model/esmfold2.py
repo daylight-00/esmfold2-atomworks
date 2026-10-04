@@ -1182,7 +1182,7 @@ class AtomWorksESMFold2:
             folded = copy_chain_types(folded, atoms, chain_key=chain_key)
             if bonds:
                 folded.bonds = build_bond_list(folded, spi)
-            collided.update(ccd_name_collisions(folded))
+            collided.update(ccd_name_collisions(folded, spi))
             return folded
 
         built = (

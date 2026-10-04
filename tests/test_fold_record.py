@@ -114,7 +114,7 @@ def test_fold_atom_array_records_where_each_sequence_came_from(monkeypatch):
 
     monkeypatch.setattr(adapter, "atom_array_to_structure_prediction_input", convert)
     monkeypatch.setattr(reverse, "result_to_atom_array", lambda result, **_: "atoms")
-    monkeypatch.setattr(topology, "ccd_name_collisions", lambda atoms: ["LIG"])
+    monkeypatch.setattr(topology, "ccd_name_collisions", lambda atoms, spi: ["LIG"])
 
     import biotite.structure as struc
 

@@ -369,11 +369,14 @@ reported:
   (nucleic acid);
 - the covalent bonds that were declared, with the type the source had.
 
-A list that looks complete and is not would be worse than none, so every atom the
-chemistry names has to be found under that name, every atom of the structure has
-to belong to a chain of the input, and a ligand's components have to account for
-its atoms — including the leaving atoms the tokenizer drops from a bonded chain.
-Otherwise `TopologyError` is raised; `bonds=False` returns the structure without
+A list that looks complete and is not would be worse than none, so the structure
+has to match the input atom for atom. Every atom has to belong to a chain of the
+input. A polymer chain has the residues of its sequence, under the names esm gives
+them (`X` is its `UNK`), each with the atoms esm tokenizes it into: for a residue
+of the standard alphabet the atoms of esm's table, for a modified residue every
+atom of its CCD component that is not flagged leaving, and no atom the component
+lacks. A ligand's components have to account for its atoms — including the leaving
+atoms the tokenizer drops from a bonded chain. Otherwise `TopologyError` is raised; `bonds=False` returns the structure without
 a bond list. For a standard residue the result equals biotite's own assignment
 by residue name (`connect_via_residue_names`), bond for bond and type for type
 (`tests/test_topology.py`); AtomWorks' parse agrees on every connection and may
@@ -390,11 +393,13 @@ dictionary. For a SMILES ligand that is the default label `LIG`, and 2.x
 rebuilds the residue from that component while 3.x refuses atoms it does not
 have.
 
-`fold_atom_array` records `esmfold2.ccd_name_collisions` when a hetero residue's
-atoms, or the bonds between them, are not a subset of the CCD component it is
-named for. A CCD ligand with its leaving atoms dropped is a subset and is not
-listed. To have a SMILES ligand read back as written, give it a `residue_name`
-that is not a CCD code.
+`fold_atom_array` records `esmfold2.ccd_name_collisions`, the residue names a CCD
+reader would not read back as written: a name that is a CCD code, on a chain the
+input made from SMILES or from other components, whatever its atoms look like; or
+whose atoms, or the bonds between them, are not a subset of that component's. A
+CCD ligand with its leaving atoms dropped is a subset and is not listed. To have a
+SMILES ligand read back as written, give it a `residue_name` that is not a CCD
+code.
 
 ## The report
 

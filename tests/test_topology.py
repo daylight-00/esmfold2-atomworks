@@ -212,6 +212,21 @@ def test_a_ccd_ligand_does_not_collide_with_its_own_component(ccd):
     assert ccd_name_collisions(atoms) == []
 
 
+def test_a_smiles_ligand_collides_whatever_its_atoms_look_like(ccd):
+    from esm.models.esmfold2.types import LigandInput
+
+    from esmfold2_atomworks.data.topology import ccd_name_collisions
+
+    # NAG's own atoms, so as atoms alone they are the component they are named for.
+    atoms = _folded(_spi(LigandInput(id="B", ccd=["NAG"])))
+    assert ccd_name_collisions(atoms) == []
+
+    as_smiles = _spi(LigandInput(id="B", smiles="CC(=O)NC1C(O)OC(CO)C(O)C1O"))
+    assert ccd_name_collisions(atoms, as_smiles) == ["NAG"]
+    own = _spi(LigandInput(id="B", ccd=["NAG"]))
+    assert ccd_name_collisions(atoms, own) == []
+
+
 def test_the_collision_check_needs_no_bond_list(ccd):
     from esm.models.esmfold2.types import LigandInput
 
@@ -320,8 +335,95 @@ def test_atoms_that_do_not_match_the_chemistry_are_refused(ccd):
     names = np.asarray(atoms.atom_name).copy()
     names[1] = "XX"
     atoms.set_annotation("atom_name", names)
-    with pytest.raises(TopologyError, match="not atoms of CCD component"):
+    with pytest.raises(TopologyError, match="not its atoms"):
         build_bond_list(atoms, spi)
+
+
+def _without(atoms, drop):
+    """*atoms* minus the atoms where *drop* is true."""
+    return atoms[~np.asarray(drop, dtype=bool)]
+
+
+@pytest.mark.parametrize(
+    ("what", "match"),
+    [
+        ("a side-chain atom", r"residue 2 \(ALA\).*\['CB'\] are missing"),
+        ("a backbone atom", r"residue 2 \(ALA\).*\['N'\] are missing"),
+        ("a whole residue", "2 residues but its sequence has 3"),
+        ("a terminal residue", "2 residues but its sequence has 3"),
+    ],
+)
+def test_a_protein_with_atoms_or_residues_missing_is_refused(ccd, what, match):
+    from esm.models.esmfold2.types import ProteinInput
+
+    from esmfold2_atomworks.data.topology import build_bond_list
+
+    spi = _spi(ProteinInput(id="A", sequence="GAG"))
+    atoms = _folded(spi)
+    names, res_id = np.asarray(atoms.atom_name), np.asarray(atoms.res_id)
+    drop = {
+        "a side-chain atom": (res_id == 2) & (names == "CB"),
+        "a backbone atom": (res_id == 2) & (names == "N"),
+        "a whole residue": res_id == 2,
+        "a terminal residue": res_id == 3,
+    }[what]
+    with pytest.raises(TopologyError, match=match):
+        build_bond_list(_without(atoms, drop), spi)
+
+
+def test_a_nucleic_acid_with_an_atom_missing_is_refused(ccd):
+    from esm.models.esmfold2.types import DNAInput
+
+    from esmfold2_atomworks.data.topology import build_bond_list
+
+    spi = _spi(DNAInput(id="A", sequence="ACG"))
+    atoms = _folded(spi)
+    drop = (np.asarray(atoms.res_id) == 2) & (np.asarray(atoms.atom_name) == "P")
+    with pytest.raises(TopologyError, match=r"residue 2 \(DC\).*\['P'\] are missing"):
+        build_bond_list(_without(atoms, drop), spi)
+
+
+def test_a_residue_the_sequence_does_not_have_is_refused(ccd):
+    from esm.models.esmfold2.types import ProteinInput
+
+    from esmfold2_atomworks.data.topology import build_bond_list
+
+    atoms = _folded(_spi(ProteinInput(id="A", sequence="GAG")))
+    other = _spi(ProteinInput(id="A", sequence="GGG"))
+    with pytest.raises(TopologyError, match=r"residue 2 \(GLY\).*names it \['ALA'\]"):
+        build_bond_list(atoms, other)
+
+
+@pytest.mark.parametrize("position", [0, 1, 2])
+def test_a_modified_residue_is_complete_wherever_it_sits(ccd, position):
+    from esm.models.esmfold2.types import Modification, ProteinInput
+
+    from esmfold2_atomworks.data.topology import build_bond_list
+
+    spi = _spi(
+        ProteinInput(
+            id="A",
+            sequence="GSG",
+            modifications=[Modification(position=position, ccd="SEP")],
+        )
+    )
+    atoms = _folded(spi)
+    assert build_bond_list(atoms, spi).as_array().shape[0] > 0
+
+    residue = np.asarray(atoms.res_id) == position + 1
+    drop = residue & (np.asarray(atoms.atom_name) == "P")
+    with pytest.raises(TopologyError, match=r"\['P'\] are missing"):
+        build_bond_list(_without(atoms, drop), spi)
+
+
+def test_an_unknown_residue_has_the_atoms_esm_gives_it(ccd):
+    from esm.models.esmfold2.types import ProteinInput
+
+    from esmfold2_atomworks.data.topology import build_bond_list
+
+    spi = _spi(ProteinInput(id="A", sequence="GXG"))  # X is esm's UNK: N, CA, C, O
+    atoms = _folded(spi)
+    assert build_bond_list(atoms, spi).as_array().shape[0] > 0
 
 
 def test_a_chain_the_input_does_not_name_is_refused(ccd):

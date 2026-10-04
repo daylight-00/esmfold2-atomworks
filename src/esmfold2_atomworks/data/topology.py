@@ -213,6 +213,48 @@ def _within(
             bonds.add(by_name[first], by_name[second], kind)
 
 
+def _polymer_residues(entry: Any) -> list[tuple[str, set[str], set[str]]]:
+    """``(name, required atoms, allowed atoms)`` of each residue esm makes of *entry*.
+
+    A residue of the standard alphabet has the atoms of esm's own table, no more
+    and no fewer. A modified residue, or a letter outside the table, is tokenized
+    from its CCD component: every atom that is not flagged leaving is there, and
+    the leaving ones may be (a terminal residue keeps them).
+    """
+    from esm.models.esmfold2.conformers import get_ccd_leaving_atoms
+    from esm.models.esmfold2.constants import (
+        DNA_1TO3,
+        DNA_HEAVY_ATOMS,
+        PROTEIN_1TO3,
+        PROTEIN_HEAVY_ATOMS,
+        RNA_1TO3,
+        RNA_HEAVY_ATOMS,
+    )
+
+    letters, table = {
+        "ProteinInput": (PROTEIN_1TO3, PROTEIN_HEAVY_ATOMS),
+        "DNAInput": (DNA_1TO3, DNA_HEAVY_ATOMS),
+        "RNAInput": (RNA_1TO3, RNA_HEAVY_ATOMS),
+    }[type(entry).__name__]
+    codes = [letters.get(letter, "UNK") for letter in entry.sequence]
+    modified = set()
+    for modification in entry.modifications or []:
+        codes[modification.position] = modification.ccd
+        modified.add(modification.position)
+
+    residues = []
+    for position, code in enumerate(codes):
+        if position not in modified and code in table:
+            atoms = set(table[code])
+            residues.append((code, atoms, atoms))
+            continue
+        template, _ = _ccd_template(code)
+        residues.append(
+            (code, set(template) - get_ccd_leaving_atoms(code), set(template))
+        )
+    return residues
+
+
 def _ccd_components(
     indices: np.ndarray,
     codes: list[str],
@@ -295,14 +337,26 @@ def build_bond_list(atoms: AtomArray, spi: Any) -> BondList:
 
         if kind in _POLYMER_INPUTS:
             groups = _groups(indices, res_ids)
-            for position, group in enumerate(groups):
-                _within(
-                    group,
-                    res_names[group[0]],
-                    names,
-                    bonds,
-                    f"chain {chain!r} residue {position + 1}",
+            residues = _polymer_residues(entry)
+            if len(groups) != len(residues):
+                raise TopologyError(
+                    f"chain {chain!r} has {len(groups)} residues but its sequence "
+                    f"has {len(residues)}"
                 )
+            for position, (group, (code, required, allowed)) in enumerate(
+                zip(groups, residues, strict=True)
+            ):
+                where = f"chain {chain!r} residue {position + 1} ({code})"
+                named = sorted({str(res_names[i]) for i in group})
+                if named != [code]:
+                    raise TopologyError(f"{where}: the structure names it {named}")
+                present = {str(names[i]) for i in group}
+                if present - allowed or required - present:
+                    raise TopologyError(
+                        f"{where}: atoms {sorted(required - present)} are missing "
+                        f"and {sorted(present - allowed)} are not its atoms"
+                    )
+                _within(group, code, names, bonds, where)
             carbon, nitrogen = _POLYMER_INPUTS[kind]
             for before, after in pairwise(groups):
                 first = [i for i in before if names[i] == carbon]
@@ -360,16 +414,19 @@ def build_bond_list(atoms: AtomArray, spi: Any) -> BondList:
     return BondList(len(atoms), pairs)
 
 
-def ccd_name_collisions(atoms: AtomArray) -> list[str]:
-    """Residue names of hetero residues that are not the CCD component they are named for.
+def ccd_name_collisions(atoms: AtomArray, spi: Any = None) -> list[str]:
+    """Residue names of hetero residues that a CCD reader would not read back as written.
 
     A reader that finds a CCD code takes the component from the dictionary, not
     from the file: AtomWorks 2.x rebuilds the residue from the CCD, 3.x refuses
-    atoms the component does not have. A hetero residue is such a collision when
-    its atom names, or the bonds between them, are not a subset of the
-    component's -- a SMILES ligand labelled ``LIG``, say. A residue whose name is
-    not a CCD code is read from the file, and one that is a subset (a component
-    with leaving atoms dropped) reads back as itself.
+    atoms the component does not have. A name that is not a CCD code is read from
+    the file. A hetero residue named for a CCD component is listed when
+
+    * *spi* says its chain is a SMILES ligand, or a CCD ligand of other
+      components: whatever its atoms look like, it is not the component named; or
+    * its atom names, or the bonds between them, are not a subset of the
+      component's. A component with its leaving atoms dropped is a subset and
+      reads back as itself.
     """
     from esm.models.esmfold2.conformers import load_ccd
 
@@ -379,6 +436,11 @@ def ccd_name_collisions(atoms: AtomArray) -> list[str]:
     if hetero.size == 0:
         return []
     ccd = load_ccd(paths.ccd_dir())
+    components: dict[str, set[str]] = {}
+    for entry in getattr(spi, "sequences", None) or []:
+        if type(entry).__name__ == "LigandInput" and isinstance(entry.id, str):
+            components[entry.id] = set(entry.ccd or ())
+
     names = np.asarray(atoms.atom_name).astype(str)
     residue_of = {
         int(i): (str(atoms.chain_id[i]), int(atoms.res_id[i]), str(atoms.res_name[i]))
@@ -396,8 +458,11 @@ def ccd_name_collisions(atoms: AtomArray) -> list[str]:
 
     collided = set()
     for key, present in members.items():
-        code = key[2]
+        chain, _, code = key
         if code not in ccd:
+            continue
+        if chain in components and code not in components[chain]:
+            collided.add(code)
             continue
         template_names, template_bonds = _ccd_template(code)
         known = {frozenset((first, second)) for first, second, _kind in template_bonds}

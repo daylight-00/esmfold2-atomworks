@@ -106,6 +106,7 @@ def test_one_record_describes_every_sample_and_names_none():
 def test_fold_atom_array_records_where_each_sequence_came_from(monkeypatch):
     import esmfold2_atomworks.data.atomworks_to_esm as adapter
     import esmfold2_atomworks.data.molecular_complex as reverse
+    from esmfold2_atomworks.data import topology
 
     def convert(atoms, *, chain_info=None, report=None, **kwargs):
         report.sequence_source["A"] = "override"
@@ -113,6 +114,7 @@ def test_fold_atom_array_records_where_each_sequence_came_from(monkeypatch):
 
     monkeypatch.setattr(adapter, "atom_array_to_structure_prediction_input", convert)
     monkeypatch.setattr(reverse, "result_to_atom_array", lambda result, **_: "atoms")
+    monkeypatch.setattr(topology, "ccd_name_collisions", lambda atoms: ["LIG"])
 
     import biotite.structure as struc
 
@@ -122,6 +124,7 @@ def test_fold_atom_array_records_where_each_sequence_came_from(monkeypatch):
     )
     assert (atoms, result) == ("atoms", "result")
     assert record["esmfold2.bonds"] is False
+    assert record["esmfold2.ccd_name_collisions"] == ["LIG"]
     assert record["esmfold2.sequence_source"] == {"A": "override"}
     assert record["caller.run"] == "r1"
 

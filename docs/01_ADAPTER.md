@@ -379,6 +379,23 @@ by residue name (`connect_via_residue_names`), bond for bond and type for type
 (`tests/test_topology.py`); AtomWorks' parse agrees on every connection and may
 alternate an aromatic ring's single and double bonds differently.
 
+### Re-reading a written structure
+
+`ESMFold2Output.dump` writes the structure with its bond list (an empty one when
+it has none, which AtomWorks 3.x's writer needs). What AtomWorks makes of a
+ligand when it reads the file back depends on the residue name. A name that is
+not a CCD code is read from the file: atoms, names and bonds come back as
+written, on AtomWorks 2.2 and 3.x. A name that is a CCD code is read from the
+dictionary. For a SMILES ligand that is the default label `LIG`, and 2.x
+rebuilds the residue from that component while 3.x refuses atoms it does not
+have.
+
+`fold_atom_array` records `esmfold2.ccd_name_collisions` when a hetero residue's
+atoms, or the bonds between them, are not a subset of the CCD component it is
+named for. A CCD ligand with its leaving atoms dropped is a subset and is not
+listed. To have a SMILES ligand read back as written, give it a `residue_name`
+that is not a CCD code.
+
 ## The report
 
 `AdapterReport` records, per conversion: every chain and its classification,

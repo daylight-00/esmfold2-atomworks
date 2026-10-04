@@ -19,6 +19,10 @@ Every atom the chemistry names has to be found in the structure under the name
 the chemistry gives it, and every atom of the structure has to be accounted for;
 otherwise :class:`~esmfold2_atomworks.data.spec.TopologyError` is raised. A bond
 list that looks complete and is not would be worse than none.
+
+:func:`ccd_name_collisions` is the check on the other side of a written file: a
+residue name that is a CCD code for a different molecule is read back from the
+dictionary, not from the file.
 """
 
 from __future__ import annotations
@@ -34,7 +38,7 @@ from esmfold2_atomworks.data.spec import TopologyError
 if TYPE_CHECKING:
     from biotite.structure import AtomArray, BondList
 
-__all__ = ["build_bond_list"]
+__all__ = ["build_bond_list", "ccd_name_collisions"]
 
 _POLYMER_INPUTS = {
     "ProteinInput": ("C", "N"),
@@ -354,3 +358,49 @@ def build_bond_list(atoms: AtomArray, spi: Any) -> BondList:
         dtype=np.int64,
     ).reshape(-1, 3)
     return BondList(len(atoms), pairs)
+
+
+def ccd_name_collisions(atoms: AtomArray) -> list[str]:
+    """Residue names of hetero residues that are not the CCD component they are named for.
+
+    A reader that finds a CCD code takes the component from the dictionary, not
+    from the file: AtomWorks 2.x rebuilds the residue from the CCD, 3.x refuses
+    atoms the component does not have. A hetero residue is such a collision when
+    its atom names, or the bonds between them, are not a subset of the
+    component's -- a SMILES ligand labelled ``LIG``, say. A residue whose name is
+    not a CCD code is read from the file, and one that is a subset (a component
+    with leaving atoms dropped) reads back as itself.
+    """
+    from esm.models.esmfold2.conformers import load_ccd
+
+    from esmfold2_atomworks import paths
+
+    hetero = np.flatnonzero(np.asarray(atoms.hetero, dtype=bool))
+    if hetero.size == 0:
+        return []
+    ccd = load_ccd(paths.ccd_dir())
+    names = np.asarray(atoms.atom_name).astype(str)
+    residue_of = {
+        int(i): (str(atoms.chain_id[i]), int(atoms.res_id[i]), str(atoms.res_name[i]))
+        for i in hetero
+    }
+    members: dict[tuple[str, int, str], set[str]] = {}
+    for i, key in residue_of.items():
+        members.setdefault(key, set()).add(names[i])
+    pairs: dict[tuple[str, int, str], set[frozenset[str]]] = {}
+    if atoms.bonds is not None:
+        for i, j, _kind in atoms.bonds.as_array():
+            key = residue_of.get(int(i))
+            if key is not None and key == residue_of.get(int(j)):
+                pairs.setdefault(key, set()).add(frozenset((names[i], names[j])))
+
+    collided = set()
+    for key, present in members.items():
+        code = key[2]
+        if code not in ccd:
+            continue
+        template_names, template_bonds = _ccd_template(code)
+        known = {frozenset((first, second)) for first, second, _kind in template_bonds}
+        if not present <= set(template_names) or not pairs.get(key, set()) <= known:
+            collided.add(code)
+    return sorted(collided)

@@ -12,8 +12,9 @@ upstream, and what remains; it is not a research plan.
 - **Output parity on a GPU**, exact under deterministic kernels, with the
   non-deterministic scatter characterized separately.
 - **esm 3.4.1.post1**, verified on CPU and GPU.
-- **Inference**: engine, CLI, configs, AtomWorks round trip — atoms, names and
-  chains, not topology ([01](01_ADAPTER.md), "What `G` does not return").
+- **Inference**: engine, CLI, configs, AtomWorks round trip — atoms, names,
+  chains and bonds ([01](01_ADAPTER.md), "The bond list of the returned
+  structure").
 - **Covalent bonds** carried across, with indices read back from the tokenizer.
 - **MSA** transfer and cross-chain pairing by `key=<taxid>`.
 - **Nucleic acid and SMILES branches** covered.

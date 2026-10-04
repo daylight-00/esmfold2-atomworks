@@ -1127,7 +1127,10 @@ class AtomWorksESMFold2:
             rename_ligand_residues,
             result_to_atom_array,
         )
-        from esmfold2_atomworks.data.topology import build_bond_list
+        from esmfold2_atomworks.data.topology import (
+            build_bond_list,
+            ccd_name_collisions,
+        )
 
         _check_record(record)
         adapter_kwargs = dict(adapter_kwargs or {})
@@ -1168,6 +1171,7 @@ class AtomWorksESMFold2:
             record["esmfold2.bonds"] = bool(bonds)
 
         chain_key = (adapter_kwargs or {}).get("chain_key", "chain_id")
+        collided: set[str] = set()
 
         def structure(one: Any) -> AtomArray:
             folded = result_to_atom_array(one)
@@ -1178,11 +1182,17 @@ class AtomWorksESMFold2:
             folded = copy_chain_types(folded, atoms, chain_key=chain_key)
             if bonds:
                 folded.bonds = build_bond_list(folded, spi)
+            collided.update(ccd_name_collisions(folded))
             return folded
 
-        if isinstance(result, list):
-            return [structure(r) for r in result], result
-        return structure(result), result
+        built = (
+            [structure(r) for r in result]
+            if isinstance(result, list)
+            else structure(result)
+        )
+        if record is not None and collided:
+            record["esmfold2.ccd_name_collisions"] = sorted(collided)
+        return built, result
 
     def provenance(self) -> dict[str, str]:
         """What this model is and where it runs: one entry per fact, as strings.

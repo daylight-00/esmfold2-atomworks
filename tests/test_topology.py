@@ -173,6 +173,108 @@ def test_a_ring_in_a_smiles_ligand_is_aromatic(ccd):
     assert kinds == [int(struc.BondType.AROMATIC)] * 6
 
 
+def test_a_smiles_ligand_named_for_a_ccd_component_collides_with_it(ccd):
+    from esm.models.esmfold2.types import LigandInput, ProteinInput
+
+    from esmfold2_atomworks.data.molecular_complex import rename_ligand_residues
+    from esmfold2_atomworks.data.topology import build_bond_list, ccd_name_collisions
+
+    spi = _spi(
+        ProteinInput(id="A", sequence="G"), LigandInput(id="B", smiles="CC(=O)O")
+    )
+    atoms = _folded(spi)
+    atoms.bonds = build_bond_list(atoms, spi)
+
+    assert ccd_name_collisions(atoms) == [
+        "LIG"
+    ]  # LIG is a CCD code, for another molecule
+    assert ccd_name_collisions(rename_ligand_residues(atoms, "Q9Q9Q")) == []
+
+
+def test_a_ccd_ligand_does_not_collide_with_its_own_component(ccd):
+    from esm.models.esmfold2.types import CovalentBond, LigandInput, ProteinInput
+
+    from esmfold2_atomworks.data.topology import build_bond_list, ccd_name_collisions
+
+    plain = _spi(LigandInput(id="B", ccd=["NAG"]))
+    atoms = _folded(plain)
+    atoms.bonds = build_bond_list(atoms, plain)
+    assert ccd_name_collisions(atoms) == []
+
+    # Bonded, the leaving atoms are gone: a subset of the component, still itself.
+    bonded = _spi(
+        ProteinInput(id="A", sequence="GGG"),
+        LigandInput(id="B", ccd=["NAG"]),
+        bonds=[CovalentBond("A", 1, 2, "B", 0, 10)],
+    )
+    atoms = _folded(bonded)
+    atoms.bonds = build_bond_list(atoms, bonded)
+    assert ccd_name_collisions(atoms) == []
+
+
+def test_the_collision_check_needs_no_bond_list(ccd):
+    from esm.models.esmfold2.types import LigandInput
+
+    from esmfold2_atomworks.data.topology import ccd_name_collisions
+
+    atoms = _folded(_spi(LigandInput(id="B", smiles="c1ccccc1")))
+    assert atoms.bonds is None
+    assert ccd_name_collisions(atoms) == ["LIG"]
+
+
+def _written_and_reread(atoms, tmp_path):
+    """The structure as AtomWorks reads it back from the file ``dump`` wrote."""
+    pytest.importorskip("atomworks")
+    from atomworks.io import parse
+
+    from esmfold2_atomworks.inference.engine import ESMFold2Output
+
+    path = ESMFold2Output(atom_array=atoms, example_id="x").dump(
+        tmp_path, verbose=False
+    )
+    return parse(path)["asym_unit"][0]
+
+
+def _ligand_and_bonds(atoms):
+    """Chain B's atom names and the number of bonds between its atoms."""
+    chain = np.flatnonzero(np.asarray(atoms.chain_id) == "B")
+    inside = [1 for a, b, _ in atoms.bonds.as_array() if a in chain and b in chain]
+    return sorted(map(str, np.asarray(atoms.atom_name)[chain])), len(inside)
+
+
+def _acetic_acid(ccd, label):
+    from esm.models.esmfold2.types import LigandInput, ProteinInput
+
+    from esmfold2_atomworks.data.molecular_complex import rename_ligand_residues
+    from esmfold2_atomworks.data.topology import build_bond_list
+
+    spi = _spi(
+        ProteinInput(id="A", sequence="G"), LigandInput(id="B", smiles="CC(=O)O")
+    )
+    atoms = _folded(spi)
+    atoms.bonds = build_bond_list(atoms, spi)
+    return rename_ligand_residues(atoms, label)
+
+
+def test_a_smiles_ligand_with_a_non_ccd_name_is_read_back_as_written(ccd, tmp_path):
+    atoms = _acetic_acid(ccd, "Q9Q9Q")
+
+    back = _written_and_reread(atoms, tmp_path)
+
+    assert _ligand_and_bonds(back) == _ligand_and_bonds(atoms)
+
+
+def test_a_smiles_ligand_named_for_a_ccd_component_is_not_read_back_as_written(
+    ccd, tmp_path
+):
+    atoms = _acetic_acid(ccd, "LIG")
+    try:
+        back = _written_and_reread(atoms, tmp_path)
+    except ValueError:  # 3.x: atoms the component does not have
+        return
+    assert _ligand_and_bonds(back) != _ligand_and_bonds(atoms)  # 2.x: rebuilt
+
+
 def test_a_declared_bond_keeps_the_order_the_source_had(ccd):
     from esm.models.esmfold2.types import CovalentBond, ProteinInput
 

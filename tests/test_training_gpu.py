@@ -8,6 +8,7 @@ checkpoint (``EF_EXPERIMENTAL_WEIGHTS``, or the mirror).
 
 from __future__ import annotations
 
+import gc
 import os
 import subprocess
 import sys
@@ -27,6 +28,12 @@ def test_the_trainer_takes_steps_that_lower_the_loss_and_change_the_weights():
     weights = os.environ.get("EF_EXPERIMENTAL_WEIGHTS")
     if not weights:
         pytest.skip("set EF_EXPERIMENTAL_WEIGHTS to the experimental checkpoint")
+
+    # The run below is its own process. Whatever earlier tests in this one left on
+    # the GPU (a model fixture, once its module is done) is garbage by now, and
+    # the allocator keeps it until asked.
+    gc.collect()
+    torch.cuda.empty_cache()
 
     done = subprocess.run(
         [

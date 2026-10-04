@@ -1,6 +1,6 @@
 """Equivalence checks between the native and AtomWorks-fed ESMFold2 paths.
 
-The milestone this repo is built around is::
+The property checked is::
 
     ESMFold2(I_native) ~= ESMFold2(F(A))
 
@@ -22,12 +22,10 @@ sampler.
 ipTM and the distogram from a real fold. It needs a GPU and the weights, and it
 confirms rather than diagnoses, so it is not the primary test.
 
-Running only the second is a trap: the structure head is a diffusion sampler,
-and with torch's deterministic algorithms off a seeded fold is not repeatable, so
-a paired run cannot distinguish an implementation difference from run-to-run
-scatter.
-Under deterministic kernels it can, and the two paths then agree exactly
-(docs/02).
+Output parity alone cannot separate an implementation difference from
+run-to-run scatter: the structure head is a diffusion sampler, and with torch's
+deterministic algorithms off a seeded fold is not repeatable. Under
+deterministic kernels it can, and the two paths then agree exactly (docs/02).
 """
 
 from __future__ import annotations
@@ -135,12 +133,16 @@ class FeatureDiff:
     compared: list[str] = field(default_factory=list)
 
     def _fatal(self, names: list[str] | dict) -> list[str]:
-        """Those of *names* that the model actually reads."""
-        return sorted(set(names) & MODEL_CONSUMED_FEATURES)
+        """Those of *names* that are not known to be discarded by ``forward``.
+
+        A tensor in neither feature set counts as one the model reads, so a
+        feature a new esm release adds fails parity until it is classified.
+        """
+        return sorted(set(names) - TRAINING_ONLY_FEATURES)
 
     @property
     def consumed_mismatches(self) -> list[str]:
-        """Differing or uncomparable tensors that ``forward`` declares as parameters."""
+        """Differing or uncomparable tensors, those ``forward`` discards excepted."""
         return sorted(
             set(
                 self._fatal(self.only_in_native)
@@ -179,7 +181,7 @@ class FeatureDiff:
         if self.ok:
             differing = sorted(
                 set(list(self.shape_mismatch) + list(self.value_mismatch))
-                - MODEL_CONSUMED_FEATURES
+                & TRAINING_ONLY_FEATURES
             )
             return (
                 f"feature parity: all {len(MODEL_CONSUMED_FEATURES & set(self.compared))} "
@@ -325,7 +327,12 @@ def compare_results(
 
     for name, tol in (("ptm", scalar_atol), ("iptm", scalar_atol)):
         a_val, b_val = getattr(native, name, None), getattr(adapted, name, None)
-        if a_val is None or b_val is None:
+        if (a_val is None) != (b_val is None):
+            diff.notes.append(f"{name}: present on one side only")
+            diff.metrics[f"{name}_missing"] = 1.0
+            diff.tolerances[f"{name}_missing"] = 0.0
+            continue
+        if a_val is None:
             continue
         diff.metrics[name] = float(abs(float(a_val) - float(b_val)))
         diff.tolerances[name] = tol
@@ -337,9 +344,16 @@ def compare_results(
     ):
         a_arr = _as_numpy(getattr(native, name, None))
         b_arr = _as_numpy(getattr(adapted, name, None))
+        if a_arr is None and b_arr is None:
+            continue
         if a_arr is None or b_arr is None or a_arr.shape != b_arr.shape:
-            if a_arr is not None and b_arr is not None:
-                diff.notes.append(f"{name}: shape {a_arr.shape} vs {b_arr.shape}")
+            shapes = (
+                None if a_arr is None else a_arr.shape,
+                None if b_arr is None else b_arr.shape,
+            )
+            diff.notes.append(f"{name}: shape {shapes[0]} vs {shapes[1]}")
+            diff.metrics[f"{name}_shape_mismatch"] = 1.0
+            diff.tolerances[f"{name}_shape_mismatch"] = 0.0
             continue
         diff.metrics[f"{name}_max_abs"] = float(np.abs(a_arr - b_arr).max())
         diff.tolerances[f"{name}_max_abs"] = tol

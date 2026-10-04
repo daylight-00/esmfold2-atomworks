@@ -57,6 +57,14 @@ def test_a_difference_in_a_discarded_tensor_is_reported_without_failing(name):
     assert name in diff.report()
 
 
+def test_a_tensor_in_neither_set_counts_as_one_the_model_reads():
+    diff = compare_features(
+        _features(new_feature=np.zeros(2)), _features(new_feature=np.ones(2))
+    )
+    assert not diff.ok
+    assert diff.consumed_mismatches == ["new_feature"]
+
+
 def test_a_tensor_that_cannot_be_compared_is_not_a_pass():
     diff = compare_features(_features(), _features(msa=None))
     assert not diff.ok and not diff.identical
@@ -108,6 +116,22 @@ def test_a_diff_that_compared_nothing_is_not_a_pass():
     from esmfold2_atomworks.parity.compare import ResultDiff
 
     assert not ResultDiff().ok
+
+
+def test_a_shape_mismatch_in_a_confidence_array_fails():
+    other = _result(_XYZ)
+    other.plddt = np.ones(2)
+    diff = compare_results(_result(_XYZ), other)
+    assert not diff.ok
+    assert diff.metrics["plddt_shape_mismatch"] == 1.0
+
+
+def test_a_scalar_present_on_one_side_only_fails():
+    other = _result(_XYZ)
+    other.ptm = None
+    diff = compare_results(_result(_XYZ), other)
+    assert not diff.ok
+    assert diff.metrics["ptm_missing"] == 1.0
 
 
 def test_a_different_atom_count_fails():

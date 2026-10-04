@@ -11,8 +11,9 @@ checkpoint's.
 
     python scripts/smoke_training_step.py --structure tests/data/structures/1a8o.cif
 
-Exit status 0 when every step produced a finite loss and gradients, and the
-trunk's parameters changed.
+Exit status 0 when every step produced a finite loss and gradients, the loss on
+this one structure fell between the first step and the last, and the trunk's
+parameters changed.
 """
 
 from __future__ import annotations
@@ -162,6 +163,7 @@ def main(argv: list[str] | None = None) -> int:
         len(probe.losses) == args.steps
         and all(map(torch.isfinite, map(torch.tensor, probe.losses)))
         and all(g > 0 for g in probe.grad_norms)
+        and probe.losses[-1] < probe.losses[0]
         and changed > 0
     )
     print("OK" if ok else "FAILED")

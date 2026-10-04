@@ -128,7 +128,8 @@ objective is on the trunk's distogram, or on the soft sequence. The pipeline's
 loop on one GPU — the experimental checkpoint built by `construct_model`, one
 AtomWorks structure through the pipeline, an AdamW optimizer, and a distogram
 cross-entropy against the structure's own coordinates — and checks that each loss
-is finite, every step has gradients, and the trunk's parameters change.
+is finite, every step has gradients, the loss on that structure falls over the
+steps, and the trunk's parameters change.
 [`reproducibility/training_smoke.json`](../reproducibility/training_smoke.json)
 records a run; `tests/test_training_gpu.py` repeats it under `pytest -m gpu`. The
 objective there is the script's own, and its bin range is its choice, not the

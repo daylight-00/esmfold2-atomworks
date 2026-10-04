@@ -61,7 +61,7 @@ registry:
 ```toml
 [project.optional-dependencies]
 # esm >= 3.4 ships the ESMFold2 module itself. See docs/04_ENVIRONMENT.md.
-esmfold2 = ["esm>=3.4"]
+esmfold2 = ["esm>=3.4.1.post1"]
 all = [..., "rc-foundry[esmfold2]"]        # optional: mpnn skips both of these
 
 [project.scripts]

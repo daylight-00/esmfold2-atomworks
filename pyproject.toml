@@ -1,6 +1,6 @@
 [project]
 name = "esmfold2-atomworks"
-version = "0.2.0"
+version = "0.3.0"
 description = "ESMFold2 on AtomWorks structures, with native ESMFold2 feature semantics preserved exactly"
 readme = "README.md"
 license = "MIT"
@@ -8,8 +8,9 @@ license-files = ["LICENSE"]
 authors = [{ name = "daylight-00" }]
 requires-python = ">=3.12"
 dependencies = [
-    # esm >= 3.4 ships the ESMFold2 module itself.
-    "esm>=3.4",
+    # The ESMFold2 module ships in esm >= 3.4; 3.4.1.post1 is the release this
+    # package was verified against.
+    "esm>=3.4.1.post1",
     "atomworks>=2.2",
     "biotite",
     "numpy",

@@ -57,8 +57,10 @@ the package refuses rather than guesses meanwhile.
   tokenizer keeps the component index of every atom. Once it returns one
   residue per component, each declared component comes back under its own code
   with no change here.
-- **Bonds in the output** (esm). `MolecularComplex` has no bond field, so the
-  returned structure carries none.
+- **Bonds in the output** (esm). `MolecularComplex` has no bond field;
+  `fold_atom_array` rebuilds the structure's bond list from the chemistry the
+  model was given ([01](01_ADAPTER.md), "The bond list of the returned
+  structure"), and `result_to_atom_array` alone returns none.
 - **Insertion-coded positions in PDB files** (AtomWorks). Parsed from a PDB
   file, `res_id` is the author numbering and `chain_info` lists a repeated
   number once per insertion code with no code beside it, so covalent bonds and

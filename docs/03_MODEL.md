@@ -182,7 +182,8 @@ the call's own entries:
   when the condition is absent. Every digest is a full SHA-256.
 - `esmfold2.sequence_source` (from `fold_atom_array`): where each chain's
   folded sequence came from, as `AdapterReport` records it; `atomworks.version`:
-  the AtomWorks release in use. The engine adds `atomworks.parse_config` for an
+  the AtomWorks release in use; `esmfold2.bonds`: whether the returned structure
+  was given a bond list. The engine adds `atomworks.parse_config` for an
   input it parsed itself.
 - `esmfold2.deterministic_algorithms`, `esmfold2.cublas_workspace_config`: the
   execution state observed at the call ([02](02_PARITY.md)).

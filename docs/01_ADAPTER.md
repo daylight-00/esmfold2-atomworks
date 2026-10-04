@@ -337,20 +337,15 @@ source's `res_id` and insertion codes do not map back one to one.
 
 ### What `G` does not return
 
-The output is the predicted geometry and atom-level labels — coordinates,
-atom names, elements, residue names, chains, polymer/non-polymer — and not the
-molecule's topology. Two things a source structure can carry do not come back:
+The model's output is the predicted geometry and atom-level labels —
+coordinates, atom names, elements, residue names, chains, polymer/non-polymer —
+and not the molecule's topology. Two things a source structure can carry do not
+come back from it:
 
-- **Bonds.** The returned `AtomArray` has no `BondList`. `MolecularComplex`
-  records none, so nothing the model reports would support one. Rebuilding only
-  the covalent bonds the input declared would produce a `BondList` that looks
-  complete and is not — no bond inside a residue, no peptide bond — which is
-  worse than none for a consumer that reads its presence as the topology. The
-  returned structure alone does not hold enough to recover every bond: a
-  declared cross-link between residues, or a SMILES ligand's bond orders, is
-  not implied by atom names and elements. A consumer that needs topology
-  rebuilds it from an authoritative chemistry source — the CCD, the input's
-  `LigandSpec`s and covalent bonds — not from the output.
+- **Bonds.** `MolecularComplex` records none, so `result_to_atom_array` returns
+  an `AtomArray` with no `BondList`, and nothing the model reports would support
+  one. `fold_atom_array` adds one rebuilt from what the model was given
+  ([below](#the-bond-list-of-the-returned-structure)).
 - **Components of a multi-component ligand.** A non-polymer chain declared as
   several CCD components — a glycan, or `7ubd`'s cyclic D-peptide as one
   eight-component ligand — is tokenized component by component, but ESMFold2's
@@ -358,6 +353,31 @@ molecule's topology. Two things a source structure can carry do not come back:
   first component. The atoms are all there; the residue boundaries between
   them are not. That is upstream behaviour, recorded here so a round trip is not
   read as preserving them.
+
+### The bond list of the returned structure
+
+`fold_atom_array(bonds=True)`, the default, sets `structure.bonds`, built by
+`data/topology.py` from the chemistry the model was given and from nothing it
+reported:
+
+- inside a residue or CCD ligand component, the CCD's bonds with the types its
+  file gives them (`value_order` and the aromatic flag, so
+  `AROMATIC_SINGLE`/`AROMATIC_DOUBLE` in a ring), among the atoms present;
+- inside a SMILES ligand, RDKit's bonds (aromatic bonds as `AROMATIC`), on the
+  atom names ESMFold2 gives it;
+- between consecutive residues of a polymer, `C`–`N` (protein) or `O3'`–`P`
+  (nucleic acid);
+- the covalent bonds that were declared, with the type the source had.
+
+A list that looks complete and is not would be worse than none, so every atom the
+chemistry names has to be found under that name, every atom of the structure has
+to belong to a chain of the input, and a ligand's components have to account for
+its atoms — including the leaving atoms the tokenizer drops from a bonded chain.
+Otherwise `TopologyError` is raised; `bonds=False` returns the structure without
+a bond list. For a standard residue the result equals biotite's own assignment
+by residue name (`connect_via_residue_names`), bond for bond and type for type
+(`tests/test_topology.py`); AtomWorks' parse agrees on every connection and may
+alternate an aromatic ring's single and double bonds differently.
 
 ## The report
 

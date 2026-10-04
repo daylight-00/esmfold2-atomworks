@@ -64,6 +64,9 @@ def model(monkeypatch):
         "esmfold2_atomworks.data.atomworks_to_esm.atom_array_to_structure_prediction_input",
         lambda atoms, **kwargs: object(),
     )
+    monkeypatch.setattr(
+        "esmfold2_atomworks.data.topology.build_bond_list", lambda atoms, spi: None
+    )
     return model
 
 

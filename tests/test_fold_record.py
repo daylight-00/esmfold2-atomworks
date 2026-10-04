@@ -117,8 +117,11 @@ def test_fold_atom_array_records_where_each_sequence_came_from(monkeypatch):
     import biotite.structure as struc
 
     record: dict = {"caller.run": "r1"}
-    atoms, result = _model().fold_atom_array(struc.AtomArray(0), record=record)
+    atoms, result = _model().fold_atom_array(
+        struc.AtomArray(0), record=record, bonds=False
+    )
     assert (atoms, result) == ("atoms", "result")
+    assert record["esmfold2.bonds"] is False
     assert record["esmfold2.sequence_source"] == {"A": "override"}
     assert record["caller.run"] == "r1"
 

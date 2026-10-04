@@ -72,6 +72,10 @@ class BondCandidate:
     res_id_2: int
     ins_code_2: str
     atom_name_2: str
+    #: The source bond's ``biotite.structure.BondType`` as an integer; ESMFold2's
+    #: own bond carries no order, so a resolved bond keeps it as
+    #: ``source_bond_type`` for the returned structure's bond list.
+    bond_type: int = 1
 
     @property
     def residue_1(self) -> tuple[str, int, str]:
@@ -130,7 +134,7 @@ def covalent_bond_candidates(
 
     candidates: list[BondCandidate] = []
     seen: set[tuple] = set()
-    for i, j, _bond_type in bond_array:
+    for i, j, bond_type in bond_array:
         if element[i].upper() in ("H", "D") or element[j].upper() in ("H", "D"):
             continue
         chain_i, chain_j = chain[i], chain[j]
@@ -170,7 +174,9 @@ def covalent_bond_candidates(
             continue
         seen.add(key)
         (c1, r1, i1, a1), (c2, r2, i2, a2) = key
-        candidates.append(BondCandidate(c1, r1, i1, a1, c2, r2, i2, a2))
+        candidates.append(
+            BondCandidate(c1, r1, i1, a1, c2, r2, i2, a2, bond_type=int(bond_type))
+        )
     return candidates
 
 
@@ -291,16 +297,16 @@ def resolve_covalent_bonds(
             continue
 
         (chain_1, res_1, atom_1), (chain_2, res_2, atom_2) = resolved
-        bonds.append(
-            CovalentBond(
-                # Plain str, not numpy's: these are serialized to JSON for the
-                # hosted API, where a numpy scalar is not encodable.
-                chain_id1=str(chain_1),
-                res_idx1=int(res_1),
-                atom_idx1=int(atom_1),
-                chain_id2=str(chain_2),
-                res_idx2=int(res_2),
-                atom_idx2=int(atom_2),
-            )
+        bond = CovalentBond(
+            # Plain str, not numpy's: these are serialized to JSON for the
+            # hosted API, where a numpy scalar is not encodable.
+            chain_id1=str(chain_1),
+            res_idx1=int(res_1),
+            atom_idx1=int(atom_1),
+            chain_id2=str(chain_2),
+            res_idx2=int(res_2),
+            atom_idx2=int(atom_2),
         )
+        bond.source_bond_type = int(candidate.bond_type)
+        bonds.append(bond)
     return bonds, skipped

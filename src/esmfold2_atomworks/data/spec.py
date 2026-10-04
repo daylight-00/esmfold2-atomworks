@@ -31,6 +31,7 @@ __all__ = [
     "LigandSpec",
     "MixedChainError",
     "ModificationResolutionError",
+    "TopologyError",
     "UnsupportedChainError",
     "formula_of",
 ]
@@ -77,6 +78,15 @@ class MixedChainError(ValueError):
     ligand under one author chain id, say -- would be classified by one of them
     and the rest folded as part of it, or not at all. The remedy is a chain
     label per molecule, not an opt-in, so there is none.
+    """
+
+
+class TopologyError(ValueError):
+    """The folded structure and the input disagree, so no bond list can be built.
+
+    Raised when an atom the chemistry names is not in the structure under that
+    name, or an atom of the structure belongs to no chain of the input. Pass
+    ``bonds=False`` to ``fold_atom_array`` to get the structure without bonds.
     """
 
 

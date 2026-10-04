@@ -1056,6 +1056,7 @@ class AtomWorksESMFold2:
         adapter_kwargs: dict[str, Any] | None = None,
         lm_hidden_states: Any | None = None,
         record: dict[str, Any] | None = None,
+        bonds: bool = True,
         **overrides: Any,
     ) -> tuple[AtomArray, Any] | tuple[list[AtomArray], list[Any]]:
         """Fold an AtomWorks structure and answer with one.
@@ -1100,6 +1101,11 @@ class AtomWorksESMFold2:
             record: as for :meth:`fold`, plus ``esmfold2.sequence_source``:
                 where each chain's folded sequence came from
                 (``AdapterReport.sequence_source``).
+            bonds: give the returned structure a ``BondList``, rebuilt from the
+                chemistry the model was given (see
+                :mod:`esmfold2_atomworks.data.topology`). ``TopologyError`` when
+                the structure and the input disagree; ``False`` returns the
+                structure without bonds.
 
         Returns:
             ``(atom_array, result)`` -- the structure, and the native result
@@ -1121,6 +1127,7 @@ class AtomWorksESMFold2:
             rename_ligand_residues,
             result_to_atom_array,
         )
+        from esmfold2_atomworks.data.topology import build_bond_list
 
         _check_record(record)
         adapter_kwargs = dict(adapter_kwargs or {})
@@ -1158,6 +1165,7 @@ class AtomWorksESMFold2:
                 adapter_kwargs["report"].sequence_source
             )
             record["atomworks.version"] = atomworks_version()
+            record["esmfold2.bonds"] = bool(bonds)
 
         chain_key = (adapter_kwargs or {}).get("chain_key", "chain_id")
 
@@ -1167,7 +1175,10 @@ class AtomWorksESMFold2:
                 folded = apply_ligand_labels(folded, ligand_specs)
             if ligand_residue_name is not None:
                 folded = rename_ligand_residues(folded, ligand_residue_name)
-            return copy_chain_types(folded, atoms, chain_key=chain_key)
+            folded = copy_chain_types(folded, atoms, chain_key=chain_key)
+            if bonds:
+                folded.bonds = build_bond_list(folded, spi)
+            return folded
 
         if isinstance(result, list):
             return [structure(r) for r in result], result

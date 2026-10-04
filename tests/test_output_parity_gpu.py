@@ -144,6 +144,17 @@ def test_fold_atom_array_round_trips_to_a_structure(parsed, model):
     ):
         assert kind == source[chain], chain
 
+    # The structure carries the bonds of the chemistry it was given, and the
+    # four HEM ligands are bonded inside themselves.
+    import biotite.structure as struc
+
+    assert structure.bonds is not None and structure.bonds.as_array().shape[0] > 0
+    reference = struc.connect_via_residue_names(structure, inter_residue=True)
+    assert {tuple(sorted(map(int, row[:2]))) for row in structure.bonds.as_array()} >= {
+        tuple(sorted(map(int, row[:2]))) for row in reference.as_array()
+    }
+    assert record["esmfold2.bonds"] is True
+
     # The record against the real module: where each sequence came from, and
     # every entity folded.
     assert record["esmfold2.effective.num_loops"] == 1

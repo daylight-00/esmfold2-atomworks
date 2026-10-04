@@ -76,6 +76,9 @@ def test_fold_atom_array_copies_under_a_non_default_chain_key(monkeypatch):
         "esmfold2_atomworks.data.atomworks_to_esm.atom_array_to_structure_prediction_input",
         lambda atoms, **kwargs: object(),
     )
+    monkeypatch.setattr(
+        "esmfold2_atomworks.data.topology.build_bond_list", lambda atoms, spi: None
+    )
     # The decoded complex names its chains A and B; the source keys them by
     # chain_iid, with a chain_id that would match nothing.
     source = _atoms(["A", "B"], [POLYPEPTIDE_L, NON_POLYMER], key="chain_iid")

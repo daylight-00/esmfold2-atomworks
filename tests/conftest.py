@@ -7,7 +7,6 @@ shows up here as a test failure instead of being masked by a stale copy.
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import pytest
@@ -134,9 +133,3 @@ def gold():
 def gold_document():
     """``name -> dict`` for the frozen fixtures."""
     return load_gold_document
-
-
-def requires_weights() -> bool:
-    return paths.ESMFOLD2_WEIGHTS.standard.exists() or bool(
-        os.environ.get("EF_WEIGHTS")
-    )

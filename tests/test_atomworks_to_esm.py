@@ -109,8 +109,8 @@ def test_overridden_sequence_drops_structure_modifications(parsed, ccd):
 def test_generic_ligand_label_is_refused(parsed, ccd):
     """``UNL`` is a real CCD code and also what a model writes on anything.
 
-    Reconciling it against the dictionary is the silent wrong-molecule failure
-    this project exists to prevent, so it must be declared instead.
+    Reconciling it against the dictionary would silently substitute another
+    molecule, so it must be declared instead.
     """
     atoms, chain_info = parsed("unl")
     with pytest.raises(LigandIdentityError, match="no chemical meaning"):
@@ -150,8 +150,8 @@ def test_undeclared_ccd_ligand_can_be_refused(parsed, ccd):
         )
 
 
-def test_report_names_everything_dropped(parsed, ccd):
-    """Nothing leaves the adapter silently."""
+def test_a_conversion_that_drops_nothing_reports_nothing_dropped(parsed, ccd):
+    """All eight chains of haemoglobin convert, and the report says so."""
     atoms, chain_info = parsed("hemoglobin")
     report = AdapterReport()
     atom_array_to_structure_prediction_input(

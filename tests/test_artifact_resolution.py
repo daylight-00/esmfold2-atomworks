@@ -11,7 +11,8 @@ Nothing here loads weights.
 
 from __future__ import annotations
 
-from types import SimpleNamespace
+import sys
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -121,9 +122,12 @@ def test_the_experimental_signature_is_respected(models):
 
 def test_an_unmirrored_hub_backbone_is_loaded_from_its_snapshot(models, monkeypatch):
     """Resolved before loading, so the directory -- and its revision -- is known."""
-    hub = pytest.importorskip("esm.models.hub")
     snapshot = models / "snapshot-of-otherorg-ESMC"
-    monkeypatch.setattr(hub, "resolve_model_dir", lambda source: str(snapshot))
+    for name in ("esm", "esm.models"):
+        monkeypatch.setitem(sys.modules, name, ModuleType(name))
+    hub = ModuleType("esm.models.hub")
+    hub.resolve_model_dir = lambda source: str(snapshot)
+    monkeypatch.setitem(sys.modules, "esm.models.hub", hub)
     net = _ReleaseNet(esmc_id="otherorg/ESMC-6B")
     assert attach_esmc(net) == str(snapshot)
     assert net.calls == [(str(snapshot), "bf16")]

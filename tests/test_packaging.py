@@ -12,9 +12,9 @@ from __future__ import annotations
 import ast
 import re
 import sys
+import tomllib
 
 import pytest
-import tomllib
 
 from esmfold2_atomworks import paths
 
@@ -50,6 +50,14 @@ def test_group_configs_carry_their_targets(relative):
 
 
 @pytest.mark.offline
+def test_the_package_version_is_declared_once():
+    import esmfold2_atomworks
+
+    pyproject = tomllib.loads((paths.REPO_ROOT / "pyproject.toml").read_text())
+    assert pyproject["project"]["version"] == esmfold2_atomworks.__version__
+
+
+@pytest.mark.offline
 def test_the_wheel_is_told_to_ship_the_configs():
     """Guards the force-include, without building a wheel.
 
@@ -73,9 +81,14 @@ def test_every_group_file_referenced_by_a_default_exists():
     for entry in sorted(config_dir.rglob("*.yaml")):
         node = _yaml(entry)
         for default in node.get("defaults") or []:
-            if not isinstance(default, str) or default == "_self_":
+            if isinstance(default, str):
+                relative = default
+            else:  # ``- group: option``
+                (group, option), *_ = dict(default).items()
+                relative = f"{group}/{option}"
+            if relative == "_self_":
                 continue
-            candidate = (entry.parent / f"{default}.yaml").resolve()
+            candidate = (entry.parent / f"{relative}.yaml").resolve()
             assert candidate.exists(), (
                 f"{entry.relative_to(config_dir)} lists default {default!r}, "
                 f"but {candidate} does not exist"
@@ -83,7 +96,7 @@ def test_every_group_file_referenced_by_a_default_exists():
 
 
 @pytest.mark.offline
-def test_searchpath_names_only_resolvable_packages():
+def test_searchpath_lists_only_this_packages_configs():
     """Hydra warns on every compose for a searchpath it cannot resolve."""
     node = _yaml(paths.config_dir() / "inference.yaml")
     searchpath = list(node.hydra.searchpath)

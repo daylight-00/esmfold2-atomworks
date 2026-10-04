@@ -5,9 +5,7 @@ description is not verification: every claim in it is about a repository that
 moves independently of this one. These tests check the claims against the
 Foundry being imported, so that "Foundry-shaped" becomes "Foundry-compatible".
 
-They do **not** modify the Foundry checkout. Copying this package into it and
-editing its ``pyproject.toml`` would verify the same things while leaving a
-dirty tree behind, so instead each contract is checked where it lives: the
+No Foundry file is modified. Each contract is checked where it lives: the
 trainer base class by subclassing it, the engine surface by comparing it, the
 registration instructions by reading Foundry's own ``pyproject.toml``.
 """
@@ -15,10 +13,10 @@ registration instructions by reading Foundry's own ``pyproject.toml``.
 from __future__ import annotations
 
 import inspect
+import tomllib
 from pathlib import Path
 
 import pytest
-import tomllib
 
 from esmfold2_atomworks import paths
 
@@ -94,8 +92,7 @@ def _foundry_pyproject() -> dict:
 def test_the_registration_points_docs_06_names_still_exist():
     """Every table docs/06 tells the reader to edit must be there to edit.
 
-    Upstream added two of these after this package was written; if it adds a
-    third, the instructions go stale silently.
+    A table missing upstream makes the instructions stale.
     """
     pyproject = _foundry_pyproject()
     wheel = pyproject["tool"]["hatch"]["build"]["targets"]["wheel"]

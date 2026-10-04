@@ -61,32 +61,41 @@ def test_labels_cover_the_model_atom_axis(parsed, ccd):
 
 
 def test_matched_coordinates_are_the_source_coordinates(parsed, ccd):
-    """A permutation that lost track of which atom is which would still 'cover'."""
+    """Each matched label sits on the source atom of the same name and residue.
+
+    A permutation that lost track of which atom is which would still "cover", so
+    the check is per atom: the source atom a label's coordinate belongs to must
+    carry the model atom's name, and the model's residue index must differ from
+    the source residue's ordinal by one constant.
+    """
     import biotite.structure as struc
 
     atoms, chain_info = parsed("lysozyme")
-    labels, _features = _labels(atoms, chain_info)
+    labels, features = _labels(atoms, chain_info)
 
-    matched = labels.atom_coords[labels.atom_mask]
-    source = np.asarray(atoms.coord, dtype=np.float32)
+    name_chars = np.asarray(features["ref_atom_name_chars"])
+    to_token = np.asarray(features["atom_to_token"])
+    residue_of_token = np.asarray(features["residue_index"])
+    source_names = np.asarray(atoms.atom_name).astype(str)
+    is_start = np.zeros(len(atoms), dtype=int)
+    is_start[struc.get_residue_starts(atoms)] = 1
+    source_residue = np.cumsum(is_start) - 1
 
-    # Every matched label must be an actual atom position from the source, and
-    # the set of matched positions must be a subset of the source's.
-    source_rows = {tuple(np.round(row, 3)) for row in source}
-    sample = matched[:: max(1, len(matched) // 50)]
-    for row in sample:
-        assert tuple(np.round(row, 3)) in source_rows
+    # Coordinates identify atoms uniquely here, so a label names its source row.
+    row_of = {tuple(np.round(row, 3)): i for i, row in enumerate(atoms.coord)}
+    assert len(row_of) == len(atoms)
 
-    # And the CA of the first residue must be exactly where the source has it.
-    starts = struc.get_residue_starts(atoms)
-    first_ca = np.where(
-        (np.asarray(atoms.res_id) == int(atoms.res_id[starts[0]]))
-        & (np.asarray(atoms.atom_name).astype(str) == "CA")
-    )[0][0]
-    assert any(
-        np.allclose(labels.atom_coords[i], source[first_ca], atol=1e-4)
-        for i in np.where(labels.atom_mask)[0]
-    )
+    offsets = set()
+    for position in np.where(labels.atom_mask)[0]:
+        row = row_of[tuple(np.round(labels.atom_coords[position], 3))]
+        model_name = "".join(
+            chr(int(code) + 32) for code in name_chars[position] if int(code) != 0
+        ).strip()
+        assert model_name == source_names[row]
+        offsets.add(
+            int(residue_of_token[to_token[position]]) - int(source_residue[row])
+        )
+    assert len(offsets) == 1, f"residue indices are not one constant apart: {offsets}"
 
 
 def test_unmatched_atoms_are_masked_and_left_nan(parsed, ccd):
@@ -151,7 +160,7 @@ def test_a_coverage_floor_can_be_required(parsed, ccd):
 
     _f, chain_infos = prepare_esmfold2_input(clean_esmfold2_input(spi), seed=0)
 
-    # 1.0 is now attainable, so the floor has to exceed it to trip.
+    # Full coverage is attainable, so the floor has to exceed it to trip.
     transform = AttachStructureLabels(require_coverage=1.01)
     with pytest.raises(ValueError, match="below the required"):
         transform(

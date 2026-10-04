@@ -1,8 +1,8 @@
 """The recycle count is the loaded checkpoint's unless the caller sets one.
 
-Checkpoints disagree about ``num_loops`` -- 3 in the reference checkpoint, 20
-in the one ``biohub/ESMFold2`` publishes today -- so a fixed default overrides
-one of them silently. ``None`` reaches the model, which reads
+Checkpoints disagree about ``num_loops`` -- 3 in revision ``e1e189d0`` of
+``biohub/ESMFold2``, 20 in ``69869f73`` -- so a fixed default overrides one of
+them silently. ``None`` reaches the model, which reads
 ``config.num_loops``; the key must be present, because
 ``ESMFold2InputBuilder.fold`` substitutes its own 20 for a missing one.
 """

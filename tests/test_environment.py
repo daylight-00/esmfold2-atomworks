@@ -77,12 +77,7 @@ def test_doctor_passes_a_workspace_without_foundry(monkeypatch, tmp_path, capsys
 
 
 def test_a_native_model_class_is_importable():
-    """One of the two packagings of the ESMFold2 module must be present.
-
-    Up to esm 3.3 the module ships in a fork of ``transformers``; from esm 3.4
-    it is in ``esm`` itself. The input pipeline imports fine without either, so
-    this is worth asserting separately.
-    """
+    """ESMFold2's native module must be importable."""
     from esmfold2_atomworks.doctor import _find_model_module
 
     found, detail = _find_model_module()

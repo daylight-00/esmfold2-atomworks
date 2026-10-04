@@ -30,7 +30,7 @@ from esmfold2_atomworks.data.atomworks_to_esm import (
 #: ``allow_*`` keywords of the adapter that are *not* degradations, and why.
 NOT_DEGRADATIONS = {
     # A CCD code that came through atomworks.io.parse has been reconciled
-    # against the dictionary, so using it is D-004's default rather than an
+    # against the dictionary, so using it is the default rather than an
     # approximation; setting this False makes the adapter stricter, not looser.
     "allow_undeclared_ccd_ligands",
 }
@@ -42,7 +42,7 @@ def test_every_degradation_has_an_opt_in_that_defaults_to_strict():
 
     Each entry must be a keyword of the adapter, and that keyword must default
     to False -- otherwise the degradation happens unless someone remembers to
-    forbid it, which is the failure mode this whole module exists to prevent.
+    forbid it.
     """
     parameters = inspect.signature(atom_array_to_structure_prediction_input).parameters
     for name in DEGRADATIONS:
@@ -73,7 +73,7 @@ def test_every_degradation_says_where_its_acceptance_is_recorded():
 
 
 @pytest.mark.offline
-def test_every_degradation_raises_a_public_error():
+def test_every_degradation_names_a_public_error():
     for name, error in DEGRADATIONS.items():
         assert issubclass(error, Exception), name
         assert error.__name__ in spec.__all__, f"{error.__name__} is not exported"

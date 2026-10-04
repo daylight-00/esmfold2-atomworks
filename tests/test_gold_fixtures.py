@@ -1,7 +1,7 @@
 """The gold fixtures are anchored to facts about the PDB entries themselves.
 
 A frozen snapshot closes the circularity in the parity suite -- the adapter is
-no longer compared against something rebuilt from its own output -- but only if
+compared against a snapshot, not something rebuilt from its own output -- but only if
 the snapshot is *right*. A snapshot generated once from a buggy pipeline would
 be just as self-consistent and just as wrong, only harder to notice.
 

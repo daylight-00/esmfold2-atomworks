@@ -1,4 +1,4 @@
-"""The milestone: ``F(AtomArray)`` featurizes identically to an independent input.
+"""``F(AtomArray)`` featurizes identically to an independent input.
 
 These run on CPU, need no weights, and are exact.
 
@@ -8,14 +8,13 @@ identical feature tensors -- that part is by construction. ``forward`` is *not*
 pure: the structure head is a diffusion sampler that consumes RNG, so identical
 features do not give identical coordinates. What follows is that the adapter
 presents the model with the same conditioning, and therefore the same sampling
-distribution. That is the strong claim, and it is the one worth making;
-``tests/test_output_parity_gpu.py`` then checks that the realised samples differ
+distribution. ``tests/test_output_parity_gpu.py`` then checks that the realised samples differ
 no more than the sampler differs from itself.
 
-**The comparison is against a frozen fixture, not a reconstruction.** An earlier
-version rebuilt the "native" input from the adapter's own output, which meant a
-systematic error -- a ligand mapped to the wrong CCD code, say -- would be
-copied into both sides and cancel. ``tests/data/gold/*.json`` is generated from
+**The comparison is against a frozen fixture, not a reconstruction.** A
+reconstruction from the adapter's own output would copy a systematic error -- a
+ligand mapped to the wrong CCD code, say -- into both sides, where it would
+cancel. ``tests/data/gold/*.json`` is generated from
 AtomWorks' own parse output, checked in, and anchored to facts about the PDB
 entries by ``test_gold_fixtures.py``.
 """
@@ -73,9 +72,8 @@ def test_declaring_a_modification_actually_changes_the_features(parsed, ccd):
 def test_a_wrong_ligand_would_be_caught(parsed, ccd, gold):
     """Guards the parity assertions from passing on a mis-identified ligand.
 
-    Substituting one real CCD code for another is exactly the failure D-004
-    exists to prevent, and it must show up as a feature difference rather than
-    being absorbed. Without this, "all 29 tensors identical" would be
+    Substituting one real CCD code for another must show up as a feature
+    difference rather than being absorbed. Without this, "all 29 tensors identical" would be
     reassuring without being informative.
     """
     from esm.models.esmfold2.types import (
@@ -97,8 +95,8 @@ def test_a_wrong_ligand_would_be_caught(parsed, ccd, gold):
     assert not diff.ok, "swapping HEM for HEC produced identical features"
 
 
-def test_chain_order_is_stable(parsed, ccd):
-    """Entity numbering follows input order, so the order must be reproducible."""
+def test_conversion_is_repeatable(parsed, ccd):
+    """Converting twice gives the same entity order and the same features."""
     atoms, chain_info = parsed("hemoglobin")
     first = atom_array_to_structure_prediction_input(atoms, chain_info=chain_info)
     second = atom_array_to_structure_prediction_input(atoms, chain_info=chain_info)

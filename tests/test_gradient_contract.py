@@ -6,11 +6,8 @@ experimental forward gates them on an **input** --
 
     torch.set_grad_enabled(res_type_soft is not None)   # experimental.py
 
--- so loading the experimental checkpoint is necessary and not sufficient. An
-earlier version of this package exposed ``supports_gradients`` that returned
-``True`` for any experimental checkpoint, which reads as "you can train now" and
-is not what upstream does. Training against it would produce a loss with no
-``grad_fn`` and a flat curve.
+-- so loading the experimental checkpoint is necessary and not sufficient:
+training against it without the input would produce a loss with no ``grad_fn``.
 
 The logic tests below need no weights and run everywhere. The integration test
 proves the contract end to end and needs a GPU and the experimental checkpoint.
@@ -49,7 +46,7 @@ def test_release_checkpoint_never_produces_gradients():
 
 @pytest.mark.offline
 def test_experimental_checkpoint_alone_is_not_enough():
-    """The precise mistake this contract exists to prevent."""
+    """Loading the experimental checkpoint is necessary but not sufficient."""
     stub = _stub("experimental")
     assert stub.supports_soft_sequence_design is True
     assert not AtomWorksESMFold2.will_produce_gradients(stub, {"res_type": object()})

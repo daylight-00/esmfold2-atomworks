@@ -1,7 +1,7 @@
 """MSAs must reach the right chain, and pair across chains by taxonomy.
 
-MSA support is part of ESMFold2's native input surface, so the port is not
-complete without it. It is also where a mistake is quietest: an alignment
+MSA support is part of ESMFold2's native input surface. It is also where a
+mistake is quietest: an alignment
 attached to the wrong chain, or cross-chain pairing that silently does not
 happen, changes the prediction while every tensor keeps its shape.
 

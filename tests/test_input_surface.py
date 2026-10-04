@@ -1,9 +1,7 @@
 """One case per implemented branch of the adapter's input surface.
 
-The adapter has code for ``DNAInput``, ``RNAInput`` and SMILES ligands, but
-until these tests existed no fixture exercised them, so they were untested
-rather than known-good. The repo's rule is that what is supported is tested and
-what is not supported is refused explicitly; this closes the first half.
+The adapter has code for ``DNAInput``, ``RNAInput`` and SMILES ligands; no
+deposited fixture exercises them.
 
 Structures are built with AtomWorks' own component assembler rather than taken
 from the PDB, because the point is to cover the branches, and a synthetic
@@ -86,9 +84,9 @@ def test_protein_nucleic_complex(build, ccd):
 def test_a_smiles_built_ligand_is_refused_without_a_declaration(build, ccd):
     """AtomWorks names it ``L:0``, which is not a CCD code and must not be used.
 
-    Before this was checked the placeholder reached the featurizer and failed
-    there with "CCD component L:0 not found" -- a message that names neither
-    the chain nor the remedy.
+    Unchecked, the placeholder would reach the featurizer and fail with "CCD
+    component L:0 not found" -- a message that names neither the chain nor the
+    remedy.
     """
     _DNA, _RNA, Protein, SmilesComponent = _components()
     atoms = build(

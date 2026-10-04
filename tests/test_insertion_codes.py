@@ -8,9 +8,8 @@ alone makes those one residue, with two consequences that are both silent:
 * the residue map keeps whichever entry was written last, so labels land on the
   wrong residue.
 
-Neither is acceptable in a package whose stated preference is to refuse rather
-than fold the wrong molecule, so both are fixed where they can be and reported
-where they cannot. ``chain_info`` records no insertion codes, so for a chain
+Both are resolved where the structure allows and reported where it does not.
+``chain_info`` records no insertion codes, so for a chain
 whose sequence comes from there the codes cannot be tied to sequence positions;
 that chain is named in the report instead of guessed at.
 """
@@ -55,9 +54,9 @@ def _chain_with_insertion_codes():
 
 
 def test_a_bond_between_insertion_coded_residues_is_not_mistaken_for_intra_residue():
-    """This bond was previously dropped: both endpoints have res_id 100."""
+    """Both endpoints have res_id 100; the bond between them is still declared."""
     candidates = covalent_bond_candidates(_chain_with_insertion_codes())
-    assert len(candidates) == 1, "the bond between 100 and 100A was dropped again"
+    assert len(candidates) == 1, "the bond between 100 and 100A was dropped"
     assert candidates[0].describe() == "A/100/SG - A/100A/SG"
 
 
@@ -211,8 +210,8 @@ def test_repeated_numbers_with_the_codes_dropped_are_refused_not_guessed():
 def test_a_chain_info_backed_chain_with_insertion_codes_is_refused_not_guessed():
     """PDB-file form: author numbers repeat and chain_info has no codes.
 
-    Previously the map simply overwrote, keeping the last residue -- which
-    attaches labels and bonds to the wrong one without saying so.
+    A map that kept only the last residue would attach labels and bonds to the
+    wrong one without saying so.
     """
     atoms = _chain_with_insertion_codes()
     records = chain_records(atoms)
@@ -294,10 +293,10 @@ def test_a_chain_kind_guessed_without_chain_type_is_marked_as_such():
     """Without `chain_type` the kind is inferred, and says so.
 
     `is_polymer` cannot distinguish protein from nucleic acid, so a DNA chain
-    arriving this way is called protein. Refusing would reject every hand-built
-    AtomArray, so the guess stands -- but a caller can tell it from a statement.
-    Anything from `atomworks.io.parse` or the component assembler carries
-    `chain_type` and never takes this path.
+    arriving this way is called protein. ``chain_records`` marks the guess so a
+    caller can tell it from a statement; the adapter refuses it unless it is
+    accepted by name (``test_strictness``). Anything from `atomworks.io.parse`
+    or the component assembler carries `chain_type` and never takes this path.
     """
     atoms = _chain_with_insertion_codes()  # has is_polymer, no chain_type
     (record,) = chain_records(atoms)

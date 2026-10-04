@@ -95,8 +95,8 @@ def test_every_ligand_atom_survives(protein_and_ligand):
 def test_hetero_comes_from_the_model_even_against_the_ccd():
     """``ALA`` is a peptide residue to the CCD; the model says hetero, and wins.
 
-    The flags decide the polymer/ligand split, and a CCD lookup is exactly the
-    reconciliation that once turned a 19-atom ligand into 8 carbons.
+    The flags decide the polymer/ligand split; a CCD lookup would replace the
+    ligand's atoms with the CCD entry's.
     """
     complex_ = FakeComplex(
         sequence=["GLY", "ALA"],

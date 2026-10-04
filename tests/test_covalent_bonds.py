@@ -131,10 +131,10 @@ def _with_an_unsupported_partner(atoms):
 def test_a_bond_to_an_omitted_chain_is_not_filtered_away(parsed, ccd):
     """It must reach the caller's policy rather than being dropped beforehand.
 
-    Filtering on "chains that made it into the model" used to happen inside
-    candidate detection, which put such a bond beyond the strict check
-    entirely: an unsupported chain and a real bond to it both vanished, and the
-    direct API returns no report to notice with.
+    Filtering on "chains that made it into the model" inside candidate detection
+    would put such a bond beyond the strict check entirely: an unsupported chain
+    and a real bond to it would both vanish, and the direct API returns no report
+    to notice with.
     """
     atoms, _chain_info = parsed("hemoglobin")
     candidates = covalent_bond_candidates(_with_an_unsupported_partner(atoms))
@@ -183,8 +183,8 @@ def test_both_can_be_opted_out_of_and_are_then_reported(parsed, ccd):
     assert ("E", "unsupported chain_type 1") in report.dropped
 
 
-def test_water_bonds_stay_silent(parsed, ccd):
-    """Water is omitted under an explicit policy, so its bonds are not news."""
+def test_a_bond_to_an_ignored_chain_is_not_a_candidate(parsed, ccd):
+    """``ignore_chains`` names chains omitted under an explicit policy."""
     atoms, _chain_info = parsed("hemoglobin")
     bonded = _with_proximal_histidine_bond(atoms)
     assert covalent_bond_candidates(bonded, ignore_chains=frozenset({"A"})) == []

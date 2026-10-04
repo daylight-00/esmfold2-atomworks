@@ -426,7 +426,7 @@ def test_a_declared_sampler_knob_is_not_warned_about(recwarn):
 def test_a_knob_the_module_does_not_declare_is_warned_about():
     model = _model()
 
-    class _Bare:  # a forward that declares no sampler knob, as the old fork's
+    class _Bare:  # a forward that declares no sampler knob
         def forward(self, **kwargs):
             return None
 

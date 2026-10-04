@@ -17,8 +17,7 @@ export EF_ROOT
 # ---------------------------------------------------------------- source trees
 # DESIGN_ROOT is DISCOVERED, never hardcoded: walk up from this repo until a
 # directory holds both required source trees. That keeps the same env.sh correct
-# from the repo itself, from a git worktree (which sits several levels deeper),
-# and after the tree is reorganized again -- which has already happened twice.
+# from the repo itself and from a nested checkout such as a git worktree.
 if [ -z "${DESIGN_ROOT:-}" ]; then
     _ef_dir="${EF_ROOT}"
     while [ "${_ef_dir}" != "/" ]; do
@@ -35,12 +34,16 @@ if [ -z "${DESIGN_ROOT:-}" ]; then
 fi
 export DESIGN_ROOT
 
+# An empty PYTHONPATH element means the current directory, so entries are
+# prepended without leaving one behind.
+_ef_prepend() { export PYTHONPATH="$1${PYTHONPATH:+:${PYTHONPATH}}"; }
 # Optional: only the Foundry integration imports it, and an absent entry is
 # harmless.
-export PYTHONPATH="${DESIGN_ROOT}/foundry/src:${PYTHONPATH:-}"
-export PYTHONPATH="${DESIGN_ROOT}/atomworks/src:${PYTHONPATH:-}"
-export PYTHONPATH="${DESIGN_ROOT}/esm:${PYTHONPATH:-}"
-export PYTHONPATH="${EF_ROOT}/src:${PYTHONPATH:-}"
+_ef_prepend "${DESIGN_ROOT}/foundry/src"
+_ef_prepend "${DESIGN_ROOT}/atomworks/src"
+_ef_prepend "${DESIGN_ROOT}/esm"
+_ef_prepend "${EF_ROOT}/src"
+unset -f _ef_prepend
 
 # ------------------------------------------------------------------- artifacts
 export EF_MODELS="${EF_MODELS:-${DESIGN_ROOT}/biohub}"
@@ -71,7 +74,11 @@ export NUMEXPR_NUM_THREADS="${NUMEXPR_NUM_THREADS:-1}"
 # to share one environment across several projects that consume the same source
 # trees. If neither exists and nothing is already active, the current
 # interpreter is left alone -- `doctor` then reports which imports are missing.
-if [ -n "${EF_VENV:-}" ] && [ -f "${EF_VENV}/bin/activate" ]; then
+if [ -n "${EF_VENV:-}" ]; then
+    if [ ! -f "${EF_VENV}/bin/activate" ]; then
+        echo "env.sh: EF_VENV=${EF_VENV} has no bin/activate" >&2
+        return 1 2>/dev/null || exit 1
+    fi
     # shellcheck disable=SC1091
     source "${EF_VENV}/bin/activate"
 elif [ -f "${EF_ROOT}/reproducibility/.venv/bin/activate" ]; then

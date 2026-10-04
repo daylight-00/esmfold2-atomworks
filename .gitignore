@@ -4,6 +4,8 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 runs/
+dist/
+build/
 *.egg-info/
 .env
 # The package resolves fresh; the pinned environment is reproducibility/uv.lock.

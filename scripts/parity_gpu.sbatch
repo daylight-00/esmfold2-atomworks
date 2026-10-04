@@ -5,13 +5,15 @@
 #SBATCH --time=01:00:00
 #SBATCH --output=runs/parity_gpu_%j.out
 #
-# Output parity: one real fold through each path, compared.
+# The GPU tests: output parity (one real fold through each path, compared), the
+# component seams, and -- given EF_EXPERIMENTAL_WEIGHTS -- the gradient test.
 #
 # Feature parity (CPU, exact, no weights) is the primary check and does not
 # need this -- see docs/02_PARITY.md. This confirms it on a sampled structure.
 #
-# Submit from the repository root, adding whatever your site requires:
-#   sbatch --partition=<gpu-partition> scripts/parity_gpu.sbatch
+# Submit from the repository root, adding whatever your site requires; the
+# output directory has to exist before Slurm opens the log:
+#   mkdir -p runs && sbatch --partition=<gpu-partition> scripts/parity_gpu.sbatch
 #
 # Runs in the reference environment (reproducibility/). Set EF_VENV if it is
 # not the one `uv sync --project reproducibility` built, and
@@ -42,4 +44,4 @@ export CUBLAS_WORKSPACE_CONFIG="${CUBLAS_WORKSPACE_CONFIG:-:4096:8}"
 
 mkdir -p runs
 nvidia-smi --query-gpu=name,memory.used,memory.total --format=csv || true
-python -m pytest tests/test_output_parity_gpu.py -m gpu -v -s
+python -m pytest -m gpu -v -s -rs

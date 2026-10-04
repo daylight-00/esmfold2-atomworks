@@ -34,6 +34,10 @@ dev = [
     "pytest",
     "pytest-xdist",
     "ruff==0.16.6",
+    # The packaged Hydra configs are composed and checked by tests and by
+    # scripts/check_packaging.py.
+    "omegaconf",
+    "hydra-core",
 ]
 
 [build-system]
@@ -54,7 +58,7 @@ packages = ["src/esmfold2_atomworks"]
 [tool.ruff]
 line-length = 88
 indent-width = 4
-target-version = "py310"
+target-version = "py312"
 
 [tool.ruff.format]
 quote-style = "double"
@@ -63,10 +67,8 @@ docstring-code-format = true
 docstring-code-line-length = 88
 
 [tool.ruff.lint]
-extend-select = ["I", "F401"]
+extend-select = ["I"]
 ignore = [
-    "F722", # jaxtyping shape annotations
-    "F821", # jaxtyping forward references
     "E741", # variables like "L"
     # typer declares CLI arguments as defaults; it is the library's only API for
     # help text and options.
@@ -75,12 +77,11 @@ ignore = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra --strict-markers --strict-config"
+addopts = "-ra --strict-markers --strict-config -m 'not gpu'"
 markers = [
     "gpu: requires a GPU and the ESMFold2 weights",
     "slow: takes more than a few seconds",
-    # Needs nothing but this repository -- no source trees, no torch, no
-    # network. CI runs exactly these, which is what makes CI cheap enough to be
-    # worth having (see .github/workflows/ci.yml).
+    # Needs only numpy and omegaconf: no esm, atomworks, foundry, torch or
+    # network. CI runs these (see .github/workflows/ci.yml).
     "offline: runs without esm, atomworks or foundry installed",
 ]

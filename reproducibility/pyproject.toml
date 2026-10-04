@@ -105,7 +105,7 @@ environments = [
     "sys_platform == 'linux' and platform_machine == 'x86_64' and implementation_name == 'cpython'",
 ]
 # Transitive dependencies held to the versions the results were produced with,
-# so that the lock reproduces the verified environment rather than today's
+# so that the lock reproduces the verified environment rather than a fresh
 # resolution of it.
 constraint-dependencies = [
     "botocore==1.43.89",

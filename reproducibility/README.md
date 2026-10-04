@@ -58,7 +58,7 @@ Two consequences of that choice:
 
 `env.sh` and the package's `paths.py` walk **up** from the repository until they
 find a directory holding `esm/` and `atomworks/`. A fixed `REPO_ROOT.parent`
-would be wrong from a git worktree, which sits several levels deeper. Set
+would be wrong from a nested checkout such as a git worktree. Set
 `DESIGN_ROOT` explicitly when the trees live elsewhere, and `EF_VENV` to use an
 existing environment instead of the one `uv sync` builds.
 
@@ -87,13 +87,15 @@ packages' versions instead.
 
 What the code read, as `UPSTREAM.lock` is the code. Feature parity needs only
 the CCD pickle -- it passes two inputs through the same featurizer and involves
-no weights; the GPU output-parity numbers need all three artifacts. A Hub
-repository can be re-published under the same name, as `biohub/ESMFold2` was,
-so each entry names a revision and a digest per file.
-[`scripts/compare_checkpoints.py`](../scripts/compare_checkpoints.py) is how a
-re-published checkpoint is compared with the pinned one, and
+no weights; the GPU output-parity numbers need a checkpoint with the pinned
+weights (the reference checkpoint, or the bundled revision recorded in
+`checkpoint_equivalence.json`), the ESMC backbone for the separate layout, and
+the CCD pickle. A Hub repository can be re-published under the same name, so
+each entry names a revision and a digest per file.
+[`scripts/compare_checkpoints.py`](../scripts/compare_checkpoints.py) compares a
+checkpoint with the pinned one, and
 [`checkpoint_equivalence.json`](checkpoint_equivalence.json) is its record for
-the current `biohub/ESMFold2`.
+the bundled `biohub/ESMFold2`.
 
 ## `output_parity.json`
 

@@ -1,7 +1,8 @@
-# The ESMFold2 featurization pipeline. Everything structural -- crops, filters,
-# MSA loading -- belongs in pre_transforms and runs BEFORE the conversion to a
+# The ESMFold2 featurization pipeline. Everything structural -- crops, filters --
+# belongs in pre_transforms and runs BEFORE the conversion to a
 # StructurePredictionInput, because ESMFold2 folds whatever sequence it is
-# finally given. A crop applied after the featurizer would be ignored; a crop
+# finally given. MSA loading goes through msa_loader, which is followed by the
+# translation to the adapter's MSA. A crop applied after the featurizer would be ignored; a crop
 # applied before changes the molecule being folded, which is what training wants
 # and evaluation usually does not.
 _target_: esmfold2_atomworks.data.pipelines.build_esmfold2_pipeline

@@ -4,7 +4,8 @@
 preserved exactly.**
 
 Not a rewrite. The published model is held intact, fed from and returned to
-AtomWorks structures — then proved to be the same model. An optional Foundry
+AtomWorks structures — then checked to be the same model: the same features,
+and the same outputs under deterministic kernels. An optional Foundry
 integration adds training, configuration and checkpointing on Foundry's
 trainer, without changing the native model.
 
@@ -29,8 +30,8 @@ input. Featurization is a pure function **at a fixed seed**, so that
 equality is exact. (Only a SMILES ligand makes the seed matter: its conformer
 is embedded at call time.)
 
-The model's structure head is a diffusion sampler, and on a GPU with the
-default kernels a seeded fold is not repeatable, so identical features alone
+The model's structure head is a diffusion sampler, and on a GPU with torch's
+deterministic algorithms off a seeded fold is not repeatable, so identical features alone
 say that the two paths condition the model identically. Under deterministic
 kernels they say more, and it is confirmed on a GPU: the two paths return
 identical structures, every coordinate and confidence value equal
@@ -45,7 +46,7 @@ pip install -e ".[foundry]"      # optional: training through Foundry (Python 3.
 esmfold2-atomworks doctor        # imports, weights; parity given AtomWorks' test data
 
 esmfold2-atomworks parity structures/*.cif        # survey a corpus
-esmfold2-atomworks fold input.cif --out-dir runs/ # needs a GPU
+esmfold2-atomworks fold input.cif --out-dir runs/ # intended for a GPU
 ```
 
 ```python
@@ -64,10 +65,10 @@ structure, result = model.fold_atom_array(
 The adapter fails loudly on the cases that otherwise produce a confident
 prediction of the wrong molecule:
 
-- a ligand labelled `LIG`/`UNL`/`UNK` is **refused**, because those are real CCD
-  codes *and* what a model writes on anything it was handed as SMILES;
-- a declared ligand whose heavy-atom composition disagrees with the atoms present
-  is an **error**;
+- a ligand labelled `LIG`/`UNL`/`UNK`/`UNX` is **refused**, because those are real
+  CCD codes *and* what a model writes on anything it was handed as SMILES;
+- a declared `expected_formula` that disagrees with the heavy atoms present is an
+  **error**;
 - a sequence is taken from the full entity record, not from the residues that
   happen to be modelled, so unresolved loops are not silently deleted;
 - a non-standard residue is declared by CCD code, not folded as its parent;

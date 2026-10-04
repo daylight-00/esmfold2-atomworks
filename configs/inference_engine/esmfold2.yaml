@@ -1,9 +1,6 @@
 # @package _global_
-# `base` is also `@package _global_`, so without this header the `_target_`
-# below would land at `cfg.inference_engine._target_` while every parameter
-# landed at the root -- and `hydra.utils.instantiate(cfg)` would find no target.
-# Only visible when the config is actually composed, which is why the packaging
-# test does exactly that.
+# The header keeps `_target_` at the root beside the parameters from `base`,
+# where `hydra.utils.instantiate(cfg)` looks for it.
 defaults:
   - base
   - _self_

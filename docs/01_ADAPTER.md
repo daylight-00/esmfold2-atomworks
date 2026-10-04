@@ -99,18 +99,19 @@ The alignment is guaranteed **by construction**, not merely observed: AtomWorks
 builds the canonical sequence by mapping one-letter codes over that same
 `res_name` list, one character per entry, with `"X"`/`"N"`/`"-"` fallbacks on
 every path. So `len(sequence) == len(res_name)` holds for any polymer chain.
-For polymers `res_name` comes from `entity_poly_seq` — the full deposited
-sequence, including residues that were never resolved — which is also why it,
-and not the observed residues, is the right thing to fold (D-003).
+For an mmCIF with an `entity_poly_seq` record, `res_name` comes from it — the
+full deposited sequence, including residues that were never resolved — which is
+also why it, and not the observed residues, is the right thing to fold (D-003).
+For other input (a PDB-format file, an mmCIF without the record) `chain_info` is
+inferred from the modelled residues and the alignment holds in the same way.
 
-Checked concretely on `1a8o_modified`: 70 residue names, 70 sequence characters,
-and the four `MSE` entries at indices 0, 34, 63, 64 — where the canonical
-sequence reads `M`. `tests/test_atomworks_to_esm.py` asserts that, including the
-`sequence[position] == "M"` relation, so a change that shifts the alignment
-fails loudly rather than folding four wrong residues.
+Checked concretely on `1a8o_modified`: 70 residue names, 70 sequence characters
+(`tests/test_gold_fixtures.py`), and the four `MSE` entries at indices 0, 34, 63,
+64 — where the canonical sequence reads `M`. `tests/test_atomworks_to_esm.py`
+asserts those positions and the `sequence[position] == "M"` relation, so a change
+that shifts the alignment fails loudly rather than folding four wrong residues.
 
-Non-polymer chains have no canonical sequence at all, so the lookup is only made
-for polymers.
+The lookup is made for polymer chains only.
 
 When the alignment cannot be established — no `res_name` in `chain_info`, and
 modelled residues that do not line up with the sequence — a chain carrying a
@@ -197,7 +198,7 @@ with; and water is not a degradation but a policy with its own switch:
 
 | situation | behaviour |
 |---|---|
-| ligand labelled `LIG`/`UNL`/`UNK`, or a name absent from the CCD | **raises** `LigandIdentityError`; declare a `LigandSpec` |
+| ligand labelled `LIG`/`UNL`/`UNK`/`UNX`, or a name absent from the CCD | **raises** `LigandIdentityError`; declare a `LigandSpec` |
 | a declaration that does not bind ([below](#declarations-must-bind)) | **raises** `ChainDeclarationError` |
 | a chain whose atoms carry more than one `chain_type` or `is_polymer` value | **raises** `MixedChainError`; give each molecule its own chain ([above](#one-chain-one-molecule)) |
 | water | dropped under the explicit `drop_water` policy (`drop_water=False` refuses instead) |
@@ -207,7 +208,8 @@ Without `chain_info`, the sequence comes from the modelled residues, so an
 unresolved loop is simply absent (D-003). A gap in the numbering can hint at
 that, but not reliably — numbering may skip legitimately — and it can never say
 *what* is missing. So this case is recorded (`sequence_source == "atoms"`) and
-documented rather than raised; supplying `chain_info` removes it entirely.
+documented rather than raised; supplying a `chain_info` that records the full
+entity sequence (mmCIF `entity_poly_seq`) removes it.
 
 Dropping a chain and losing a bond are independent on purpose. Accepting that a
 chain is dropped is not the same as accepting that a bond to it disappears, so
@@ -215,10 +217,7 @@ opting into the first still raises on the second.
 
 Detection of bonds is deliberately kept separate from that policy:
 `covalent_bond_candidates` returns a bond whose endpoint is not in the model
-rather than filtering it out, so the decision belongs to the caller. An earlier
-version filtered inside detection, which put such bonds beyond the strict check
-entirely — an unsupported chain and a real bond to it could both vanish in
-silence.
+rather than filtering it out, so the decision belongs to the caller.
 
 ## Declarations must bind
 
@@ -270,9 +269,10 @@ component dictionary — it is a real statement about chemistry rather than a
 label a model wrote on its own output.
 
 `LigandSpec.verify_against` compares **heavy atoms only**. Whether hydrogens are
-present at all depends on the source: `parse` hydrogenates, Rosetta rebuilds
-them on load, ESMFold2 reports none. Heavy atoms are the only comparison that
-means the same thing on every side.
+present at all depends on the source and the parser settings: `parse` keeps
+them where the source has them and can add them (`hydrogen_policy="infer"`),
+Rosetta rebuilds them on load, ESMFold2 reports none. Heavy atoms are the only
+comparison that means the same thing on every side.
 
 ## Why `G` does not go through mmCIF
 
@@ -282,8 +282,7 @@ It is in memory and hands back AtomWorks' full annotation set for free.
 It is also **silently lossy for ligands**, for exactly the D-004 reason: ESMFold2
 labels a SMILES ligand `LIG`, `LIG` is a real CCD code for an unrelated molecule,
 and `parse` reconciles against that component, keeping only the atoms whose names
-happen to match. In one observed case that turned 19 correct ligand atoms into
-8 carbons — and the structure still parsed and still validated.
+happen to match — and the structure still parses and still validates.
 
 So `G` reads `MolecularComplex`'s flat per-atom arrays directly. It is faithful
 because nothing is inferred that the model did not report, and it raises rather

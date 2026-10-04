@@ -6,9 +6,9 @@
 > preserved exactly.**
 
 Not a port. A port starts by rewriting an architecture; this makes an existing,
-published, working model reachable from AtomWorks — the representation it is
-fed from and returned to — and proves that the reachable version is the same
-model. The whole promise fits in one sentence:
+published model reachable from AtomWorks — the representation it is fed from
+and returned to — and checks that what the adapter derives featurizes exactly
+like a native input. The whole promise fits in one sentence:
 
 > Given the same biological system, using an AtomWorks structure through this
 > adapter must produce the same ESMFold2 features as constructing the
@@ -20,7 +20,8 @@ AtomWorks structure  ─F─>  StructurePredictionInput  ──>  ESMFold2's own
 ESMFold2(I_native)  ==  ESMFold2(F(A_AtomWorks))
 ```
 
-That milestone is **met** — see [02_PARITY.md](02_PARITY.md). It involves no
+The equality is exact for the features, and for the outputs under deterministic
+kernels ([02_PARITY.md](02_PARITY.md)). That milestone is **met**. It involves no
 training framework, and neither does the rest of the core: the adapter and its
 reverse, the AtomWorks data pipeline, the supervision labels, the model
 wrapper, the inference engine and the CLI.
@@ -80,22 +81,24 @@ whose atoms disagree raises `MixedChainError`.
 
 ### D-003 — Sequences come from `chain_info`, not from the residues that were modelled
 
+For an mmCIF file with an `entity_poly_seq` record,
 `processed_entity_canonical_sequence` includes residues that were never
 resolved. Reading the sequence off the atoms instead silently deletes every
 unmodelled loop, and folds a construct the caller never asked for — which then
 reports perfectly good confidence, because it *is* a confident prediction of a
-different molecule.
+different molecule. Parsed from a PDB-format file, `chain_info` is inferred from
+the modelled residues, so it carries no more than the atoms do.
 
 The adapter prefers `chain_info` and records which source it used per chain
 (`AdapterReport.sequence_source`).
 
 ### D-004 — Ligand identity is declared and verified, never inferred from a label
 
-A residue name is a label, not an identity. `LIG`, `UNL` and `UNK` are all real
-CCD codes *and* the strings a model writes on anything it was given as SMILES.
-Reconciling such a ligand against the dictionary keeps only the atoms whose
-names happen to match: in one observed case this turned 19 correct ligand atoms
-into 8 carbons, leaving a structure that still parsed and still validated.
+A residue name is a label, not an identity. `LIG`, `UNL`, `UNK` and `UNX` are
+all real CCD codes *and* the strings a model writes on anything it was given as
+SMILES. Reconciling such a ligand against the dictionary keeps only the atoms
+whose names happen to match, leaving a structure that still parses and still
+validates.
 
 So: a generic label is **refused**. A CCD code that came through
 `atomworks.io.parse` has been reconciled against the component dictionary and is
@@ -139,25 +142,24 @@ ESMFold2's one-letter alphabet covers the standard residues only. Anything else
 `Modification(position, ccd=...)`, or the model folds the **parent** residue.
 
 This changes tokenization (a modified residue becomes one token per atom), which
-is the point: it is how the real chemistry enters the model. `tests/` asserts
-that declaring it actually changes the token count, so the parity test above it
-cannot be vacuous.
+is the point: it is how the real chemistry enters the model.
+`tests/test_feature_parity.py` asserts that declaring it changes the token count,
+so the parity comparison cannot be vacuous.
 
 ### D-008 — Parity is checked at the feature level first, the output level second
 
 Feature parity is exact, needs no GPU and no weights, and names the offending
 tensor when it fails. Output parity needs a GPU and the weights, and only
 confirms: it reports that coordinates differ, not which input caused it. It is
-exact too, but only under deterministic kernels. With the defaults a seeded
-fold is not repeatable, and judging an implementation from paired runs of that
-kind means reading scatter as a real difference, or a real difference as
-scatter. So output parity is checked under deterministic execution, and the
-scatter is characterized on its own ([02](02_PARITY.md)).
+exact too, but only under deterministic kernels. With torch's deterministic
+algorithms off, a seeded fold is not repeatable, and judging an implementation
+from paired runs of that kind means reading scatter as a real difference, or a
+real difference as scatter. So output parity is checked under deterministic
+execution, and the scatter is characterized on its own ([02](02_PARITY.md)).
 
 ## Non-goals, for now
 
-- **Rewriting the architecture.** Both upstreams move fast — AtomWorks' README
-  calls it mid-cleanup, and the ESMFold2 module has changed homes twice. A full
-  rewrite would spend its first months chasing upstream API changes.
+- **Rewriting the architecture.** Both upstreams' APIs change between
+  releases; a rewrite would have to track them.
 - **Training the released model.** It cannot be trained; see
   [03_MODEL.md](03_MODEL.md) §Gradients.

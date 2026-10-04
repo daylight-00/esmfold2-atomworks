@@ -9,7 +9,7 @@ it needs Foundry.
 
 ```python
 class AtomWorksESMFold2:
-    self.net = ESMFold2Model.from_pretrained(...)   # unmodified
+    self.net = EsmFold2Model.from_pretrained(...)   # unmodified
 ```
 
 The architecture stays exactly as published, so the weights keep meaning what
@@ -25,9 +25,9 @@ registers.
 There is no `model.net` sub-config of layer widths, because ESMFold2's
 architecture comes from the checkpoint's `config.json`. **Read dimensions off
 `model.config`, never off the dataclass defaults in `EsmFold2Config`** — they
-disagree substantially, and checkpoints disagree with each other: the reference
-checkpoint has `num_loops = 3` where the one `biohub/ESMFold2` publishes today
-has 20 (see [04](04_ENVIRONMENT.md) for the two layouts).
+disagree substantially, and checkpoints disagree with each other: revision
+`e1e189d0` of `biohub/ESMFold2` has `num_loops = 3` where `69869f73` and later
+have 20 (see [04](04_ENVIRONMENT.md) for the two layouts).
 
 `AtomWorksESMFold2.representation_dims()` reads the widths off the live config.
 `EsmFold2Config` renames fields on load — a `config.json` written with `d_pair`
@@ -74,15 +74,15 @@ states from the discrete sequence it chooses and pass them in.
 
 `ESMFold2InputBuilder.fold()` accepts `noise_scale`, `step_scale` and
 `max_inference_sigma` and forwards each one that is set. esm >= 3.4 declares
-all three on `forward` and hands them to the structure head's sampler; the
-`transformers` fork of esm <= 3.3 did not, and dropped them. So
-`AtomWorksESMFold2.fold` reads the loaded module's own `forward` signature
-and warns about any knob it would drop, rather than assuming either
+all three on `forward` and hands them to the structure head's sampler; a module
+whose `forward` does not (the `transformers`-fork layout of esm <= 3.3) would
+drop them. So `AtomWorksESMFold2.fold` reads the loaded module's own `forward`
+signature and warns about any knob it would drop, rather than assuming either
 packaging. The three are typed fields of `FoldingConfig` and keys of the
 engine's Hydra config (`configs/inference_engine/base.yaml`), `null` by
-default. Left unset, the two scales and the step count come from the
-structure head's config and the sigma cap from `forward`'s default -- which
-the call record states as `esmfold2.effective.*` (below). `early_exit` is
+default. Left unset, the two scales come from the structure head's config and
+the sigma cap from `forward`'s default -- which the call record states as
+`esmfold2.effective.*` (below). `early_exit` is
 deprecated upstream and ignored by `fold` with a warning of its own.
 
 ## The LM prior is part of the model
@@ -124,31 +124,34 @@ stays the backbone that was loaded.
 
 Two halves, kept apart because they change at different rates.
 
-`provenance()` is the model's, one string per fact: the weights by path and,
-where the directory says, by Hub repo and revision
-(`esmfold2.checkpoint.repo`/`.revision`, read by `paths.checkpoint_identity`
-through the workspace pin into the Hugging Face store), with
-`esmfold2.checkpoint.versioning` saying which answer applies -- `hub-snapshot`,
-`hub-local-dir`, or `unversioned` for a directory whose name is all there is
-(its repo and revision stay empty rather than read off the name). Weights
-named by Hub id are resolved to their snapshot in the Hugging Face store
-before loading (upstream's `resolve_model_dir`, the step `from_pretrained`
-takes anyway), so the revision that ran is known;
-`esmfold2.weights` keeps what was asked for and `esmfold2.weights_resolved`
-the directory read. A separate ESMC backbone without a mirror is resolved the
-same way. The numerics applied at construction are recorded too, as applied rather
-than as requested: `esmfold2.esmc_precision` (bf16 or fp8 changes the LM
-states; the experimental loader always uses bf16, whatever was asked),
-`esmfold2.chunk_size` and `esmfold2.kernel_backend` (both change the order of
-reductions). Both setters are called with the value given, `None` included --
-`chunk_size=None` disables chunking, `kernel_backend=None` selects upstream's
-reference path -- and a module without the setter is recorded as not having
-applied it. A change made later directly on `.net` is not tracked. Alongside, and `esmfold2.checkpoint.config_sha256`, the digest
-of its `config.json`, which names the architecture and defaults but not the
-weights; the same for a separately attached ESMC backbone; the device the
-module's parameters are on, read off the module rather than the process's
-current device, with its name; torch and its CUDA build; the config type, the
-packaging, the backbone's source and the CCD's.
+`provenance()` is the model's, one string per fact:
+
+- `esmfold2.weights` is what was asked for and `esmfold2.weights_resolved` the
+  directory read: weights named by Hub id are resolved to their snapshot
+  directory (`models--<org>--<name>/snapshots/<rev>`) before loading, through
+  upstream's `resolve_model_dir`, the step `from_pretrained` takes anyway, so the
+  revision that ran is known. A separate ESMC backbone without a mirror is
+  resolved the same way.
+- `esmfold2.checkpoint.repo` and `.revision`, read by `paths.checkpoint_identity`
+  where the directory says, and `.versioning` saying which answer applies --
+  `hub-snapshot`, `hub-local-dir`, or `unversioned` for a directory whose name is
+  all there is (repo and revision then stay empty rather than read off the name).
+  `esmfold2.checkpoint.config_sha256` digests its `config.json`, which names the
+  architecture and defaults but not the weights; `esmfold2.esmc.repo` and
+  `.revision` do the same for a separately attached ESMC backbone.
+- The numerics applied at construction, as applied rather than as requested:
+  `esmfold2.esmc_precision` (bf16 or fp8 changes the LM states; the experimental
+  loader always uses bf16, whatever was asked), `esmfold2.chunk_size` and
+  `esmfold2.kernel_backend` (both change the order of reductions). Both setters
+  are called with the value given, `None` included -- `chunk_size=None` disables
+  chunking, `kernel_backend=None` selects upstream's reference path -- and a
+  module without the setter is recorded as not having applied it. A change made
+  later directly on `.net` is not tracked.
+- `esmfold2.device` and `esmfold2.device_name`, read off the module's parameters
+  rather than the process's current device; `esmfold2.torch` and
+  `esmfold2.torch_cuda`.
+- `esmfold2.config_type`, `esmfold2.flavour` (the packaging), `esmfold2.esmc`
+  (the backbone's source) and `esmfold2.ccd` (the CCD's).
 
 `fold(record=...)` and `fold_atom_array(record=...)` fill a caller's dict with
 the call's own entries:
@@ -165,9 +168,9 @@ the call's own entries:
   with supplied states); LM dropout from the config when the call sets none.
   `esmfold2.fold.*` is the request, this is the execution.
 - `esmfold2.lm_source`: `model` or `caller-supplied`; with supplied states,
-  `esmfold2.lm_states` names them by a full SHA-256 of their bytes, shape and
-  dtype, hashed in chunks before the fold, so two different states cannot
-  share a record.
+  `esmfold2.lm_states` names them by a SHA-256 of their bytes with shape and
+  dtype recorded alongside, hashed in chunks before the fold, so two different
+  states cannot share a record.
 - `esmfold2.inputs`: every entity folded, read after upstream's
   `clean_esmfold2_input` (a chainbreak is recorded as the entities it becomes)
   -- ids, kind, length, `chemistry_sha256` over the sequence and modifications
@@ -194,9 +197,8 @@ can be read without the run that made it.
 ## Pipeline
 
 `build_esmfold2_pipeline` returns an ordinary `atomworks.ml.transforms.Compose`,
-so it composes with AtomWorks' own crop, filter and MSA transforms — the ones
-Foundry's models are built from too. Two properties differ from the AF3-style
-pipelines of `rf3` and `rfd3`:
+so it composes with AtomWorks' own crop, filter and MSA transforms. Three
+properties of the pipeline:
 
 - **The featurizer goes last and is the only ESMFold2-specific transform.**
   ESMFold2 builds its own tensors from a `StructurePredictionInput` and does not
@@ -221,13 +223,10 @@ trains on them adds the batch dimension, exactly as
 `ESMFold2InferenceEngine` keeps one model resident and folds AtomWorks structures
 with it. Its surface mirrors Foundry's `BaseInferenceEngine` (`initialize` /
 `run` / `__call__` / context manager), so call sites read the same, but it
-neither subclasses nor imports it.
-`BaseInferenceEngine.__init__` resolves a checkpoint against Foundry's registry,
-loads a `.pt` carrying the training `cfg`, and builds its pipeline from
-`cfg.datasets.val`'s first dataset. ESMFold2 has none of that: HF safetensors
-plus `config.json`, a second repo for the ESMC backbone, and a featurizer that
-takes no config. Inheriting would mean overriding every checkpoint-touching
-method and leaving the parent half-initialised.
+neither subclasses nor imports it: that engine resolves a checkpoint against
+Foundry's registry and loads a `.pt` carrying the training `cfg`, whereas
+ESMFold2 loads HF safetensors plus `config.json`, with a second repo for the ESMC
+backbone and a featurizer that takes no config.
 
 ## Reading confidence
 

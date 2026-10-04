@@ -3,35 +3,27 @@
 Foundry is not part of the core AtomWorks ↔ ESMFold2 contract. It provides one
 supported training and execution backend: the `FabricTrainer` subclass in
 `training/` and the Hydra configs in `configs/`. Nothing else in the package
-imports it — `tests/test_core_boundary.py` holds it to that — and a workspace
-without Foundry is complete for everything else. It is the package's `foundry`
-extra — `pip install -e ".[foundry]"`, which brings rc-foundry and so needs
-Python 3.12 — and a plain install leaves it out. Its runtime contracts pass
-against both the pinned Foundry checkout and the rc-foundry 0.2.0 release; its
-repository contracts, which read a checkout's own files, against the pinned
-checkout.
+imports it — `tests/test_core_boundary.py` checks that at import time — and a
+workspace without Foundry is complete for everything else. It is the package's
+`foundry` extra — `pip install -e ".[foundry]"`, which brings rc-foundry and so
+needs Python 3.12 — and a plain install leaves it out.
 
-> Everything on this page is **verified against the Foundry integration
-> contracts this project is tested against**, by
-> `tests/test_foundry_integration.py`, in two kinds. The
-> *runtime* contracts are checked against the Foundry that is imported: the
-> trainer really subclasses `FabricTrainer` with no abstract method left and
-> matching signatures, the engine really offers `BaseInferenceEngine`'s
-> surface, `RegisteredCheckpoint` really takes the fields named below, and the
-> data-pipeline config really instantiates into a working pipeline. The
-> *repository* contracts read a Foundry checkout's own files — all six
-> registration tables really exist, and models really are registered centrally
-> rather than per-model — so they run only when that checkout is the Foundry
-> under test. The tests do not modify the Foundry checkout — they check each claim where it lives.
-> What they do *not* do is copy the package in, patch Foundry's `pyproject.toml`
-> and install the result; that would verify the same contracts while leaving a
-> dirty tree, and would need re-doing on every upstream release.
+`tests/test_foundry_integration.py` checks the contracts the integration relies
+on, in two kinds. The *runtime* contracts are checked against the Foundry that is
+imported: the trainer subclasses `FabricTrainer` with no abstract method left and
+matching signatures, the engine offers `BaseInferenceEngine`'s surface,
+`RegisteredCheckpoint` takes the fields named below, and the data-pipeline config
+instantiates. They pass against both the pinned Foundry checkout and rc-foundry
+0.2.0. The *repository* contracts read a Foundry checkout's own files — the six
+registration tables exist, and models are registered centrally rather than per
+model — so they run only when that checkout is the Foundry under test. No Foundry
+file is modified. The other statements on this page about Foundry's repository
+layout describe the pinned checkout and are not tested.
 
 ## The integration keeps Foundry's model-package conventions
 
-It is kept compatible with them on purpose, so that an upstream Foundry
-integration can stay thin. The repository is laid out like
-`foundry/models/<name>/`:
+The repository is laid out like `foundry/models/<name>/`, so that moving it into
+Foundry needs only the move and a handful of registrations:
 
 ```
 esmfold2-atomworks/              foundry/models/esmfold2/
@@ -41,22 +33,15 @@ esmfold2-atomworks/              foundry/models/esmfold2/
 └── docs/             <────────> └── docs/
 ```
 
-Its lint and test settings (`[tool.ruff]`, `[tool.pytest.ini_options]`)
-follow Foundry's as well, so moving it in needs no reformat — just the move and
-a handful of registrations. It is its own
-repository because the core has value without Foundry at all — anything that
-has an `AtomArray` can fold it with ESMFold2 — and because vendoring it into a
-fast-moving upstream would couple this project's history to theirs.
+Its formatting and pytest settings (`[tool.ruff.format]`,
+`[tool.pytest.ini_options]`) follow Foundry's. It is its own repository because the core has value without Foundry at
+all — anything that has an `AtomArray` can fold it with ESMFold2.
 
-## What the CONTRIBUTING recipe says, and what the repo actually does
+## Registering the package inside Foundry
 
-`foundry/CONTRIBUTING.md` says to create `models/<name>/pyproject.toml` and
-install the model separately. **No model in the repo does this.** There is
-exactly one `pyproject.toml` in Foundry; `rf3`, `rfd3`, `rfd3na` and `mpnn` have
-none. Follow the code, not the doc.
-
-Real registration is six edits to the root `pyproject.toml` plus one to a
-registry:
+Foundry registers models centrally, in its root `pyproject.toml` and a checkpoint
+registry; none of its models has a `pyproject.toml` of its own. Registration is
+six edits to the root `pyproject.toml` plus one to the registry:
 
 ```toml
 [project.optional-dependencies]
@@ -89,37 +74,26 @@ plus an `"esmfold2"` entry in
 ln -s ../../../models/esmfold2/docs foundry/docs/source/models/esmfold2
 ```
 
-The last two `pyproject.toml` entries are newer than the rest and easy to miss:
+Further requirements:
 
-- **mypy has no ignore ratchet any more.** It was driven to zero for all four
-  models and the `ignore_errors` block deleted; strictness is now opt-in per
-  package via `disallow_untyped_defs`/`check_untyped_defs` overrides. A new
-  package is therefore type-checked from the day it is added, so annotate it
-  fully and add `module = ["esmfold2.*"]` to the strict overrides rather than
-  asking for an exemption.
-- **`testpaths` now lists every model's tests**, and `markers` is declared
-  centrally under `--strict-markers`. Only `gpu` and `integration` are declared
-  upstream, so any additional marker this package uses must be added there too.
-
-`[tool.hatch.build.targets.sdist] exclude` is glob-based
-(`models/*/tests/`), so it needs no edit.
-
-`configs/__init__.py` must exist (empty) for `pkg://esmfold2.configs` to
-resolve. `rfd3` and `rfd3na` have it; `rf3` omits it despite declaring the
-searchpath. Do not copy `rf3` here.
-
-Foundry's models also list `pkg://configs` on their Hydra searchpath. Outside
-Foundry that package does not exist, and Hydra warns on every compose for an
-entry it cannot resolve, so `configs/inference.yaml` lists only
-`pkg://esmfold2_atomworks.configs`; moving the package in, add `pkg://configs`
-back beside it.
-
-Two conventions have a current and a legacy form — copy the current one:
-
-| | current | legacy |
-|---|---|---|
-| `tests/conftest.py` | `rf3`, `mpnn` (`foundry.testing.configure_pytest`, plus `collect_ignore` for tests that need a GPU or checkpoints) | `rfd3` (hand-rolled `rootutils.setup_root`) |
-| `configs/__init__.py` | `rfd3`, `rfd3na` (present) | `rf3` (absent) |
+- **mypy.** Foundry type-checks each model package under per-package strict
+  overrides (`disallow_untyped_defs`, `check_untyped_defs`); add
+  `module = ["esmfold2.*"]` to them.
+- **pytest.** `testpaths` lists every model's tests, and `markers` are declared
+  centrally under `--strict-markers`. Foundry declares `gpu` and `integration`,
+  so any other marker this package uses must be added there.
+- **sdist.** `[tool.hatch.build.targets.sdist] exclude` is glob-based
+  (`models/*/tests/`) and needs no edit.
+- **`configs/__init__.py`** must exist (empty) for `pkg://esmfold2.configs` to
+  resolve.
+- **Hydra searchpath.** Foundry's models also list `pkg://configs`. Outside
+  Foundry that package does not exist, and Hydra warns on every compose for an
+  entry it cannot resolve, so `configs/inference.yaml` lists only
+  `pkg://esmfold2_atomworks.configs`; moved in, `pkg://configs` goes back beside
+  it.
+- **`tests/conftest.py`.** Foundry's `rf3` and `mpnn` use
+  `foundry.testing.configure_pytest`, plus `collect_ignore` for tests that need a
+  GPU or checkpoints.
 
 ## Training through Foundry
 

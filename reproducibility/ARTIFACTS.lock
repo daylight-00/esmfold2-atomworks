@@ -2,14 +2,17 @@
 #
 # UPSTREAM.lock pins the code; this pins what the code read. Feature parity
 # (docs/02) needs only the CCD pickle: it compares two inputs through the same
-# featurizer and involves no weights. Reproducing the GPU output-parity numbers
-# needs all three entries. Hub repositories are mutable, so each entry names a
-# revision and a digest for every file that matters -- the file's sha256 (the
-# Hub's LFS object id), or its git blob sha1 where marked.
+# featurizer and involves no weights. The output-parity record was produced with
+# the bundled revision of biohub/ESMFold2 named in checkpoint_equivalence.json,
+# whose weights equal the reference checkpoint pinned below; reproducing it needs
+# either checkpoint, the ESMC backbone for the separate layout, and the CCD.
+# Hub repositories are mutable, so each entry names a revision and a digest for
+# every file that matters -- the file's sha256 (the Hub's LFS object id), or its
+# git blob sha1 where marked.
 #
-# biohub/ESMFold2 has since been re-published in another layout (ESMC bundled,
-# tensors renamed). checkpoint_equivalence.json, written by
-# scripts/compare_checkpoints.py, records how that release compares with the
+# Later revisions of biohub/ESMFold2 use another layout (ESMC bundled, tensors
+# renamed). checkpoint_equivalence.json, written by
+# scripts/compare_checkpoints.py, records how that revision compares with the
 # reference below.
 
 [esmfold2]

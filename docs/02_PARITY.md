@@ -3,7 +3,7 @@
 ## Result
 
 **Feature parity holds exactly on every fixture tested.** All 29 tensors that
-`prepare_esmfold2_input` emits are identical between a hand-written
+`prepare_esmfold2_input` emits are identical between a frozen reference
 `StructurePredictionInput` and the one the adapter derives from the same
 structure:
 
@@ -17,7 +17,7 @@ structure:
 
 ## Corpus survey
 
-`esmfold2-atomworks parity` over every structure file under AtomWorks'
+`esmfold2-atomworks parity -v` over every structure file under AtomWorks'
 `tests/data` (17 at the pinned revision):
 
 ```
@@ -42,7 +42,7 @@ structure:
 feature parity: 13/17 structures reproduce
 ```
 
-The four failures are **correct refusals**, not gaps:
+The four failures are refusals by design:
 
 - `9cox_with_unknown_ccd` carries a residue named `UNKNOWN_CCD`, which is not in
   the component dictionary, so it cannot be used as a CCD code and there is no
@@ -50,8 +50,9 @@ The four failures are **correct refusals**, not gaps:
   by name, rather than letting it fail inside the featurizer with
   `CCD component UNKNOWN_CCD not found`, which names neither the chain nor the
   remedy.
-- `example_ncaa` carries `C:0`, AtomWorks' placeholder name for a component
-  built from SMILES or an SDF; the same check catches it.
+- `example_ncaa` carries a component named `C:0`, a placeholder rather than a CCD
+  code (AtomWorks names its own SMILES components `L:n`); the same check catches
+  it.
 - `example_distillation_output` and `test_unl_ligand_with_bonds` carry `UNL`
   ligands, which D-004 refuses. Declaring one with a `LigandSpec` makes it
   fold — `tests/` asserts exactly that round trip.
@@ -100,7 +101,7 @@ rather than known-good.
 | CCD ligand / cofactor / metal | exact feature parity (HEM, FAD, UV3, ZN); survey only for NBN and DHS |
 | modified residue | exact feature parity (4 × MSE, positions asserted) |
 | D-amino acids as a non-polymer chain | survey only (`7ubd`): self-consistent, not compared against a frozen input |
-| D-polypeptide chain (`POLYPEPTIDE_D`) | implemented, not exercised: no fixture carries one |
+| `POLYPEPTIDE_D`, `CYCLIC_PSEUDO_PEPTIDE`, `BRANCHED` and `MACROLIDE` chains | mapped (docs/01), not exercised: no fixture carries one |
 | multi-component non-polymer chain | survey only (`7ubd`, eight components); returned as one residue (docs/01, "What `G` does not return") |
 | covalent bond | survey only for deposited bonds (`1qfe`, `7ubd`); carried and placed; changes `token_bonds` and nothing else. Backbone adjacency judged by residue order, so an insertion-coded peptide bond is not declared; an unplaceable bond raises |
 | MSA, single chain | exact feature parity against a hand-written input |
@@ -114,8 +115,8 @@ rather than known-good.
 | generic `UNL` / unknown CCD | **refused**, with a test asserting the refusal |
 | SMILES placeholder name (`L:0`) | **refused**, with the remedy in the message |
 
-The rule the repo follows: *what is supported is tested, what is not supported
-is refused explicitly.*
+The rule the repo follows: *what is supported is tested or listed above as
+untested, and what is not supported is refused explicitly.*
 
 The nucleic-acid and SMILES rows are branch coverage rather than parity against
 a frozen reference: their fixtures are built with AtomWorks' component
@@ -128,11 +129,10 @@ compare against. They assert that the right input class, sequence and
 `tests/data/gold/*.json` holds a frozen `StructurePredictionInput` per fixture:
 chains, sequences, ligand CCD codes, modification positions.
 
-This matters more than it looks. An earlier version of the suite built the
-reference side by copying chain ids, ligand codes and modifications out of the
-adapter's own output and re-reading only the sequences independently. That is
-circular: an adapter that consistently mapped a ligand to the wrong CCD code
-would have that error copied into the reference, and parity would pass.
+The reference side is never built from the adapter's output. A reference that
+copied chain ids, ligand codes and modifications from it would be circular: an
+adapter that consistently mapped a ligand to the wrong CCD code would have that
+error copied into the reference, and parity would pass.
 
 The gold files are generated once from AtomWorks' own `parse()` output —
 `chain_info`, `chain_type`, residue names — never from this package, and then
@@ -156,7 +156,7 @@ side: substituting `HEC` for `HEM` must break feature parity. Without it,
 byte-identical tensors: there is no arithmetic in between to accumulate error,
 which is why this comparison is exact rather than tolerance-based.
 
-The seed qualifier is not pedantry. A ligand given as SMILES gets an RDKit
+A ligand given as SMILES gets an RDKit
 conformer embedded at call time, which is seeded but stochastic — the same
 `LigandInput` at two different seeds yields different `ref_pos`. CCD-specified
 ligands read a stored conformer and are unaffected. All the fixtures here are
@@ -164,17 +164,16 @@ CCD, which is why the comparison holds exactly; a SMILES case needs the same
 seed on both sides, or a tolerance.
 
 `forward` is **not** pure. The structure head is a diffusion sampler; it
-consumes RNG, and on a GPU with the default kernels it is not even
-reproducible across two identical seeded calls (see below). So feature parity
+consumes RNG, and on a GPU with torch's deterministic algorithms off it is not
+even reproducible across two identical seeded calls (see below). So feature parity
 by itself does *not* say that the two paths produce the same coordinates. What
 it says is:
 
 > the adapter presents the model with exactly the same conditioning, and
 > therefore the same conditional sampling distribution
 
-which is the claim worth making, and the strongest one available for a
-stochastic model. Everything downstream — coordinates, pLDDT, PAE — is then a
-draw from one distribution rather than from two. The GPU check below goes
+Everything downstream — coordinates, pLDDT, PAE — is then a draw from one
+distribution rather than from two. The GPU check below goes
 further: with the kernels made deterministic, the realised draws are
 identical.
 
@@ -185,11 +184,11 @@ coordinates differ by 4 Å" for all three.
 
 ## The 29 tensors are not equally important
 
-Only **23** are declared parameters of the release `ESMFold2Model.forward`. The
-other six land in `**kwargs` and are discarded:
+Only **25** are declared parameters of the release `EsmFold2Model.forward`. The
+other four land in `**kwargs` and are discarded:
 
 ```
-gt_coords  is_resolved  frames_idx  disto_cond  disto_cond_mask  pocket_feature
+gt_coords  is_resolved  frames_idx  pocket_feature
 ```
 
 `gt_coords` and `is_resolved` are zeros/all-False at inference by construction
@@ -198,9 +197,9 @@ unconditionally zeroed — upstream labels it `# --- Pocket (dropped) ---` in
 `prepare_input.py`. They are training-time features.
 
 `FeatureDiff` therefore separates the two sets: `.ok` means nothing the model
-reads differs, `.identical` means all 29 match. Failing on a discarded tensor
-would make the check cry wolf; ignoring the distinction would let a real
-regression hide behind "well, something differs".
+reads differs, `.identical` means all 29 match. A difference in a discarded
+tensor cannot change a prediction, so it is reported without failing the check;
+a difference in one the model reads always fails it.
 
 **On the fixtures above, `.identical` holds** — the stronger statement.
 
@@ -247,7 +246,7 @@ regenerated by
 PAE, distogram, pTM and ipTM, and atom names. The test folds the native input
 twice before comparing paths, so a cross-path difference is never read as the
 adapter's while the execution itself is not repeatable. Enabling torch's
-deterministic algorithms cost 12-16% in wall time on these folds (the second
+deterministic algorithms cost about 12-17% in wall time on these folds (the second
 and third fold of each case, the first carrying warm-up), measured with the
 fixed cuBLAS workspace in place in both modes -- the cost of the flag under
 that workspace, not of deterministic execution against a fully default one.
@@ -267,7 +266,7 @@ characterization test does too, so this is the scatter left under the fixed
 cuBLAS workspace with the flag off -- not that of a fully default execution,
 which would need a separate process started without the variable.
 
-| fixture | schedule | coordinates, worst atom (Å) | pLDDT, worst token |
+| fixture | schedule | coordinates, largest difference (Å) | pLDDT, worst token |
 |---|---|---|---|
 | lysozyme | short | 0.12 | 0.060 |
 | lysozyme | checkpoint | 0.18 | 0.001 |
@@ -279,16 +278,16 @@ which would need a separate process started without the variable.
 
 These describe one pair of runs on this device and stack; the scatter varies
 from run to run, with the input, and with the schedule in no fixed direction,
-so they characterize its size rather than bound it. `lm_dropout` defaults to
-`0.3` and stays active at inference on purpose (it is the ensembling
-mechanism). Its mask is drawn from the seeded RNG like everything else, but
-whether it contributes to this scatter is not established: a run with
-`lm_dropout=0` showed the same scatter, yet `0` is no control, because upstream
-leaves the checkpoint's own rate in place for it
-([05](05_ROADMAP.md), "Limited by an upstream"). What removed the scatter here
-is turning torch's deterministic algorithms on under that workspace, which is
-why the parity check runs with both, and why a scatter budget -- only as tight
-as the scatter happens to be on the input at hand -- is not used as one.
+so they characterize its size rather than bound it. `fold` applies
+`lm_dropout=0.3` by default (the checkpoints' own rate is 0.25), and the dropout
+stays active at inference. Its mask is drawn from the seeded RNG like everything
+else, but whether it contributes to this scatter is not established: passing
+`lm_dropout=0` is no control, because upstream leaves the checkpoint's own rate
+in place for it ([05](05_ROADMAP.md), "Limited by an upstream"). What removed
+the scatter here is turning torch's deterministic algorithms on under that
+workspace, which is why the parity check runs with both, and why a scatter
+budget -- only as tight as the scatter happens to be on the input at hand -- is
+not used as one.
 
 `test_nondeterministic_scatter_is_characterized` prints the measurement and
 asserts only the bookkeeping: atom names and order are not sampled, so they
@@ -300,9 +299,8 @@ applied, and the record does not claim otherwise.
 
 ## What parity does *not* cover
 
-- **The source structure's coordinates.** This one is worth stating plainly
-  because the parity table invites the opposite reading. `gt_coords` is among
-  the 29 tensors and it matches — but `StructurePredictionInput` carries no
+- **The source structure's coordinates.** `gt_coords` is among the 29 tensors
+  and it matches — but `StructurePredictionInput` carries no
   coordinates at all, and ESMFold2 derives geometry from CCD reference
   conformers. `gt_coords` is built from the *prediction input* and is zeros at
   inference, so both sides agree on a placeholder. **Matching `gt_coords` does
@@ -316,8 +314,8 @@ applied, and the record does not claim otherwise.
 - **Chains whose insertion codes cannot be placed.** `chain_info` records no
   insertion code. From mmCIF that does not matter: AtomWorks' `res_id` is
   `label_seq_id`, one number per position, so an insertion-coded chain maps
-  like any other (thrombin, `1PPB`: its covalently bound inhibitor's bonds to
-  His57 and Ser195 are placed). From a PDB file `res_id` is the author
+  like any other (`tests/test_insertion_codes.py` maps such a chain). From a PDB
+  file `res_id` is the author
   numbering, where 100/100A/100B share a number and `chain_info` repeats it, so
   residues cannot be tied to sequence positions. For such a chain the fold
   input is unaffected, but its labels are skipped (and named in

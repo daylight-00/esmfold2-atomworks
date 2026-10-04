@@ -1109,7 +1109,7 @@ class AtomWorksESMFold2:
         lm_hidden_states: Any | None = None,
         record: dict[str, Any] | None = None,
         **overrides: Any,
-    ) -> tuple[AtomArray, Any]:
+    ) -> tuple[AtomArray, Any] | tuple[list[AtomArray], list[Any]]:
         """Fold an AtomWorks structure and answer with one.
 
         This is the whole AtomWorks round trip in a single call::

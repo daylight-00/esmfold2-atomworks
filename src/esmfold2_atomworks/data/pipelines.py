@@ -27,6 +27,7 @@ wants ``AtomArray -> StructurePredictionInput`` need not pay for it.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any, ClassVar
 
 from atomworks.ml.transforms._checks import check_contains_keys
@@ -104,7 +105,7 @@ class StructurePredictionInputTransform(Transform):
     def __init__(
         self,
         *,
-        ligands: dict[str, Any] | tuple[Any, ...] = (),
+        ligands: Mapping[Any, Any] | tuple[Any, ...] = (),
         allow_undeclared_ccd_ligands: bool = True,
         emit_modifications: bool = True,
         keep_report: bool = True,
@@ -232,7 +233,7 @@ def build_esmfold2_pipeline(
     *,
     is_inference: bool,
     seed: int | None = None,
-    ligands: dict[str, Any] | tuple[Any, ...] = (),
+    ligands: Mapping[Any, Any] | tuple[Any, ...] = (),
     allow_undeclared_ccd_ligands: bool = True,
     emit_modifications: bool = True,
     allow: Any = (),

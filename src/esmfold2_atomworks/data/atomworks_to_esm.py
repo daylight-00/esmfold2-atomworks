@@ -644,7 +644,7 @@ def chain_records(
     atoms: AtomArray,
     *,
     chain_info: dict | None = None,
-    chain_kinds: Mapping[str, str] | None = None,
+    chain_kinds: Mapping[Any, str] | None = None,
     chain_key: str = "chain_id",
 ) -> list[ChainRecord]:
     """Classify every chain of *atoms*, in first-appearance order.
@@ -798,10 +798,10 @@ def atom_array_to_structure_prediction_input(
     atoms: AtomArray,
     *,
     chain_info: dict | None = None,
-    chain_kinds: Mapping[str, str] | None = None,
-    ligands: dict[str, LigandSpec] | tuple[LigandSpec, ...] = (),
-    msas: dict[str, Any] | None = None,
-    sequences: dict[str, str] | None = None,
+    chain_kinds: Mapping[Any, str] | None = None,
+    ligands: Mapping[Any, LigandSpec] | tuple[LigandSpec, ...] = (),
+    msas: Mapping[Any, Any] | None = None,
+    sequences: Mapping[Any, str] | None = None,
     allow_undeclared_ccd_ligands: bool = True,
     emit_modifications: bool = True,
     declare_covalent_bonds: bool = True,

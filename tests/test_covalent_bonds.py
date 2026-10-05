@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from ligand_complexes import DOUBLE, SINGLE, protein_and_acetic_acid
 
 from esmfold2_atomworks.data.atomworks_to_esm import (
     AdapterReport,
@@ -312,41 +313,6 @@ def test_a_bond_lands_on_its_atom_when_the_tokenizer_drops_leaving_atoms(ccd):
     assert ordering[("A", bond.res_idx1)][bond.atom_idx1] == "C"
 
 
-SINGLE, DOUBLE = 1, 2  # biotite.structure.BondType
-
-
-def _protein_and_acetic_acid(names, bonds, *, bond_to):
-    """Chain A: GGG. Chain B: a ligand of four atoms named *names* (C, C, O, O),
-    bonded inside by *bonds* (index pair, bond type), with Gly 2's C bonded to
-    atom *bond_to*.
-    """
-    import biotite.structure as struc
-
-    rows = [
-        ("A", i, name, name[0]) for i in (1, 2, 3) for name in ("N", "CA", "C", "O")
-    ]
-    rows += [("B", 1, name, name[0]) for name in names]
-    atoms = struc.AtomArray(len(rows))
-    atoms.coord = np.arange(len(rows) * 3, dtype=np.float32).reshape(-1, 3)
-    atoms.set_annotation("chain_id", np.array([r[0] for r in rows], dtype="U4"))
-    atoms.set_annotation("res_id", np.array([r[1] for r in rows]))
-    atoms.set_annotation("ins_code", np.array([""] * len(rows), dtype="U1"))
-    atoms.set_annotation(
-        "res_name",
-        np.array(["GLY" if r[0] == "A" else "LIG" for r in rows], dtype="U5"),
-    )
-    atoms.set_annotation("atom_name", np.array([r[2] for r in rows], dtype="U6"))
-    atoms.set_annotation("element", np.array([r[3] for r in rows], dtype="U2"))
-    atoms.set_annotation("is_polymer", np.array([r[0] == "A" for r in rows]))
-    atoms.bonds = struc.BondList(len(rows))
-    first = 12
-    for a, b, kind in bonds:
-        atoms.bonds.add_bond(first + a, first + b, kind)
-    carbonyl = next(i for i, r in enumerate(rows) if r[:3] == ("A", 2, "C"))
-    atoms.bonds.add_bond(carbonyl, first + bond_to, struc.BondType.SINGLE)
-    return atoms
-
-
 def _placed_on(spi, chain="B"):
     """The name ESMFold2 gives the ligand atom the declared bond lands on."""
     from esm.models.esmfold2.prepare_input import prepare_esmfold2_input
@@ -370,7 +336,7 @@ def test_a_bond_to_a_smiles_ligand_lands_on_the_atom_the_source_bonds(ccd):
 
     # The source's C7 is the methyl, its C8 the carbonyl; its O5 is the hydroxyl
     # (single bond to C8), its O6 the carbonyl oxygen.
-    atoms = _protein_and_acetic_acid(
+    atoms = protein_and_acetic_acid(
         ["C7", "C8", "O5", "O6"],
         [(0, 1, SINGLE), (1, 2, SINGLE), (1, 3, DOUBLE)],
         bond_to=2,
@@ -395,7 +361,7 @@ def _fold_input(atoms, **kwargs):
 
 
 def test_a_smiles_ligand_with_esms_own_names_keeps_them(ccd):
-    atoms = _protein_and_acetic_acid(
+    atoms = protein_and_acetic_acid(
         ["C8", "C7", "O5", "O6"],
         [(0, 1, SINGLE), (1, 2, DOUBLE), (1, 3, SINGLE)],
         bond_to=3,
@@ -416,7 +382,7 @@ def test_a_smiles_ligand_with_esms_own_names_keeps_them(ccd):
 def test_a_bond_to_a_smiles_ligand_that_cannot_be_matched_is_refused(ccd, bonds, why):
     from esmfold2_atomworks.data.spec import CovalentBondResolutionError
 
-    atoms = _protein_and_acetic_acid(["C7", "C8", "O5", "O6"], bonds, bond_to=2)
+    atoms = protein_and_acetic_acid(["C7", "C8", "O5", "O6"], bonds, bond_to=2)
     with pytest.raises(CovalentBondResolutionError, match=why):
         _fold_input(atoms)
 

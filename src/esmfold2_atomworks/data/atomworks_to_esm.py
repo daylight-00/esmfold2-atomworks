@@ -1147,16 +1147,18 @@ def _attach_covalent_bonds(
     return replace(spi, covalent_bonds=bonds)
 
 
-def _on_smiles_atoms(
-    candidates: list[Any], spi: Any, atoms: AtomArray, chain_key: str
-) -> tuple[list[Any], list[str]]:
-    """*candidates* with an end on a SMILES ligand named as ESMFold2 names its atoms.
+def _smiles_name_maps(
+    spi: Any, atoms: AtomArray, chain_key: str, chains: Iterable[str] | None = None
+) -> dict[str, dict[str, str] | str]:
+    """For each SMILES ligand chain of *spi*: the source's atom names as ESMFold2
+    names them, or the reason there is no such map.
 
     ESMFold2 names those atoms by element and rank, so the source's name for an
     atom is not its name there; the match is read from the ligand's bonds
-    (:func:`~esmfold2_atomworks.data.topology.smiles_atom_names`). A bond whose
-    ligand cannot be matched is returned with its reason, not left to land on
-    whichever atom happens to share a name.
+    (:func:`~esmfold2_atomworks.data.topology.smiles_atom_names`). It is the one
+    rule for everything that has to find a source atom in the model: a covalent
+    bond (:func:`_on_smiles_atoms`) and a supervision label
+    (:class:`~esmfold2_atomworks.data.pipelines.AttachStructureLabels`).
     """
     from esmfold2_atomworks.data.topology import smiles_atom_names
 
@@ -1165,16 +1167,29 @@ def _on_smiles_atoms(
         for entry in spi.sequences
         if type(entry).__name__ == "LigandInput" and entry.smiles is not None
     }
-    touched = sorted({c.chain_1 for c in candidates} | {c.chain_2 for c in candidates})
+    wanted = sorted(smiles if chains is None else set(map(str, chains)) & set(smiles))
     labels = np.asarray(atoms.get_annotation(chain_key)).astype(str)
-    names: dict[str, dict[str, str] | str] = {}
-    for chain in touched:
-        if chain not in smiles:
-            continue
+    maps: dict[str, dict[str, str] | str] = {}
+    for chain in wanted:
         try:
-            names[chain] = smiles_atom_names(atoms[labels == chain], smiles[chain])
+            maps[chain] = smiles_atom_names(atoms[labels == chain], smiles[chain])
         except LigandIdentityError as error:
-            names[chain] = str(error)
+            maps[chain] = str(error)
+    return maps
+
+
+def _on_smiles_atoms(
+    candidates: list[Any], spi: Any, atoms: AtomArray, chain_key: str
+) -> tuple[list[Any], list[str]]:
+    """*candidates* with an end on a SMILES ligand named as ESMFold2 names its atoms.
+
+    A bond whose ligand cannot be matched is returned with its reason, not left
+    to land on whichever atom happens to share a name.
+    """
+    touched = {str(c.chain_1) for c in candidates} | {
+        str(c.chain_2) for c in candidates
+    }
+    names = _smiles_name_maps(spi, atoms, chain_key, touched)
 
     placed, skipped = [], []
     for candidate in candidates:
@@ -1183,9 +1198,9 @@ def _on_smiles_atoms(
             ("1", candidate.chain_1, candidate.atom_name_1),
             ("2", candidate.chain_2, candidate.atom_name_2),
         ):
-            if chain not in names:
+            if str(chain) not in names:
                 continue
-            found = names[chain]
+            found = names[str(chain)]
             if isinstance(found, str):
                 failure = f"chain {str(chain)!r} is a SMILES ligand: {found}"
             elif atom not in found:

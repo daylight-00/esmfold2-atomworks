@@ -185,30 +185,63 @@ class AttachStructureLabels(Transform):
     the atom ordering that featurization produces.
     """
 
-    def __init__(self, *, require_coverage: float | None = None, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        *,
+        require_coverage: float | None = None,
+        on_smiles_match_failure: str = "raise",
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
+        if on_smiles_match_failure not in ("raise", "mask"):
+            raise ValueError(
+                f"on_smiles_match_failure={on_smiles_match_failure!r}: expected "
+                "'raise' or 'mask'"
+            )
         self.require_coverage = require_coverage
+        self.on_smiles_match_failure = on_smiles_match_failure
 
     def check_input(self, data: dict[str, Any]) -> None:
-        check_contains_keys(data, ["atom_array", "feats", "chain_infos"])
+        check_contains_keys(
+            data, ["atom_array", "feats", "chain_infos", "structure_prediction_input"]
+        )
 
     def forward(self, data: dict[str, Any]) -> dict[str, Any]:
         from esmfold2_atomworks.data.atomworks_to_esm import (
             AdapterReport,
             _residue_index_map,
+            _smiles_name_maps,
             chain_records,
         )
         from esmfold2_atomworks.data.labels import structure_labels
+        from esmfold2_atomworks.data.spec import LigandIdentityError
 
         atoms = data["atom_array"]
         records = chain_records(atoms, chain_info=data.get("chain_info"))
         report = AdapterReport()
+        # A SMILES ligand's atoms are named by ESMFold2, not by the source, so
+        # its labels go through the match that places a covalent bond on it.
+        # A ligand that cannot be matched has no label to give: which atom a
+        # coordinate belongs to is not known, which is not the same as the
+        # coordinate being absent from the source.
+        maps = _smiles_name_maps(data["structure_prediction_input"], atoms, "chain_id")
+        unmatched = {c: m for c, m in maps.items() if isinstance(m, str)}
+        if unmatched and self.on_smiles_match_failure == "raise":
+            raise LigandIdentityError(
+                "supervision labels cannot be placed on SMILES ligand(s):\n  "
+                + "\n  ".join(f"{c}: {why}" for c, why in unmatched.items())
+                + "\nPass on_smiles_match_failure='mask' to leave those chains "
+                "unlabelled instead."
+            )
         labels = structure_labels(
             atoms,
             data["feats"],
             data["chain_infos"],
             _residue_index_map(records, data.get("chain_info"), report),
+            atom_names={c: m for c, m in maps.items() if isinstance(m, dict)},
+            skip_chains=set(unmatched),
         )
+        data["label_unmatched_smiles_chains"] = unmatched
         # Always set, so a consumer can read it without a key check and an
         # empty list means "nothing skipped" rather than "not computed".
         data["label_skipped_chains"] = list(report.unrepresentable_insertion_codes)
@@ -235,6 +268,7 @@ def build_esmfold2_pipeline(
     emit_modifications: bool = True,
     allow: Any = (),
     attach_labels: bool = False,
+    on_smiles_match_failure: str = "raise",
     pre_transforms: list[Transform] | None = None,
     msa_loader: Transform | None = None,
     keys_to_keep: list[str] | None = None,
@@ -254,6 +288,10 @@ def build_esmfold2_pipeline(
         attach_labels: also emit ``data["labels"]`` -- the source coordinates on
             the model's atom axis, plus a mask. Supervision targets only; the
             objective stays with the caller.
+        on_smiles_match_failure: with ``attach_labels``, what a SMILES ligand
+            that cannot be matched to the source's atoms gets: ``"raise"``, or
+            ``"mask"`` to leave its chain unlabelled and name it, with the
+            reason, in ``label_unmatched_smiles_chains``.
         pre_transforms: AtomWorks transforms to run first -- crops, filters.
             Everything structural belongs here.
         msa_loader: an AtomWorks ``LoadPolymerMSAs``, run after
@@ -280,12 +318,19 @@ def build_esmfold2_pipeline(
     )
     transforms.append(FeaturizeForESMFold2(seed=seed))
     if attach_labels:
-        transforms.append(AttachStructureLabels())
+        transforms.append(
+            AttachStructureLabels(on_smiles_match_failure=on_smiles_match_failure)
+        )
 
     if keys_to_keep is None:
         keys_to_keep = ["example_id", "feats", "chain_infos", "extra_info"]
         if attach_labels:
-            keys_to_keep += ["labels", "label_coverage", "label_skipped_chains"]
+            keys_to_keep += [
+                "labels",
+                "label_coverage",
+                "label_skipped_chains",
+                "label_unmatched_smiles_chains",
+            ]
         if is_inference:
             keys_to_keep += ["atom_array", "adapter_report"]
         if msa_loader is not None:

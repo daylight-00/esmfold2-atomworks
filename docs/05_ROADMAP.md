@@ -106,6 +106,23 @@ match, and `AttachStructureLabels(require_coverage=...)` will refuse a structure
 that falls below a threshold — a silently half-matched label set being worse
 than a refused one.
 
+A SMILES ligand is the case where names say nothing: ESMFold2 names its atoms by
+element and rank, so a source atom of the same name can be another atom, and a
+label put on it covers every atom and passes any coverage floor. Its atoms are
+matched through the ligand's graph instead, by the rule that places a covalent
+bond on it ([01](01_ADAPTER.md), "Covalent bonds"), so a bond and a label always
+mean the same atom. A ligand that cannot be matched — no bond list, an unstated
+bond order, another graph — raises. `on_smiles_match_failure="mask"`, on
+`AttachStructureLabels` and `build_esmfold2_pipeline`, leaves its chain unlabelled
+instead and names it, with the reason, in `label_unmatched_smiles_chains`.
+
+The match is of connectivity and bond orders. It separates atoms in different
+chemical environments; it does not pick between atoms the graph cannot tell apart
+(a CF3's fluorines, the carbons of a symmetric ring), so which of those carries
+which coordinate is one of several equivalent assignments. An objective that is
+sensitive to atom permutation has to handle that symmetry itself, as it already
+does for a standard residue's `OD1`/`OD2`.
+
 **2. The gradient path has a precondition.**
 
 The release `forward` can never yield gradients; the experimental one gates them

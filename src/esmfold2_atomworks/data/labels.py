@@ -29,6 +29,7 @@ rather than re-derived) and matched against the source by
 
 from __future__ import annotations
 
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -130,6 +131,8 @@ def structure_labels(
     *,
     chain_key: str = "chain_id",
     max_unmatched_examples: int = 8,
+    atom_names: Mapping[str, Mapping[str, str]] | None = None,
+    skip_chains: Collection[str] = (),
 ) -> StructureLabels:
     """Permute *atoms*' coordinates onto the model's atom axis.
 
@@ -138,6 +141,11 @@ def structure_labels(
             index``, as the adapter builds it. Residues it does not cover --
             including a chain whose insertion codes could not be tied to the
             sequence -- simply do not match, and are masked and reported.
+
+        atom_names: per chain, the source's atom names as the model names them,
+            for a chain whose names say nothing about which atom is which (a
+            SMILES ligand). A source atom with no entry is not labelled.
+        skip_chains: chains that get no labels at all.
 
     Returns:
         :class:`StructureLabels`. Atoms the source does not provide -- an
@@ -159,13 +167,21 @@ def structure_labels(
     # (chain, model residue index, atom name) -> source row. Built once; a
     # per-atom scan would be quadratic on anything real.
     source: dict[tuple[str, int, str], int] = {}
+    renamed = atom_names or {}
     for index in range(len(atoms)):
+        if chain[index] in skip_chains:
+            continue
         model_residue = residue_index_of.get(
             (chain[index], int(res_id[index]), str(ins_code[index]))
         )
         if model_residue is None:
             continue
-        source.setdefault((chain[index], model_residue, atom_name[index]), index)
+        name = atom_name[index]
+        if chain[index] in renamed:
+            name = renamed[chain[index]].get(name)
+            if name is None:
+                continue
+        source.setdefault((chain[index], model_residue, name), index)
 
     n_atoms = len(identities)
     out = np.full((n_atoms, 3), np.nan, dtype=np.float32)

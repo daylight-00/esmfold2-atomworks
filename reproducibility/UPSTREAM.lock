@@ -22,8 +22,9 @@ note = ESMFold2 module ships inside the esm package (>= 3.4)
 
 [atomworks]
 repo = https://github.com/RosettaCommons/atomworks
-commit = fcf7af8c127e0de62a460dab5230c649a25a78d4
-version = 2.2.1
+commit = 379b4bbe45b12fbcd5606b80ca32590463c7acff
+version = 3.0.0
+note = installed as a package (atomworks[ml]==3.0.0 in uv.lock); commit is what the v3.0.0 tag points at
 
 [foundry]
 repo = https://github.com/RosettaCommons/foundry

@@ -3,12 +3,13 @@
 # produced in. Not needed to use the package -- `pip install -e .` is.
 #   uv sync --project reproducibility && source reproducibility/env.sh
 #
-# The upstreams are consumed as SOURCE trees at the revisions in UPSTREAM.lock,
+# esm and foundry are consumed as SOURCE trees at the revisions in UPSTREAM.lock,
 # not as packages, because their package metadata would pull this environment
-# back: esm pins torch<2.12, and atomworks pins biotite==1.4.0, which has no
-# cp314 wheel (Foundry depends on atomworks, so installing it would bring that
-# pin along). esm and atomworks are required; foundry is needed only by the
-# optional Foundry integration. See reproducibility/README.md.
+# back: esm pins torch<2.12 (Foundry depends on atomworks and has pins of its
+# own). atomworks is a package, installed by `uv sync` (atomworks[ml]==3.0.0);
+# its checkout beside this repository is only where the tests that need
+# AtomWorks' test structures find them. esm is required; foundry is needed only by
+# the optional Foundry integration. See reproducibility/README.md.
 
 # The repository root, one level above this file.
 EF_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -40,7 +41,6 @@ _ef_prepend() { export PYTHONPATH="$1${PYTHONPATH:+:${PYTHONPATH}}"; }
 # Optional: only the Foundry integration imports it, and an absent entry is
 # harmless.
 _ef_prepend "${DESIGN_ROOT}/foundry/src"
-_ef_prepend "${DESIGN_ROOT}/atomworks/src"
 _ef_prepend "${DESIGN_ROOT}/esm"
 _ef_prepend "${EF_ROOT}/src"
 unset -f _ef_prepend

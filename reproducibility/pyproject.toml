@@ -3,12 +3,12 @@
 # repository's own pyproject.toml is -- but a record of one verified setup,
 # kept reproducible. See README.md in this directory.
 #
-# esm, atomworks and foundry are not listed. Here they are source trees at the
-# revisions recorded in UPSTREAM.lock, put on PYTHONPATH by env.sh, because
-# their package metadata would pull this environment back: esm 3.4 pins
-# torch>=2.11,<2.12 and atomworks pins biotite==1.4.0, which has no cp314 wheel.
+# esm and foundry are not listed. Here they are source trees at the revisions
+# recorded in UPSTREAM.lock, put on PYTHONPATH by env.sh, because their package
+# metadata would pull this environment back: esm 3.4 pins torch>=2.11,<2.12.
 # (Foundry's own pins conflict with nothing here, but it depends on atomworks.)
-# What IS listed is the union of their runtime imports plus this package's own,
+# atomworks is a package, pinned below with its `ml` extra (numba). What else is
+# listed is the union of the trees' runtime imports plus this package's own,
 # pinned to the versions the results were produced with. When a tree grows a new
 # import, add it to the matching group -- do not add the tree itself.
 
@@ -26,6 +26,7 @@ dependencies = [
     "scikit-learn==1.9.0",
     "rdkit==2026.3.6",
     "biotite==1.6.0",
+    "atomworks[ml]==3.0.0",
     "biopython==1.88",
     "tqdm==4.70.0",
     "typer==0.27.2",
@@ -66,13 +67,13 @@ esm = [
     "pygtrie==2.6.1",
     "dna_features_viewer==3.1.5",
 ]
-# --- imports required by the atomworks source tree ---
+# --- dependencies of the atomworks package, held to the versions the results
+#     were produced with ---
 atomworks = [
     "jaxtyping==0.3.11",
     "toolz==1.1.0",
     "py3Dmol==2.5.5",
     "pymol-remote==1.1.0",
-    "hydride==1.2.3",
 ]
 # --- the Foundry integration: the foundry tree's imports, then those of
 #     Foundry's own models (rf3, rfd3), which share its tree ---
@@ -134,7 +135,7 @@ constraint-dependencies = [
     "sentry-sdk==2.68.1",
     "threadpoolctl==3.6.0",
     "tornado==6.5.8",
-    "urllib3==2.7.0",
+    "urllib3==2.8.0",
     "wcwidth==0.8.3",
     "wrapt==2.4.0",
     "yarl==1.24.5",

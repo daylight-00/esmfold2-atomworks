@@ -168,7 +168,7 @@ def test_the_loaded_model_answers_through_its_seams(model, gold):
 
     A backbone is attached -- from the local mirror or bundled, never
     ``"none"`` under the default ``load_esmc=True`` -- and ``.esmc`` is that
-    module; every width is real; and a fold that leaves ``num_loops`` unset
+    module; and a fold that leaves ``num_loops`` unset
     reaches the model, which takes the count from its own config.
     """
     from esmfold2_atomworks.model.esmfold2 import FoldingConfig
@@ -176,7 +176,6 @@ def test_the_loaded_model_answers_through_its_seams(model, gold):
     assert model.esmc is not None
     assert model.esmc is model.net.esmc
     assert model.provenance()["esmfold2.esmc"] != "none"
-    assert all(width > 0 for width in model.representation_dims().values())
 
     record: dict = {}
     result = model.fold(

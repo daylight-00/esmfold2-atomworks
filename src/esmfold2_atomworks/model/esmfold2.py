@@ -211,37 +211,6 @@ def attach_esmc(net: Any, precision: str = "bf16") -> str:
     return source
 
 
-def _field(obj: Any, path: str) -> Any:
-    """``obj.a.b`` for ``path="a.b"``, or ``None`` if any step is absent."""
-    for name in path.split("."):
-        obj = getattr(obj, name, None)
-        if obj is None:
-            return None
-    return obj
-
-
-def _dimension(obj: Any, *paths: str) -> int:
-    """The first of ``paths`` present on ``obj``, as a positive width.
-
-    Raises rather than defaulting: a width that cannot be found is unknown, and
-    a default would pass it off as measured.
-    """
-    for path in paths:
-        value = _field(obj, path)
-        if value is None:
-            continue
-        width = int(value)
-        if width <= 0:
-            raise ValueError(
-                f"config field {path!r} is {width}; a width must be positive"
-            )
-        return width
-    raise AttributeError(
-        f"none of {list(paths)} is present on {type(obj).__name__}; the config "
-        "schema has moved again, and the width is unknown rather than zero"
-    )
-
-
 def _check_record(record: dict[str, Any] | None) -> None:
     """Raise if ``record`` already holds entries of an earlier call."""
     if record is None:
@@ -581,33 +550,7 @@ class AtomWorksESMFold2:
             )
         return "gradients available"
 
-    def representation_dims(self) -> dict[str, int]:
-        """The single and pair widths, read off the live config.
-
-        ``EsmFold2Config`` migrates a pre-alignment ``config.json`` on load and
-        drops the old field names, so ``d_pair`` or ``c_token`` are absent from a
-        config that was written with them; the current names are read, and the
-        old ones only when a current one is missing. A width that is missing
-        under both, or not positive, raises: an unknown dimension reported as
-        ``0`` reads downstream as a measurement.
-
-        The keys are this method's own, not upstream's.
-        """
-        config = self.config
-        diffusion = _field(config, "structure_head.diffusion_module")
-        return {
-            "d_pair": _dimension(config, "pairwise_hidden_size", "d_pair"),
-            "d_single_declared": _dimension(config, "hidden_size", "d_single"),
-            "c_token": _dimension(diffusion, "token_hidden_size", "c_token"),
-            "c_atom": _dimension(diffusion, "atom_encoder.hidden_size", "c_atom"),
-            "c_s_inputs": _dimension(diffusion, "c_s_inputs"),
-        }
-
-    # -- component seams ---------------------------------------------------
-    # Named accessors for the ESMC backbone, the folding trunk and the structure
-    # head. Only `.esmc` has a real absent state; the trunk and the head raise
-    # rather than answer None, which a caller would read as a component that is
-    # legitimately missing.
+    # -- the ESMC backbone -------------------------------------------------
 
     @property
     def esmc(self) -> Any:
@@ -622,16 +565,6 @@ class AtomWorksESMFold2:
         if esmc is not None:
             return esmc
         return getattr(self.net, "_esmc", None)
-
-    @property
-    def folding_trunk(self) -> Any:
-        """The pair-representation trunk. ``AttributeError`` if the module has none."""
-        return self.net.folding_trunk
-
-    @property
-    def structure_head(self) -> Any:
-        """The diffusion structure head. ``AttributeError`` if the module has none."""
-        return self.net.structure_head
 
     # -- the model as a function ------------------------------------------
 

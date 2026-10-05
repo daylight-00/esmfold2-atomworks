@@ -6,7 +6,7 @@
 #SBATCH --output=runs/parity_gpu_%j.out
 #
 # The GPU tests: output parity (one real fold through each path, compared), the
-# component seams, and -- given EF_EXPERIMENTAL_WEIGHTS -- the gradient test.
+# ESMC backbone, and -- given EF_EXPERIMENTAL_WEIGHTS -- the gradient test.
 #
 # Feature parity (CPU, exact, no weights) is the primary check and does not
 # need this -- see docs/02_PARITY.md. This confirms it on a sampled structure.

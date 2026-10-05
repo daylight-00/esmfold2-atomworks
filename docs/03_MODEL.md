@@ -29,13 +29,6 @@ disagree substantially, and checkpoints disagree with each other: revision
 `e1e189d0` of `biohub/ESMFold2` has `num_loops = 3` where `69869f73` and later
 have 20 (see [04](04_ENVIRONMENT.md) for the two layouts).
 
-`AtomWorksESMFold2.representation_dims()` reads the widths off the live config.
-`EsmFold2Config` renames fields on load — a `config.json` written with `d_pair`
-or `structure_head.diffusion_module.c_token` comes back with
-`pairwise_hidden_size` and `token_hidden_size`, the old names gone — so the
-helper reads the current names, falls back to the old ones, and raises on a
-width it cannot find rather than reporting 0.
-
 For the same reason `FoldingConfig.num_loops` defaults to `None`, which leaves
 the count to the loaded checkpoint; set it to pin a schedule.
 

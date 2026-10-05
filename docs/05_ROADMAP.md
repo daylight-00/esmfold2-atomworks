@@ -142,7 +142,4 @@ belong in a base class.
 
 Rewriting ESMFold2 module by module in Foundry idiom. See `D-001` and the
 non-goals in [00_SCOPE.md](00_SCOPE.md). Components get separated when something
-concrete needs them separated, one at a time, each behind a parity check —
-`AtomWorksESMFold2` exposes `.esmc`, `.folding_trunk` and `.structure_head` as
-named seams so that such a change is an implementation change rather than a
-change to every call site.
+concrete needs them separated, one at a time, each behind a parity check.

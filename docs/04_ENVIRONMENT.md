@@ -25,10 +25,14 @@ constrain the interpreter:
 | torch | 2.11, CPU | 2.14.0, CUDA 13.2 |
 | biotite | 1.4.0 | 1.6 |
 
-The suite passes in both, feature parity and the Foundry contract tests included,
-given AtomWorks' test structures: they come with an atomworks checkout rather
-than with the package, and without them the tests that read them skip. The GPU
-tests run only in the reference environment. A version outside this table is
+The suite passes in both, feature parity and the Foundry contract tests included.
+Four structures (lysozyme, haemoglobin, a zinc site, selenomethionine) are in
+`tests/data/structures`. What still comes from an AtomWorks checkout beside this
+repository, and skips without one, is the corpus survey, the AF3-derived
+`flavoprotein` and `unl` structures and AtomWorks' `1wym` MSA case. Other skips
+are the Foundry tests without the `foundry` extra, the Hydra config tests without
+`omegaconf`, and the checks of the source-tree environment in an ordinary install.
+The GPU tests run only in the reference environment. A version outside this table is
 untested, not refused: `doctor` reports how an installed upstream differs from
 `UPSTREAM.lock`.
 
@@ -145,10 +149,11 @@ the package; `pip install -e .` does not, so on that path add it yourself.
 
 `doctor` fails only on a missing import or a failed parity check. Source trees
 belong to the reference environment; an ordinary install is compared with
-`UPSTREAM.lock` by package version instead. The parity check and most tests read
-structures from AtomWorks' test data (`atomworks/tests/data/io`), which comes
-with an atomworks source checkout beside this repository; without one they skip
-rather than fail.
+`UPSTREAM.lock` by package version instead. The parity check reads this
+repository's own `2hhb` (`tests/data/structures`), else AtomWorks' test data
+(`atomworks/tests/data/io`) beside it; with neither, a wheel for instance, it is
+not run, and `doctor` says so beside its verdict rather than reporting a plain
+pass.
 
 CI (`.github/workflows/ci.yml`) runs: ruff; the `offline`-marked tests; a wheel
 build whose packaged configs must compose, with a check that the declared

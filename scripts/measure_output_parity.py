@@ -135,7 +135,6 @@ def main() -> int:
         return 2
 
     import torch
-    from atomworks.io import parse
     from compare_checkpoints import identity
     from conftest import gold_structure_prediction_input, locate_fixture
 
@@ -143,6 +142,7 @@ def main() -> int:
     from esmfold2_atomworks.data.atomworks_to_esm import (
         atom_array_to_structure_prediction_input,
     )
+    from esmfold2_atomworks.data.loading import parse_structure
     from esmfold2_atomworks.model.esmfold2 import AtomWorksESMFold2
     from esmfold2_atomworks.parity.compare import compare_results
 
@@ -174,9 +174,9 @@ def main() -> int:
             path = locate_fixture(fixture)
             if path is None:
                 raise FileNotFoundError(f"fixture {fixture} is not available")
-            parsed = parse(path)
+            atoms, chain_info = parse_structure(path)
             adapted = atom_array_to_structure_prediction_input(
-                parsed["asym_unit"][0], chain_info=parsed["chain_info"]
+                atoms, chain_info=chain_info
             )
             native = gold_structure_prediction_input(fixture)
             config = _config(schedule)

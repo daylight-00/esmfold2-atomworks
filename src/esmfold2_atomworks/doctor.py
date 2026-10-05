@@ -35,6 +35,16 @@ def _optional(label: str, detail: str) -> None:
     print(f"  [ -- ] {label}: {detail}")
 
 
+#: Checks that could not run here. ``main`` names them beside its verdict, because
+#: "all checks passed" must not read as more than was checked.
+_NOT_RUN: list[str] = []
+
+
+def _not_run(label: str, detail: str) -> None:
+    _optional(label, detail)
+    _NOT_RUN.append(label)
+
+
 _ONLY_FOR_FOUNDRY = "absent; needed only for the optional Foundry integration"
 
 
@@ -219,19 +229,31 @@ def _esmc_detail(checkpoint: Path) -> str:
         return f"ESMC {esmc_id!r} resolves nowhere; loading will fail"
 
 
+def _parity_fixture() -> Path | None:
+    """The ``2hhb`` structure for the parity check: this repository's own copy,
+    else AtomWorks' test data beside it."""
+    for candidate in (
+        paths.REPO_ROOT / "tests" / "data" / "structures" / "2hhb.cif.gz",
+        paths.DESIGN_ROOT / "atomworks" / "tests" / "data" / "io" / "2hhb.cif.gz",
+    ):
+        if candidate.exists():
+            return candidate
+    return None
+
+
 def check_adapter() -> bool:
     """Exercise the adapter end to end on CPU, without weights.
 
-    Runs feature parity on AtomWorks' ``2hhb`` test structure, on CPU and
-    without weights.
+    Runs feature parity on the ``2hhb`` structure, on CPU and without weights.
+    Without a copy of it the check is not run, which ``main`` then says.
     """
     print("adapter")
-    fixture = paths.DESIGN_ROOT / "atomworks" / "tests" / "data" / "io" / "2hhb.cif.gz"
-    if not fixture.exists():
-        _optional(
+    fixture = _parity_fixture()
+    if fixture is None:
+        _not_run(
             "feature parity",
-            "needs AtomWorks' test structures, which come with an atomworks "
-            "source checkout (see reproducibility/)",
+            "needs the 2hhb test structure, which a clone of this repository "
+            "has (tests/data/structures) and a wheel does not",
         )
         return True
     try:
@@ -244,6 +266,7 @@ def check_adapter() -> bool:
 
 
 def main() -> int:
+    _NOT_RUN.clear()
     print(f"esmfold2-atomworks doctor (python {sys.version.split()[0]})")
     # REPO_ROOT is a checkout's root; from an installed wheel it points above
     # site-packages, which is no place worth printing.
@@ -259,7 +282,10 @@ def main() -> int:
         check_adapter(),
     ]
     ok = all(results)
-    print("\n" + ("all checks passed" if ok else "some checks FAILED"))
+    verdict = "all checks passed" if ok else "some checks FAILED"
+    if ok and _NOT_RUN:
+        verdict += f" ({', '.join(_NOT_RUN)} not run)"
+    print("\n" + verdict)
     return 0 if ok else 1
 
 

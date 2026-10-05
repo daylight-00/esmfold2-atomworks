@@ -83,9 +83,13 @@ pytest tests/test_feature_parity.py -q      # CPU, no weights
 esmfold2-atomworks doctor                    # same check on 2hhb, plus the environment
 ```
 
-Both read AtomWorks' test structures, which come with an atomworks checkout
-beside this repository. Given those, they pass in an ordinary install as well
-as in the pinned reference environment the published numbers come from
+Four of the five parity cases (lysozyme, haemoglobin, a zinc site,
+selenomethionine) read structures that are in this repository
+(`tests/data/structures`), so they run from a clone. The `flavoprotein` and `unl`
+cases are AF3-derived, which carry output terms of use and stay out; they read
+AtomWorks' test structures, which come with an atomworks checkout beside this
+repository, and skip without one. They pass in an ordinary install as well as in
+the pinned reference environment the published numbers come from
 ([`reproducibility/`](../reproducibility/README.md)).
 
 ## Coverage

@@ -43,21 +43,19 @@ identical structures, every coordinate and confidence value equal
 pip install -e .                 # esm and atomworks resolve like any dependency
 pip install -e ".[foundry]"      # optional: training through Foundry (Python 3.12)
 
-esmfold2-atomworks doctor        # imports, weights; parity given AtomWorks' test data
+esmfold2-atomworks doctor        # imports, weights; parity given a clone or AtomWorks' test data
 
 esmfold2-atomworks parity structures/*.cif        # survey a corpus
 esmfold2-atomworks fold input.cif --out-dir runs/ # intended for a GPU
 ```
 
 ```python
-from atomworks.io import parse
+from esmfold2_atomworks.data.loading import parse_structure
 from esmfold2_atomworks.model.esmfold2 import AtomWorksESMFold2
 
-parsed = parse("2hhb.cif.gz")
+atoms, chain_info = parse_structure("2hhb.cif.gz")
 model = AtomWorksESMFold2()
-structure, result = model.fold_atom_array(
-    parsed["asym_unit"][0], chain_info=parsed["chain_info"]
-)
+structure, result = model.fold_atom_array(atoms, chain_info=chain_info)
 ```
 
 ## What it refuses to do
@@ -115,10 +113,10 @@ described in [docs/06](docs/06_FOUNDRY_INTEGRATION.md).
 `pip install -e .` is all the package needs: `esm` and `atomworks` are ordinary
 dependencies, resolved from PyPI (Python ≥ 3.12; the `foundry` extra needs 3.12,
 as rc-foundry does). The structure-based tests, feature parity among them,
-read AtomWorks' test structures, which come with an atomworks checkout rather
-than with the package: given those, the suite passes against the PyPI releases
-of the upstreams, and without them those tests skip. See
-[docs/04](docs/04_ENVIRONMENT.md).
+read test structures, four of which are in `tests/data/structures`; the others
+come from an atomworks checkout rather than with the package. The suite passes
+against the PyPI releases of the upstreams, and the tests that need the checkout
+skip without it. See [docs/04](docs/04_ENVIRONMENT.md).
 
 The published parity results were produced in one pinned reference
 environment: Python 3.14, torch 2.14, and the upstreams as source trees at the

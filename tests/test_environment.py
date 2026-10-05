@@ -112,3 +112,33 @@ def test_doctor_passes_an_ordinary_install(monkeypatch, tmp_path, capsys):
     assert doctor.check_upstream_revisions()
     assert doctor.check_adapter()
     assert "FAIL" not in capsys.readouterr().out
+
+
+def test_doctor_says_when_feature_parity_was_not_run(monkeypatch, tmp_path, capsys):
+    """A pass that skipped the parity check must not read as one that ran it."""
+    from esmfold2_atomworks import doctor, paths
+
+    monkeypatch.setattr(paths, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(paths, "DESIGN_ROOT", tmp_path)
+    for name in (
+        "check_source_trees",
+        "check_upstream_revisions",
+        "check_imports",
+        "check_weights",
+    ):
+        monkeypatch.setattr(doctor, name, lambda: True)
+
+    assert doctor.main() == 0
+    assert "all checks passed (feature parity not run)" in capsys.readouterr().out
+
+
+def test_doctor_runs_parity_on_the_repositorys_own_structure(monkeypatch, tmp_path):
+    from esmfold2_atomworks import doctor, paths
+
+    own = tmp_path / "tests" / "data" / "structures"
+    own.mkdir(parents=True)
+    (own / "2hhb.cif.gz").write_bytes(b"")
+    monkeypatch.setattr(paths, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(paths, "DESIGN_ROOT", tmp_path / "elsewhere")
+
+    assert doctor._parity_fixture() == own / "2hhb.cif.gz"

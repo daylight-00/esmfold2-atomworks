@@ -5,10 +5,10 @@ reports where the upstreams come from, checks the imports and the weights, and
 runs a real parity check when AtomWorks' test structures are available,
 printing what is wrong rather than failing later inside a fold.
 
-Only a missing import or a failed parity check is a failure. Source trees,
-``UPSTREAM.lock`` and AtomWorks' test structures belong to the reference
-environment (``reproducibility/``); an ordinary install has none of them, and
-is no less complete for it. Foundry is optional -- it backs the training
+Only a missing import or a failed parity check is a failure. The esm and foundry
+source trees, ``UPSTREAM.lock`` and an AtomWorks checkout's test structures belong
+to the reference environment (``reproducibility/``); an ordinary install has none
+of them, and is no less complete for it. Foundry is optional -- it backs the training
 integration and nothing else.
 """
 
@@ -129,9 +129,10 @@ def _find_model_module() -> tuple[bool, str]:
 
 
 def check_upstream_revisions() -> bool:
-    """Report the source trees' revisions against ``UPSTREAM.lock``.
+    """Report each upstream's revision against ``UPSTREAM.lock``: a source tree's
+    commit, or an installed package's version.
 
-    Drift is reported, never fatal: a newer tree is something to re-verify.
+    Drift is reported, never fatal: a newer upstream is something to re-verify.
     """
     print("upstream revisions")
     locked = paths.read_upstream_lock()

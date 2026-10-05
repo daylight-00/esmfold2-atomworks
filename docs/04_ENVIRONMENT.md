@@ -20,19 +20,16 @@ constrain the interpreter:
 |---|---|---|
 | CPython | 3.12 | 3.14.6 |
 | esm | 3.4.1.post1 | source tree at the `UPSTREAM.lock` revision |
-| atomworks | 3.0.0, built from the release commit | see below |
-| rc-foundry (`foundry` extra) | not run against atomworks 3 | source tree at the `UPSTREAM.lock` revision |
+| atomworks | 3.0.0 (PyPI) | 3.0.0, installed as a package |
+| rc-foundry (`foundry` extra) | 0.2.0 | source tree at the `UPSTREAM.lock` revision |
 | torch | 2.11, CPU | 2.14.0, CUDA 13.2 |
 | biotite | 1.6.0 | 1.6 |
 
-The suite targets AtomWorks 3.0. The ordinary-install column is a Python 3.12
-environment with AtomWorks built from the release commit (`379b4bbe`, the version
-3.0.0 was merged at; the PyPI wheel was not yet published when it was run), without
-the `foundry` extra. The reference environment still names AtomWorks 2.2.1 in
-`UPSTREAM.lock` and carries its source tree; there the suite, GPU tests and the
-Foundry contract tests included, was run with that release commit's source put
-ahead of it on `PYTHONPATH`. When the 3.0 wheel is published the reference
-environment takes the package, and the lock follows.
+The suite targets AtomWorks 3.0 and passes in both columns, the Foundry contract
+tests included. The ordinary-install column is a Python 3.12 environment from
+`pip install -e ".[foundry]"`, which resolves rc-foundry 0.2.0 and atomworks 3.0.0
+together. The reference environment takes atomworks as a package as well; only esm
+and foundry are source trees there.
 
 Four structures (lysozyme, haemoglobin, a zinc site, selenomethionine) are in
 `tests/data/structures`. What still comes from an AtomWorks checkout beside this
@@ -44,10 +41,12 @@ The GPU tests run only in the reference environment. A version outside this tabl
 untested, not refused: `doctor` reports how an installed upstream differs from
 `UPSTREAM.lock`.
 
-The published parity results were produced in a different, pinned environment:
-Python 3.14 and torch 2.14, with the upstreams as source trees at the revisions
-in `reproducibility/UPSTREAM.lock`. It is defined, and its choices explained, under
-[`reproducibility/`](../reproducibility/README.md).
+The reference environment is Python 3.14 and torch 2.14, with esm and foundry as
+source trees at the revisions in `reproducibility/UPSTREAM.lock` and atomworks as
+a package. It is defined, and its choices explained, under
+[`reproducibility/`](../reproducibility/README.md). The recorded long-schedule
+output-parity measurement was made in its previous revision, with AtomWorks 2.2.1
+as a source tree ([02](02_PARITY.md)).
 
 ## The ESMFold2 module
 
@@ -137,9 +136,10 @@ backbone, which arrives with the trunk.
 ## Upstream revision lock
 
 `reproducibility/UPSTREAM.lock` records the upstream revisions — commit and
-version — that the published parity results were verified against. `doctor` compares what it finds
-with it: a source tree's commit in the reference environment, an installed
-package's version in an ordinary install. Drift is **reported, never
+version — that the parity claims were verified against. `doctor` compares what it
+finds with it: a source tree's commit (esm and foundry in the reference
+environment), an installed package's version (atomworks, and everything in an
+ordinary install). Drift is **reported, never
 enforced**: the adapter is deliberately version-tolerant, so a newer upstream is
 something to re-verify, not something to refuse. How the lock is used to
 rebuild the reference environment is described in
@@ -155,9 +155,9 @@ pytest -q                    # the same, as assertions
 `pytest` is in the `dev` dependency group, which `uv sync` installs along with
 the package; `pip install -e .` does not, so on that path add it yourself.
 
-`doctor` fails only on a missing import or a failed parity check. Source trees
-belong to the reference environment; an ordinary install is compared with
-`UPSTREAM.lock` by package version instead. The parity check reads this
+`doctor` fails only on a missing import or a failed parity check. The esm and
+foundry source trees belong to the reference environment; an installed package is
+compared with `UPSTREAM.lock` by version instead. The parity check reads this
 repository's own `2hhb` (`tests/data/structures`), else AtomWorks' test data
 (`atomworks/tests/data/io`) beside it; with neither, a wheel for instance, it is
 not run, and `doctor` says so beside its verdict rather than reporting a plain
@@ -196,7 +196,7 @@ environment. Everything else in this repository runs on CPU.
 
 | variable | meaning | default |
 |---|---|---|
-| `DESIGN_ROOT` | directory holding the `esm/` and `atomworks/` source trees (reference environment) | discovered by walking up from the repository |
+| `DESIGN_ROOT` | directory holding the `esm/` and `atomworks/` checkouts (reference environment; the atomworks one supplies the tests' AtomWorks structures) | discovered by walking up from the repository |
 | `EF_MODELS` | directory of local weight mirrors (`ESMFold2/`, `ESMFold2-Fast/`, `ESMFold2-Experimental/`, `ESMC-6B/`) | `$DESIGN_ROOT/biohub` |
 | `EF_CHECKPOINTS`, `EF_RUNS` | checkpoint and run output directories | `$DESIGN_ROOT/checkpoints`, `<repo>/runs` |
 | `ESMCFOLD_CCD_PATH` | the CCD pickle esm loads; read once at import | `$EF_MODELS/ESMFold2/ccd.pkl` when present, via `reproducibility/env.sh` |

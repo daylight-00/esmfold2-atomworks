@@ -16,19 +16,23 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-#: Top-level module each source tree provides -> path of the tree, relative to
+#: Top-level module each checkout provides -> path of the tree, relative to
 #: ``DESIGN_ROOT``. This is the single declaration of what "the trees" means;
-#: discovery, ``PYTHONPATH`` assembly and ``doctor`` all read it.
+#: discovery and ``doctor`` read it. In the reference environment esm and foundry
+#: are put on ``PYTHONPATH`` as source trees (``reproducibility/env.sh``);
+#: atomworks is an installed package, and its checkout here is where the tests
+#: find AtomWorks' own test structures.
 SOURCE_TREE_LAYOUT: dict[str, tuple[str, ...]] = {
     "esm": ("esm",),
     "atomworks": ("atomworks", "src"),
     "foundry": ("foundry", "src"),
 }
 
-#: The trees the core needs: ESMFold2 itself, and the AtomWorks structures it
-#: is fed from. Foundry backs the optional training integration (``training/``
-#: and ``configs/``) and nothing else, so a workspace without it is complete
-#: for everything the adapter, the model wrapper and the engine do.
+#: The checkouts whose presence identifies a workspace: ESMFold2 itself, and an
+#: AtomWorks checkout for its test structures (the code comes from the package).
+#: Foundry backs the optional training integration (``training/`` and
+#: ``configs/``) and nothing else, so a workspace without it is complete for
+#: everything the adapter, the model wrapper and the engine do.
 REQUIRED_TREES = ("esm", "atomworks")
 OPTIONAL_TREES = ("foundry",)
 
@@ -61,7 +65,8 @@ MODELS = _env_path("EF_MODELS", DESIGN_ROOT / "biohub")
 CHECKPOINTS = _env_path("EF_CHECKPOINTS", DESIGN_ROOT / "checkpoints")
 RUNS = _env_path("EF_RUNS", REPO_ROOT / "runs")
 
-#: Source trees that must be importable via ``PYTHONPATH`` rather than pip.
+#: Where each upstream's checkout is, so ``doctor`` can tell a source tree from an
+#: installed package.
 SOURCE_TREES: dict[str, Path] = {
     module: DESIGN_ROOT.joinpath(*parts) for module, parts in SOURCE_TREE_LAYOUT.items()
 }
@@ -185,11 +190,6 @@ def ccd_dir() -> Path | None:
     """
     directory = ESMFOLD2_WEIGHTS.standard
     return directory if (directory / "ccd.pkl").is_file() else None
-
-
-def pythonpath_entries() -> list[Path]:
-    """The ``PYTHONPATH`` additions ``reproducibility/env.sh`` makes, in order."""
-    return [*SOURCE_TREES.values(), REPO_ROOT / "src"]
 
 
 def config_dir() -> Path:

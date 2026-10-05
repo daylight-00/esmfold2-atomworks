@@ -19,7 +19,7 @@ app = typer.Typer(
 
 @app.command()
 def doctor() -> None:
-    """Check that every source tree, weight directory and import resolves."""
+    """Check that every upstream, weight directory and import resolves."""
     from esmfold2_atomworks.doctor import main
 
     raise typer.Exit(code=main())

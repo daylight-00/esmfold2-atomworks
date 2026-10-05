@@ -17,7 +17,7 @@ export EF_ROOT
 
 # ---------------------------------------------------------------- source trees
 # DESIGN_ROOT is DISCOVERED, never hardcoded: walk up from this repo until a
-# directory holds both required source trees. That keeps the same env.sh correct
+# directory holds both required checkouts. That keeps the same env.sh correct
 # from the repo itself and from a nested checkout such as a git worktree.
 if [ -z "${DESIGN_ROOT:-}" ]; then
     _ef_dir="${EF_ROOT}"

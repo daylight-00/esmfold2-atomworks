@@ -89,12 +89,6 @@ def test_biotite_version_keeps_the_import_atomworks_needs():
     from biotite.structure.bonds import connect_via_residue_names  # noqa: F401
 
 
-def test_pythonpath_entries_are_reported_in_order():
-    entries = paths.pythonpath_entries()
-    assert entries[-1].name == "src"
-    assert len(entries) == len(paths.SOURCE_TREES) + 1
-
-
 def test_doctor_passes_an_ordinary_install(monkeypatch, tmp_path, capsys):
     """No source trees, no UPSTREAM.lock, no AtomWorks test data: nothing fails.
 

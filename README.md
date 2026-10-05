@@ -118,11 +118,14 @@ come from an atomworks checkout rather than with the package. The suite passes
 against the PyPI releases of the upstreams, and the tests that need the checkout
 skip without it. See [docs/04](docs/04_ENVIRONMENT.md).
 
-The published parity results were produced in one pinned reference
-environment: Python 3.14, torch 2.14, and the upstreams as source trees at the
-revisions in `reproducibility/UPSTREAM.lock`. [`reproducibility/`](reproducibility/README.md)
-defines it (`uv sync --project reproducibility`, then
-`source reproducibility/env.sh`). It is not needed for ordinary use.
+The suite and the GPU parity checks also run in a pinned reference environment:
+Python 3.14, torch 2.14, atomworks as a package, and esm and foundry as source
+trees at the revisions in `reproducibility/UPSTREAM.lock`.
+[`reproducibility/`](reproducibility/README.md) defines it
+(`uv sync --project reproducibility`, then `source reproducibility/env.sh`). It is
+not needed for ordinary use. The recorded long-schedule measurement behind the
+output-parity tables was made in its previous revision, with AtomWorks 2.2.1
+([docs/02](docs/02_PARITY.md)).
 
 ## License
 

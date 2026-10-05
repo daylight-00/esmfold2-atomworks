@@ -457,7 +457,10 @@ def smiles_atom_names(atoms: AtomArray, smiles: str) -> dict[str, str]:
     for bond order (aromatic bonds as one kind), and the first such match is the
     mapping. Atoms the match cannot tell apart are equivalent, so which of them
     is taken does not change the molecule. A bond whose order the source does
-    not state cannot be matched.
+    not state cannot be matched. This is a match of heavy-atom connectivity and
+    bond orders, not a check of the molecule's identity: formal charges and
+    stereochemistry are not compared (``LigandSpec.expected_formula`` checks the
+    composition).
 
     Returns:
         ``source atom name -> ESMFold2 atom name``.

@@ -157,7 +157,9 @@ Four decisions worth knowing:
   `O5` — and a name that coincides would be placed without a word. The adapter
   matches the source ligand's heavy-atom graph, elements and bond orders (aromatic
   bonds as one kind), against the SMILES and takes the first match; atoms the match
-  cannot tell apart are equivalent. A ligand with no bond list, a bond whose order
+  cannot tell apart are equivalent. It is a match of connectivity and bond
+  orders, not a check of the molecule's identity: formal charges and
+  stereochemistry are not compared. A ligand with no bond list, a bond whose order
   the source does not state, or a graph that is not the SMILES's cannot be matched,
   and its bonds are unplaceable (next point). A kekulé source ring against an
   aromatic SMILES ring is such a case; the source needs its aromatic flags, or the

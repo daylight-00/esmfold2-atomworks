@@ -138,7 +138,7 @@ backbone from the sequence. Anything else — a ligand bonded to a side chain, a
 crosslink between chains — exists only in the source, and the adapter carries it
 across as `StructurePredictionInput.covalent_bonds`.
 
-Three decisions worth knowing:
+Four decisions worth knowing:
 
 - **Backbone adjacency is judged by residue *order*, not residue number.**
   A chain numbered 100, 100A, 100B, 101 has four consecutive residues, so
@@ -151,6 +151,17 @@ Three decisions worth knowing:
   count as bonded, because the tokenizer drops a CCD ligand's leaving atoms (NAG's
   `O1`) once its chain takes part in a bond, which moves every later atom up one
   place.
+- **A bond to a SMILES ligand is placed through a match, not through a name.**
+  ESMFold2 names such a ligand's atoms by element and canonical rank (acetic acid:
+  `C8` `C7` `O5` `O6`), so the source's `O5` need not be the atom ESMFold2 calls
+  `O5` — and a name that coincides would be placed without a word. The adapter
+  matches the source ligand's heavy-atom graph, elements and bond orders (aromatic
+  bonds as one kind), against the SMILES and takes the first match; atoms the match
+  cannot tell apart are equivalent. A ligand with no bond list, a bond whose order
+  the source does not state, or a graph that is not the SMILES's cannot be matched,
+  and its bonds are unplaceable (next point). A kekulé source ring against an
+  aromatic SMILES ring is such a case; the source needs its aromatic flags, or the
+  ligand a CCD code.
 - **An unplaceable bond raises.** Dropping it folds a connected system as though
   it were disconnected, and the direct `fold_atom_array` path returns no report,
   so nothing would tell the caller. `allow_unresolved_covalent_bonds=True` opts

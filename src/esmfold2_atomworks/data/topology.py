@@ -33,12 +33,12 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from esmfold2_atomworks.data.spec import TopologyError
+from esmfold2_atomworks.data.spec import LigandIdentityError, TopologyError
 
 if TYPE_CHECKING:
     from biotite.structure import AtomArray, BondList
 
-__all__ = ["build_bond_list", "ccd_name_collisions"]
+__all__ = ["build_bond_list", "ccd_name_collisions", "smiles_atom_names"]
 
 _POLYMER_INPUTS = {
     "ProteinInput": ("C", "N"),
@@ -151,8 +151,8 @@ def _ccd_template(
 @cache
 def _smiles_template(
     smiles: str,
-) -> tuple[tuple[str, ...], tuple[tuple[int, int, int], ...]]:
-    """``(atom names, (index, index, bond type) bonds)`` of a SMILES ligand.
+) -> tuple[tuple[str, ...], tuple[tuple[int, int, int], ...], tuple[str, ...]]:
+    """``(atom names, (index, index, bond type) bonds, elements)`` of a SMILES ligand.
 
     The names are ESMFold2's: the element symbol and the canonical rank of the
     atom in the molecule with hydrogens, plus one.
@@ -168,11 +168,12 @@ def _smiles_template(
         atom.SetProp("name", atom.GetSymbol().upper() + str(rank + 1))
     heavy = Chem.RemoveHs(mol)
     names = tuple(atom.GetProp("name") for atom in heavy.GetAtoms())
+    elements = tuple(atom.GetSymbol().upper() for atom in heavy.GetAtoms())
     bonds = tuple(
         (bond.GetBeginAtomIdx(), bond.GetEndAtomIdx(), _biotite_bond_type(bond))
         for bond in heavy.GetBonds()
     )
-    return names, bonds
+    return names, bonds, elements
 
 
 def _groups(indices: np.ndarray, res_ids: np.ndarray) -> list[list[int]]:
@@ -370,7 +371,7 @@ def build_bond_list(atoms: AtomArray, spi: Any) -> BondList:
             for code, group in zip(entry.ccd, groups, strict=True):
                 _within(group, code, names, bonds, f"chain {chain!r} ({code})")
         elif kind == "LigandInput":
-            expected, template_bonds = _smiles_template(entry.smiles)
+            expected, template_bonds, _ = _smiles_template(entry.smiles)
             if [names[i] for i in indices] != list(expected):
                 raise TopologyError(
                     f"chain {chain!r}: the SMILES gives atoms {list(expected)} but the "
@@ -412,6 +413,93 @@ def build_bond_list(atoms: AtomArray, spi: Any) -> BondList:
         dtype=np.int64,
     ).reshape(-1, 3)
     return BondList(len(atoms), pairs)
+
+
+def _graph(elements: list[str], bonds: list[tuple[int, int, int]]) -> Any:
+    """A molecule of bare atoms and bonds of a stated order, for matching.
+
+    RDKit's unspecified bond matches every bond, which is the opposite of what
+    matching needs, so a bond whose order is not stated is refused here.
+    """
+    from biotite.structure import BondType
+    from rdkit import Chem
+
+    kinds = {
+        int(BondType.SINGLE): Chem.BondType.SINGLE,
+        int(BondType.DOUBLE): Chem.BondType.DOUBLE,
+        int(BondType.TRIPLE): Chem.BondType.TRIPLE,
+        int(BondType.COORDINATION): Chem.BondType.DATIVE,
+        int(BondType.AROMATIC): Chem.BondType.AROMATIC,
+        int(BondType.AROMATIC_SINGLE): Chem.BondType.AROMATIC,
+        int(BondType.AROMATIC_DOUBLE): Chem.BondType.AROMATIC,
+        int(BondType.AROMATIC_TRIPLE): Chem.BondType.AROMATIC,
+    }
+    graph = Chem.RWMol()
+    for element in elements:
+        graph.AddAtom(Chem.Atom(element.capitalize()))
+    for first, second, kind in bonds:
+        if kind not in kinds:
+            raise LigandIdentityError("a bond of the ligand has no stated order")
+        graph.AddBond(first, second, kinds[kind])
+    graph = graph.GetMol()
+    graph.UpdatePropertyCache(strict=False)
+    return graph
+
+
+def smiles_atom_names(atoms: AtomArray, smiles: str) -> dict[str, str]:
+    """ESMFold2's name for each heavy atom of *atoms*, a ligand drawn from *smiles*.
+
+    ESMFold2 names a SMILES ligand's atoms by element and canonical rank, so the
+    names a source structure gives them say nothing about which atom is which: a
+    bond declared on the source's ``O5`` would land on whatever ESMFold2 calls
+    ``O5``. The correspondence is read from the bonds instead. The heavy-atom
+    graph of *atoms* has to be the SMILES's, element for element and bond order
+    for bond order (aromatic bonds as one kind), and the first such match is the
+    mapping. Atoms the match cannot tell apart are equivalent, so which of them
+    is taken does not change the molecule. A bond whose order the source does
+    not state cannot be matched.
+
+    Returns:
+        ``source atom name -> ESMFold2 atom name``.
+
+    Raises:
+        LigandIdentityError: the source has no bond list, or its graph is not the
+            SMILES's.
+    """
+    names, template_bonds, template_elements = _smiles_template(smiles)
+    element = np.asarray(atoms.element).astype(str)
+    heavy = [i for i in range(len(atoms)) if element[i].upper() not in ("H", "D")]
+    where = {atom: position for position, atom in enumerate(heavy)}
+    if atoms.bonds is None:
+        raise LigandIdentityError(
+            "the source ligand has no bond list, so its atoms cannot be matched to "
+            f"the SMILES {smiles!r}"
+        )
+    inside = [
+        (where[int(a)], where[int(b)], int(kind))
+        for a, b, kind in atoms.bonds.as_array()
+        if int(a) in where and int(b) in where
+    ]
+    source = _graph([element[i].upper() for i in heavy], inside)
+    target = _graph(list(template_elements), list(template_bonds))
+    if source.GetNumAtoms() != target.GetNumAtoms() or len(inside) != len(
+        template_bonds
+    ):
+        raise LigandIdentityError(
+            f"the source ligand has {source.GetNumAtoms()} heavy atoms and "
+            f"{len(inside)} bonds, the SMILES {smiles!r} {target.GetNumAtoms()} and "
+            f"{len(template_bonds)}"
+        )
+    match = target.GetSubstructMatch(source)
+    if not match:
+        raise LigandIdentityError(
+            f"the heavy-atom graph of the source ligand (elements and bond orders) "
+            f"is not that of the SMILES {smiles!r}"
+        )
+    atom_names = [str(name) for name in np.asarray(atoms.atom_name)[heavy]]
+    if len(set(atom_names)) != len(atom_names):
+        raise LigandIdentityError("the source ligand repeats an atom name")
+    return {atom_names[i]: names[match[i]] for i in range(len(heavy))}
 
 
 def ccd_name_collisions(atoms: AtomArray, spi: Any = None) -> list[str]:

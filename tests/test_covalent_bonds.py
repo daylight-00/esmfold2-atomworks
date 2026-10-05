@@ -310,3 +310,161 @@ def test_a_bond_lands_on_its_atom_when_the_tokenizer_drops_leaving_atoms(ccd):
     assert "O1" not in ordering[("B", 0)], "the tokenizer no longer drops leaving atoms"
     assert ordering[("B", bond.res_idx2)][bond.atom_idx2] == "O4"
     assert ordering[("A", bond.res_idx1)][bond.atom_idx1] == "C"
+
+
+SINGLE, DOUBLE = 1, 2  # biotite.structure.BondType
+
+
+def _protein_and_acetic_acid(names, bonds, *, bond_to):
+    """Chain A: GGG. Chain B: a ligand of four atoms named *names* (C, C, O, O),
+    bonded inside by *bonds* (index pair, bond type), with Gly 2's C bonded to
+    atom *bond_to*.
+    """
+    import biotite.structure as struc
+
+    rows = [
+        ("A", i, name, name[0]) for i in (1, 2, 3) for name in ("N", "CA", "C", "O")
+    ]
+    rows += [("B", 1, name, name[0]) for name in names]
+    atoms = struc.AtomArray(len(rows))
+    atoms.coord = np.arange(len(rows) * 3, dtype=np.float32).reshape(-1, 3)
+    atoms.set_annotation("chain_id", np.array([r[0] for r in rows], dtype="U4"))
+    atoms.set_annotation("res_id", np.array([r[1] for r in rows]))
+    atoms.set_annotation("ins_code", np.array([""] * len(rows), dtype="U1"))
+    atoms.set_annotation(
+        "res_name",
+        np.array(["GLY" if r[0] == "A" else "LIG" for r in rows], dtype="U5"),
+    )
+    atoms.set_annotation("atom_name", np.array([r[2] for r in rows], dtype="U6"))
+    atoms.set_annotation("element", np.array([r[3] for r in rows], dtype="U2"))
+    atoms.set_annotation("is_polymer", np.array([r[0] == "A" for r in rows]))
+    atoms.bonds = struc.BondList(len(rows))
+    first = 12
+    for a, b, kind in bonds:
+        atoms.bonds.add_bond(first + a, first + b, kind)
+    carbonyl = next(i for i, r in enumerate(rows) if r[:3] == ("A", 2, "C"))
+    atoms.bonds.add_bond(carbonyl, first + bond_to, struc.BondType.SINGLE)
+    return atoms
+
+
+def _placed_on(spi, chain="B"):
+    """The name ESMFold2 gives the ligand atom the declared bond lands on."""
+    from esm.models.esmfold2.prepare_input import prepare_esmfold2_input
+    from esm.models.esmfold2.processor import clean_esmfold2_input
+
+    from esmfold2_atomworks.data.bonds import _atom_names_by_residue
+
+    (bond,) = spi.covalent_bonds
+    features, chain_infos = prepare_esmfold2_input(clean_esmfold2_input(spi), seed=0)
+    return _atom_names_by_residue(features, chain_infos)[(chain, bond.res_idx2)][
+        bond.atom_idx2
+    ]
+
+
+def test_a_bond_to_a_smiles_ligand_lands_on_the_atom_the_source_bonds(ccd):
+    """ESMFold2 names a SMILES ligand's atoms by element and rank (acetic acid:
+    CH3 is C8, the carbonyl C is C7, =O is O5, -OH is O6), so a source that
+    happens to use the same names for other atoms must not be matched by name.
+    """
+    from esmfold2_atomworks.data.spec import LigandSpec
+
+    # The source's C7 is the methyl, its C8 the carbonyl; its O5 is the hydroxyl
+    # (single bond to C8), its O6 the carbonyl oxygen.
+    atoms = _protein_and_acetic_acid(
+        ["C7", "C8", "O5", "O6"],
+        [(0, 1, SINGLE), (1, 2, SINGLE), (1, 3, DOUBLE)],
+        bond_to=2,
+    )
+    spi = atom_array_to_structure_prediction_input(
+        atoms,
+        chain_kinds={"A": "protein", "B": "ligand"},
+        ligands=[LigandSpec(chain_id="B", smiles="CC(=O)O")],
+    )
+    assert _placed_on(spi) == "O6"  # ESMFold2's hydroxyl
+
+
+def _fold_input(atoms, **kwargs):
+    from esmfold2_atomworks.data.spec import LigandSpec
+
+    return atom_array_to_structure_prediction_input(
+        atoms,
+        chain_kinds={"A": "protein", "B": "ligand"},
+        ligands=[LigandSpec(chain_id="B", smiles="CC(=O)O")],
+        **kwargs,
+    )
+
+
+def test_a_smiles_ligand_with_esms_own_names_keeps_them(ccd):
+    atoms = _protein_and_acetic_acid(
+        ["C8", "C7", "O5", "O6"],
+        [(0, 1, SINGLE), (1, 2, DOUBLE), (1, 3, SINGLE)],
+        bond_to=3,
+    )
+    assert _placed_on(_fold_input(atoms)) == "O6"
+
+
+@pytest.mark.parametrize(
+    ("bonds", "why"),
+    [
+        ([], "0 bonds"),
+        ([(0, 1, SINGLE), (1, 2, SINGLE), (2, 3, SINGLE)], "not that of the SMILES"),
+        ([(0, 1, SINGLE), (1, 2, SINGLE), (1, 3, SINGLE)], "not that of the SMILES"),
+        ([(0, 1, 0), (1, 2, 0), (1, 3, 0)], "no stated order"),  # BondType.ANY
+    ],
+    ids=["no bonds", "another molecule", "bond orders unstated as single", "any"],
+)
+def test_a_bond_to_a_smiles_ligand_that_cannot_be_matched_is_refused(ccd, bonds, why):
+    from esmfold2_atomworks.data.spec import CovalentBondResolutionError
+
+    atoms = _protein_and_acetic_acid(["C7", "C8", "O5", "O6"], bonds, bond_to=2)
+    with pytest.raises(CovalentBondResolutionError, match=why):
+        _fold_input(atoms)
+
+    # Accepted by name, the fold goes ahead without the bond and says so.
+    report = AdapterReport()
+    spi = _fold_input(atoms, allow_unresolved_covalent_bonds=True, report=report)
+    assert not spi.covalent_bonds
+    assert any(why in reason for reason in report.unresolved_covalent_bonds)
+
+
+def test_a_smiles_ligand_without_a_bond_list_cannot_be_matched():
+    import biotite.structure as struc
+    import pytest
+
+    from esmfold2_atomworks.data.spec import LigandIdentityError
+    from esmfold2_atomworks.data.topology import smiles_atom_names
+
+    ligand = struc.AtomArray(1)
+    ligand.set_annotation("element", np.array(["C"]))
+    ligand.set_annotation("atom_name", np.array(["C1"]))
+    with pytest.raises(LigandIdentityError, match="no bond list"):
+        smiles_atom_names(ligand, "C")
+
+
+def _benzene(kinds):
+    import biotite.structure as struc
+
+    ring = struc.AtomArray(6)
+    ring.set_annotation("element", np.array(["C"] * 6))
+    ring.set_annotation("atom_name", np.array([f"X{i}" for i in range(6)]))
+    ring.bonds = struc.BondList(6)
+    for i, kind in enumerate(kinds):
+        ring.bonds.add_bond(i, (i + 1) % 6, kind)
+    return ring
+
+
+def test_an_aromatic_ring_is_matched_only_as_aromatic(ccd):
+    import biotite.structure as struc
+
+    from esmfold2_atomworks.data.spec import LigandIdentityError
+    from esmfold2_atomworks.data.topology import smiles_atom_names
+
+    flagged = [struc.BondType.AROMATIC_SINGLE, struc.BondType.AROMATIC_DOUBLE] * 3
+    kekule = [struc.BondType.SINGLE, struc.BondType.DOUBLE] * 3
+
+    mapping = smiles_atom_names(_benzene(flagged), "c1ccccc1")
+    assert sorted(mapping) == [f"X{i}" for i in range(6)]
+    assert len(set(mapping.values())) == 6
+
+    with pytest.raises(LigandIdentityError, match="not that of the SMILES"):
+        smiles_atom_names(_benzene(kekule), "c1ccccc1")

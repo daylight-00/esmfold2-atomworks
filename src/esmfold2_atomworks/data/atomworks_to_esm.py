@@ -1090,6 +1090,9 @@ def _attach_covalent_bonds(
         else:
             placeable.append(candidate)
 
+    placeable, unmatched = _on_smiles_atoms(placeable, spi, atoms, chain_key)
+    unrepresented += unmatched
+
     from esm.models.esmfold2.prepare_input import prepare_esmfold2_input
     from esm.models.esmfold2.processor import clean_esmfold2_input
     from esm.models.esmfold2.types import CovalentBond
@@ -1142,6 +1145,60 @@ def _attach_covalent_bonds(
     if not bonds:
         return spi
     return replace(spi, covalent_bonds=bonds)
+
+
+def _on_smiles_atoms(
+    candidates: list[Any], spi: Any, atoms: AtomArray, chain_key: str
+) -> tuple[list[Any], list[str]]:
+    """*candidates* with an end on a SMILES ligand named as ESMFold2 names its atoms.
+
+    ESMFold2 names those atoms by element and rank, so the source's name for an
+    atom is not its name there; the match is read from the ligand's bonds
+    (:func:`~esmfold2_atomworks.data.topology.smiles_atom_names`). A bond whose
+    ligand cannot be matched is returned with its reason, not left to land on
+    whichever atom happens to share a name.
+    """
+    from esmfold2_atomworks.data.topology import smiles_atom_names
+
+    smiles = {
+        str(entry.id): entry.smiles
+        for entry in spi.sequences
+        if type(entry).__name__ == "LigandInput" and entry.smiles is not None
+    }
+    touched = sorted({c.chain_1 for c in candidates} | {c.chain_2 for c in candidates})
+    labels = np.asarray(atoms.get_annotation(chain_key)).astype(str)
+    names: dict[str, dict[str, str] | str] = {}
+    for chain in touched:
+        if chain not in smiles:
+            continue
+        try:
+            names[chain] = smiles_atom_names(atoms[labels == chain], smiles[chain])
+        except LigandIdentityError as error:
+            names[chain] = str(error)
+
+    placed, skipped = [], []
+    for candidate in candidates:
+        renamed, failure = {}, None
+        for end, chain, atom in (
+            ("1", candidate.chain_1, candidate.atom_name_1),
+            ("2", candidate.chain_2, candidate.atom_name_2),
+        ):
+            if chain not in names:
+                continue
+            found = names[chain]
+            if isinstance(found, str):
+                failure = f"chain {str(chain)!r} is a SMILES ligand: {found}"
+            elif atom not in found:
+                failure = (
+                    f"{atom!r} is not a heavy atom of SMILES ligand {str(chain)!r}"
+                )
+            else:
+                renamed[f"atom_name_{end}"] = found[atom]
+        if failure:
+            skipped.append(f"{candidate.describe()}: {failure}")
+        else:
+            placed.append(replace(candidate, **renamed))
+    return placed, skipped
 
 
 def _residue_index_map(

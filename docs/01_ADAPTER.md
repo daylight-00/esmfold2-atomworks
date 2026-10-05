@@ -294,9 +294,8 @@ name.
 
 `LigandSpec.verify_against` compares **heavy atoms only**. Whether hydrogens are
 present at all depends on the source and the parser settings: `parse` keeps
-them where the source has them and, in AtomWorks 2.x, can add them
-(`hydrogen_policy="infer"`; 3.x protonates in a separate step), Rosetta rebuilds
-them on load, ESMFold2 reports none. Heavy atoms are the only
+them where the source has them unless `hydrogen_policy="remove"` (protonation is
+a separate step), Rosetta rebuilds them on load, ESMFold2 reports none. Heavy atoms are the only
 comparison that means the same thing on every side.
 
 ## Why `G` does not go through mmCIF
@@ -398,13 +397,11 @@ alternate an aromatic ring's single and double bonds differently.
 ### Re-reading a written structure
 
 `ESMFold2Output.dump` writes the structure with its bond list (an empty one when
-it has none, which AtomWorks 3.x's writer needs). What AtomWorks makes of a
-ligand when it reads the file back depends on the residue name. A name that is
-not a CCD code is read from the file: atoms, names and bonds come back as
-written, on AtomWorks 2.2 and 3.x. A name that is a CCD code is read from the
-dictionary. For a SMILES ligand that is the default label `LIG`, and 2.x
-rebuilds the residue from that component while 3.x refuses atoms it does not
-have.
+it has none, which AtomWorks' writer needs). What AtomWorks makes of a ligand
+when it reads the file back depends on the residue name. A name that is not a CCD
+code is read from the file: atoms, names and bonds come back as written. A name
+that is a CCD code is read from the dictionary. For a SMILES ligand that is the
+default label `LIG`, and AtomWorks refuses atoms the component does not have.
 
 `fold_atom_array` records `esmfold2.ccd_name_collisions`, the residue names a CCD
 reader would not read back as written: a name that is a CCD code, on a chain the

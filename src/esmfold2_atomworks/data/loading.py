@@ -1,10 +1,9 @@
 """Reading a structure file into the pair the adapter takes, and recording how.
 
-``atomworks.io.parse`` is configurable, and its defaults differ between
-AtomWorks releases, so the same path can give different inputs under different
-versions. :func:`parse_structure` reads a file the way the inference engine does;
-:func:`parse_provenance` states the AtomWorks version and the parse
-configuration that produced the input, for a fold's record.
+``atomworks.io.parse`` is configured by a ``ParseConfig``, and its defaults
+belong to the AtomWorks release. :func:`parse_structure` reads a file the way the
+inference engine does; :func:`parse_provenance` states the AtomWorks version and
+what differs from the default configuration, for a fold's record.
 """
 
 from __future__ import annotations
@@ -15,9 +14,15 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from atomworks.io.config import ParseConfig
     from biotite.structure import AtomArray
 
-__all__ = ["atomworks_version", "parse_provenance", "parse_structure"]
+__all__ = [
+    "atomworks_version",
+    "parse_provenance",
+    "parse_structure",
+    "resolve_parse_config",
+]
 
 
 def atomworks_version() -> str:
@@ -27,6 +32,29 @@ def atomworks_version() -> str:
     return str(getattr(atomworks, "__version__", "unknown"))
 
 
+def resolve_parse_config(parse_config: Any = None) -> ParseConfig:
+    """The ``ParseConfig`` that *parse_config* stands for.
+
+    ``None`` is AtomWorks' defaults; a string names one of its presets
+    (``"rcsb"``, ...); a mapping gives fields, and a field that does not exist
+    raises, so a misspelt option is not ignored; a ``ParseConfig`` is used as it is.
+    """
+    from atomworks.io.config import ParseConfig
+
+    if parse_config is None:
+        return ParseConfig()
+    if isinstance(parse_config, ParseConfig):
+        return parse_config
+    if isinstance(parse_config, str):
+        return ParseConfig.from_preset(parse_config)
+    if isinstance(parse_config, Mapping):
+        return ParseConfig(**parse_config)
+    raise TypeError(
+        "parse_config must be None, a preset name, a mapping of ParseConfig fields "
+        f"or a ParseConfig, not {type(parse_config).__name__}"
+    )
+
+
 def parse_structure(
     source: str | Path, parse_config: Any = None
 ) -> tuple[AtomArray, dict]:
@@ -34,25 +62,17 @@ def parse_structure(
 
     Args:
         source: a structure file.
-        parse_config: ``None`` for ``parse``'s own defaults; a mapping, passed as
-            keyword options (the form AtomWorks 2.x takes, and 3.x still
-            accepts); or any other object, passed as ``config=`` (a
-            ``ParseConfig`` in AtomWorks 3.x).
+        parse_config: what :func:`resolve_parse_config` takes.
 
     Raises:
-        ValueError: ``parse`` returned one result per model, as AtomWorks 3.x
-            does for a multi-model file of variable topology. Picking one would
-            fold a model nobody chose; parse the model you want and pass the
-            ``AtomArray`` and ``chain_info`` instead.
+        ValueError: ``parse`` returned one result per model, as it does for a
+            multi-model file of variable topology. Picking one would fold a model
+            nobody chose; parse the model you want and pass the ``AtomArray`` and
+            ``chain_info`` instead.
     """
     from atomworks.io import parse
 
-    if parse_config is None:
-        result = parse(source)
-    elif isinstance(parse_config, Mapping):
-        result = parse(source, **dict(parse_config))
-    else:
-        result = parse(source, config=parse_config)
+    result = parse(source, config=resolve_parse_config(parse_config))
     if isinstance(result, list):
         raise ValueError(  # noqa: TRY004 - a result shape, not a wrong argument type
             f"{source}: AtomWorks returned {len(result)} results, one per model "
@@ -63,16 +83,22 @@ def parse_structure(
 
 
 def parse_provenance(parse_config: Any = None) -> dict[str, Any]:
-    """The AtomWorks version and the parse configuration, as JSON-safe entries."""
-    if parse_config is None:
-        described: Any = "default"
-    elif isinstance(parse_config, Mapping):
-        described = dict(parse_config)
-    elif hasattr(parse_config, "to_dict"):
-        described = parse_config.to_dict()
-    else:
-        described = repr(parse_config)
+    """The AtomWorks version and the parse configuration, as JSON-safe entries.
+
+    The configuration is what differs from AtomWorks' defaults, or ``"default"``
+    when nothing does; the defaults themselves belong to the recorded version.
+    """
+    from atomworks.io.config import ParseConfig
+
+    defaults = ParseConfig().to_dict()
+    changed = {
+        key: value
+        for key, value in resolve_parse_config(parse_config).to_dict().items()
+        if value != defaults[key]
+    }
     return {
         "atomworks.version": atomworks_version(),
-        "atomworks.parse_config": json.loads(json.dumps(described, default=str)),
+        "atomworks.parse_config": json.loads(
+            json.dumps(changed or "default", default=str)
+        ),
     }

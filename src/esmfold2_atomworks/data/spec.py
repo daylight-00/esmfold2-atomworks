@@ -122,10 +122,10 @@ def formula_of(atoms: AtomArray) -> dict[str, int]:
     """Heavy-atom composition, as ``element -> count``.
 
     Hydrogens are excluded on purpose. Whether they are present at all depends
-    on the source: ``atomworks.io.parse`` keeps the ones the file has (AtomWorks
-    2.x can also infer fresh ones, ``hydrogen_policy="infer"``), Rosetta rebuilds
-    them on load, and ESMFold2 reports none. Comparing heavy atoms is the only
-    comparison that means the same thing on all three sides.
+    on the source: ``atomworks.io.parse`` keeps the ones the file has unless told
+    to remove them (``hydrogen_policy``), Rosetta rebuilds them on load, and
+    ESMFold2 reports none. Comparing heavy atoms is the only comparison that means
+    the same thing on all three sides.
     """
     elements = [str(e).upper() for e in atoms.element]
     return dict(Counter(e for e in elements if e not in ("H", "D")))

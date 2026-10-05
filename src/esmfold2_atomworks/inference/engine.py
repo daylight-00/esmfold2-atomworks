@@ -44,7 +44,7 @@ class ESMFold2Output:
         structure_path = out_dir / f"{self.example_id}.cif"
         atoms = self.atom_array
         if atoms.bonds is None:
-            # AtomWorks 3.x's writer walks the bond list; no bonds is an empty one.
+            # AtomWorks' writer walks the bond list; no bonds is an empty one.
             atoms = atoms.copy()
             atoms.bonds = BondList(atoms.array_length())
         to_cif_file(atoms, structure_path)

@@ -41,8 +41,8 @@ EXPECTED: dict[str, tuple[str, str] | None] = {
     ),
 }
 
-#: Files that reproduce when AtomWorks parses them, and that a stricter AtomWorks
-#: rejects at parse time (before this package sees them), with the text of its error.
+#: Files of AtomWorks' own test data that its parser rejects (before this package
+#: sees them), with the text of its error.
 PARSE_MAY_REJECT = {
     "io/1a8o_modified.cif": "matches neither standard nor alternative CCD names",
 }

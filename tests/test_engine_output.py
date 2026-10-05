@@ -54,17 +54,38 @@ def test_a_path_is_parsed_with_the_given_configuration(monkeypatch, tmp_path):
 
     seen = {}
 
-    def fake_parse(source, **options):
-        seen.update(options, source=source)
+    def fake_parse(source, *, config=None):
+        seen.update(config=config, source=source)
         return {"asym_unit": ["model-1"], "chain_info": {"A": {}}}
 
     monkeypatch.setattr("atomworks.io.parse", fake_parse)
     atoms, chain_info = _load(tmp_path / "s.cif", {"hydrogen_policy": "remove"})
     assert (atoms, chain_info) == ("model-1", {"A": {}})
-    assert seen["hydrogen_policy"] == "remove"
+    assert seen["config"].hydrogen_policy == "remove"
     assert loading.parse_provenance({"hydrogen_policy": "remove"})[
         "atomworks.parse_config"
     ] == {"hydrogen_policy": "remove"}
+
+
+def test_a_parse_configuration_is_a_config_a_preset_or_a_mapping():
+    from atomworks.io.config import ParseConfig
+
+    from esmfold2_atomworks.data.loading import resolve_parse_config
+
+    config = ParseConfig(hydrogen_policy="remove")
+    assert resolve_parse_config(config) is config
+    assert resolve_parse_config(None) == ParseConfig()
+    assert resolve_parse_config("rcsb") == ParseConfig.from_preset("rcsb")
+    assert resolve_parse_config({"altloc": "first"}).altloc == "first"
+
+
+def test_a_parse_option_that_does_not_exist_is_refused_not_ignored():
+    from esmfold2_atomworks.data.loading import resolve_parse_config
+
+    with pytest.raises(TypeError):
+        resolve_parse_config({"hydrogen_polcy": "remove"})
+    with pytest.raises(TypeError, match="not int"):
+        resolve_parse_config(3)
 
 
 def test_one_result_per_model_is_refused_not_resolved(monkeypatch, tmp_path):

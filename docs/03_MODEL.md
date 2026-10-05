@@ -231,10 +231,11 @@ Foundry's registry and loads a `.pt` carrying the training `cfg`, whereas
 ESMFold2 loads HF safetensors plus `config.json`, with a second repo for the ESMC
 backbone and a featurizer that takes no config.
 
-A path input is read with `atomworks.io.parse`, whose defaults differ between
-AtomWorks releases. `parse_config=` (a mapping of options, or a `ParseConfig` in
-AtomWorks 3.x; the `parse_config` key of the Hydra engine config) sets how, and
-each output's JSON records it with the AtomWorks version. A file that AtomWorks
+A path input is read with `atomworks.io.parse`, whose defaults belong to the
+AtomWorks release. `parse_config=` (a `ParseConfig`, a preset name, or a mapping of
+its fields, of which a misspelt one raises; the `parse_config` key of the Hydra
+engine config) sets how, and each output's JSON records what differs from the
+defaults, with the AtomWorks version. A file that AtomWorks
 reads as one result per model (a multi-model file of variable topology) is
 refused: parse the model you want and pass its `AtomArray` and `chain_info`.
 

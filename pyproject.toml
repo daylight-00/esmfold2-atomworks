@@ -11,7 +11,7 @@ dependencies = [
     # The ESMFold2 module ships in esm >= 3.4; 3.4.1.post1 is the release this
     # package was verified against.
     "esm>=3.4.1.post1",
-    "atomworks>=2.2",
+    "atomworks[ml]>=3.0",
     "biotite",
     "numpy",
     "torch",

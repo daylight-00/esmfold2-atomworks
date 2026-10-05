@@ -509,8 +509,7 @@ def ccd_name_collisions(atoms: AtomArray, spi: Any = None) -> list[str]:
     """Residue names of hetero residues that a CCD reader would not read back as written.
 
     A reader that finds a CCD code takes the component from the dictionary, not
-    from the file: AtomWorks 2.x rebuilds the residue from the CCD, 3.x refuses
-    atoms the component does not have. A name that is not a CCD code is read from
+    from the file: AtomWorks refuses atoms the component does not have. A name that is not a CCD code is read from
     the file. A hetero residue named for a CCD component is listed when
 
     * *spi* says its chain is a SMILES ligand, or a CCD ligand of other

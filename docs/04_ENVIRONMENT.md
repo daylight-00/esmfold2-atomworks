@@ -8,8 +8,8 @@ Foundry integration. What a resolver picks follows the upstreams' own pins; the
 versions the suite has run against are in the table below. Two of those pins
 constrain the interpreter:
 
-- atomworks 2.2.1 pins `biotite==1.4.0`, which has wheels for CPython 3.11–3.13
-  only; on 3.14 it builds from source.
+- atomworks 3.0 pins `biotite==1.6.0` and needs CPython 3.11 or later; the
+  `ml` extra, which the pipelines and AtomWorks' MSA loader use, brings `numba`.
 - rc-foundry supports Python 3.12 only, and so does the `foundry` extra.
 
 `.python-version` therefore selects 3.12 for `uv sync`.
@@ -20,12 +20,20 @@ constrain the interpreter:
 |---|---|---|
 | CPython | 3.12 | 3.14.6 |
 | esm | 3.4.1.post1 | source tree at the `UPSTREAM.lock` revision |
-| atomworks | 2.2.1 | source tree at the `UPSTREAM.lock` revision |
-| rc-foundry (`foundry` extra) | 0.2.0 | source tree at the `UPSTREAM.lock` revision |
+| atomworks | 3.0.0, built from the release commit | see below |
+| rc-foundry (`foundry` extra) | not run against atomworks 3 | source tree at the `UPSTREAM.lock` revision |
 | torch | 2.11, CPU | 2.14.0, CUDA 13.2 |
-| biotite | 1.4.0 | 1.6 |
+| biotite | 1.6.0 | 1.6 |
 
-The suite passes in both, feature parity and the Foundry contract tests included.
+The suite targets AtomWorks 3.0. The ordinary-install column is a Python 3.12
+environment with AtomWorks built from the release commit (`379b4bbe`, the version
+3.0.0 was merged at; the PyPI wheel was not yet published when it was run), without
+the `foundry` extra. The reference environment still names AtomWorks 2.2.1 in
+`UPSTREAM.lock` and carries its source tree; there the suite, GPU tests and the
+Foundry contract tests included, was run with that release commit's source put
+ahead of it on `PYTHONPATH`. When the 3.0 wheel is published the reference
+environment takes the package, and the lock follows.
+
 Four structures (lysozyme, haemoglobin, a zinc site, selenomethionine) are in
 `tests/data/structures`. What still comes from an AtomWorks checkout beside this
 repository, and skips without one, is the corpus survey, the AF3-derived
@@ -170,9 +178,6 @@ a deliberate property, not a coincidence: see [02_PARITY.md](02_PARITY.md).
 
 - **Importing `atomworks` monkey-patches biotite globally**, for every consumer
   in the process.
-- **Hydrogens that AtomWorks 2.x's `parse` adds (`hydrogen_policy="infer"`) can
-  carry NaN coordinates.** This adapter is unaffected — ESMFold2 takes sequences and CCD
-  codes, not input coordinates — but anything computing an RMSD downstream is.
 - **`processed_entity_canonical_sequence` is meaningful for polymers only.**
   Read it only for polymers; this repo does.
 - **Optional accelerators compile from source.** `flash-attn` and

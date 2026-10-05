@@ -283,11 +283,8 @@ def test_a_smiles_ligand_named_for_a_ccd_component_is_not_read_back_as_written(
     ccd, tmp_path
 ):
     atoms = _acetic_acid(ccd, "LIG")
-    try:
-        back = _written_and_reread(atoms, tmp_path)
-    except ValueError:  # 3.x: atoms the component does not have
-        return
-    assert _ligand_and_bonds(back) != _ligand_and_bonds(atoms)  # 2.x: rebuilt
+    with pytest.raises(ValueError, match="CCD"):  # atoms the component does not have
+        _written_and_reread(atoms, tmp_path)
 
 
 def test_a_declared_bond_keeps_the_order_the_source_had(ccd):

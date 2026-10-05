@@ -34,3 +34,32 @@ def test_an_empty_declaration_is_refused():
         LigandSpec(chain_id="B", ccd=())
     with pytest.raises(ValueError, match="empty"):
         LigandSpec(chain_id="B", smiles="  ")
+
+
+def test_a_smiles_ligand_without_a_name_gets_the_name_atomworks_gives_one():
+    from esmfold2_atomworks.data.spec import ligand_labels
+
+    assert ligand_labels({"B": LigandSpec(chain_id="B", smiles="CCO")}) == {"B": "L:0"}
+
+
+def test_distinct_smiles_count_up_and_one_molecule_keeps_one_name():
+    from esmfold2_atomworks.data.spec import ligand_labels
+
+    specs = {
+        "B": LigandSpec(chain_id="B", smiles="CCO"),
+        "C": LigandSpec(chain_id="C", smiles="CCN"),
+        "D": LigandSpec(chain_id="D", smiles="CCO"),
+    }
+    assert ligand_labels(specs) == {"B": "L:0", "C": "L:1", "D": "L:0"}
+
+
+def test_a_declared_name_or_ccd_code_is_kept_and_takes_no_number():
+    from esmfold2_atomworks.data.spec import ligand_labels
+
+    specs = {
+        "B": LigandSpec(chain_id="B", smiles="CCO", residue_name="ETO"),
+        "C": LigandSpec(chain_id="C", ccd=("ZN",)),
+        "D": LigandSpec(chain_id="D", ccd=("NAG", "BMA")),
+        "E": LigandSpec(chain_id="E", smiles="CCN"),
+    }
+    assert ligand_labels(specs) == {"B": "ETO", "C": "ZN", "D": None, "E": "L:0"}

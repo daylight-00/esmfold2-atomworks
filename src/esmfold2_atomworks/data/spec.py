@@ -20,6 +20,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from biotite.structure import AtomArray
 
 __all__ = [
@@ -34,6 +36,7 @@ __all__ = [
     "TopologyError",
     "UnsupportedChainError",
     "formula_of",
+    "ligand_labels",
 ]
 
 #: Residue names that carry no reliable chemical meaning, even though each is a
@@ -118,6 +121,27 @@ class CovalentBondResolutionError(ValueError):
     """
 
 
+def ligand_labels(specs: Mapping[str, LigandSpec]) -> dict[str, str | None]:
+    """The residue name each declared ligand chain is written under.
+
+    A spec's own *residue_name*, else its CCD code (``None`` for several
+    components, which are left as the model wrote them). A SMILES ligand with no
+    name gets the one AtomWorks gives a ligand built from a SMILES, ``L:{k}``, with
+    *k* counting the distinct SMILES from 0 in declaration order -- so one
+    molecule on two chains has one name, as it does in AtomWorks. That name is
+    not a CCD code, so the written structure reads back as it is, where the
+    model's own ``LIG`` would be read from the dictionary instead.
+    """
+    smiles_ids: dict[str, int] = {}
+    labels: dict[str, str | None] = {}
+    for chain, spec in specs.items():
+        if spec.label is not None or spec.smiles is None:
+            labels[chain] = spec.label
+        else:
+            labels[chain] = f"L:{smiles_ids.setdefault(spec.smiles, len(smiles_ids))}"
+    return labels
+
+
 def formula_of(atoms: AtomArray) -> dict[str, int]:
     """Heavy-atom composition, as ``element -> count``.
 
@@ -143,8 +167,9 @@ class LigandSpec:
         smiles: SMILES string; ESMFold2 generates a conformer from it.
         ccd: one or more CCD codes, for a ligand that genuinely is a CCD entry.
         residue_name: the residue name ``fold_atom_array`` writes on this
-            chain. Defaults to the CCD code, or ``LIG`` for SMILES (what
-            ESMFold2 emits). Refused with several CCD components.
+            chain. Defaults to the CCD code, or for SMILES the name AtomWorks
+            gives a ligand built from one, ``L:{k}`` (:func:`ligand_labels`).
+            Refused with several CCD components.
         expected_formula: heavy-atom composition to verify against. Optional;
             when given, :meth:`verify_against` enforces it.
     """
@@ -182,12 +207,15 @@ class LigandSpec:
 
     @property
     def label(self) -> str | None:
-        """The residue name to write on these atoms; ``None`` for several components."""
+        """The residue name this declaration fixes: *residue_name*, else the one
+        CCD code. ``None`` for several components, and for a SMILES ligand without
+        a name, whose default depends on the other declarations
+        (:func:`ligand_labels`)."""
         if self.residue_name is not None:
             return self.residue_name
-        if self.ccd is None:
-            return "LIG"
-        return self.ccd[0] if len(self.ccd) == 1 else None
+        if self.ccd is not None and len(self.ccd) == 1:
+            return self.ccd[0]
+        return None
 
     def verify_against(self, atoms: AtomArray) -> None:
         """Check *atoms* against the declaration, raising on disagreement.

@@ -196,7 +196,7 @@ def rename_ligand_residues(atoms: AtomArray, residue_name: str) -> AtomArray:
 
 
 def apply_ligand_labels(structure: AtomArray, ligands: Mapping[str, Any]) -> AtomArray:
-    """Give each declared ligand chain its ``LigandSpec.label``, as a copy.
+    """Give each declared ligand chain its label (:func:`ligand_labels`), as a copy.
 
     *ligands* maps output chain labels to specs. A multi-component declaration
     has no label and is left as the model wrote it.
@@ -207,9 +207,10 @@ def apply_ligand_labels(structure: AtomArray, ligands: Mapping[str, Any]) -> Ato
     """
     chains = np.asarray(structure.chain_id).astype(str)
     hetero = np.asarray(structure.hetero, dtype=bool)
+    from esmfold2_atomworks.data.spec import ligand_labels
+
     res_name = np.asarray(structure.res_name, dtype="U5").copy()
-    for chain, spec in ligands.items():
-        label = spec.label
+    for chain, label in ligand_labels(ligands).items():
         if label is None:
             continue
         mask = chains == str(chain)

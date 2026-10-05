@@ -320,7 +320,10 @@ Ligand names are restored per chain. ESMFold2 writes `LIG` on a ligand it was
 given as SMILES, and anything that matches ligands by name needs the caller's
 name instead. `fold_atom_array` gives each chain declared with a `LigandSpec`
 that spec's `residue_name` (`apply_ligand_labels`), so a ligand, a cofactor and
-an ion beside it keep their own names. A declaration of several CCD components
+an ion beside it keep their own names. A SMILES ligand with no `residue_name` gets
+the name AtomWorks gives a ligand built from a SMILES, `L:{k}` (`ligand_labels`:
+*k* counts the distinct SMILES from 0, so one molecule keeps one name), which is
+not a CCD code and so reads back as written. A declaration of several CCD components
 has no single name — they are several residues — so `residue_name` is refused
 there and the chain is left as the model wrote it (see below).
 

@@ -1127,6 +1127,7 @@ class AtomWorksESMFold2:
             rename_ligand_residues,
             result_to_atom_array,
         )
+        from esmfold2_atomworks.data.spec import ligand_labels
         from esmfold2_atomworks.data.topology import (
             build_bond_list,
             ccd_name_collisions,
@@ -1139,8 +1140,8 @@ class AtomWorksESMFold2:
             check_residue_name(ligand_residue_name)
             conflicting = sorted(
                 chain
-                for chain, spec in ligand_specs.items()
-                if spec.label != ligand_residue_name
+                for chain, label in ligand_labels(ligand_specs).items()
+                if label != ligand_residue_name
             )
             if conflicting:
                 raise ValueError(

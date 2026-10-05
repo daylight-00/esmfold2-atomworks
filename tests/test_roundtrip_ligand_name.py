@@ -222,3 +222,13 @@ def test_a_declared_chain_missing_from_the_output_is_refused(two_ligands):
             _source(),
             adapter_kwargs={"ligands": [LigandSpec(chain_id="D", ccd=("HEM",))]},
         )
+
+
+def test_a_smiles_ligand_is_written_under_the_name_atomworks_would_give_it(two_ligands):
+    from esmfold2_atomworks.data.spec import LigandSpec
+
+    atoms, _ = two_ligands.fold_atom_array(
+        _source(), adapter_kwargs={"ligands": [LigandSpec(chain_id="B", smiles="CCO")]}
+    )
+
+    assert _by_chain(atoms)["B"] == {"L:0"}

@@ -271,8 +271,11 @@ def _acetic_acid(ccd, label):
     return rename_ligand_residues(atoms, label)
 
 
-def test_a_smiles_ligand_with_a_non_ccd_name_is_read_back_as_written(ccd, tmp_path):
-    atoms = _acetic_acid(ccd, "Q9Q9Q")
+@pytest.mark.parametrize("name", ["Q9Q9Q", "L:0"])
+def test_a_smiles_ligand_with_a_non_ccd_name_is_read_back_as_written(
+    ccd, tmp_path, name
+):
+    atoms = _acetic_acid(ccd, name)
 
     back = _written_and_reread(atoms, tmp_path)
 

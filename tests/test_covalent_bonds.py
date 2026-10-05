@@ -419,7 +419,7 @@ def _benzene(kinds):
     return ring
 
 
-def test_an_aromatic_ring_is_matched_only_as_aromatic(ccd):
+def test_a_ring_is_matched_whether_the_source_flags_it_aromatic_or_not(ccd):
     import biotite.structure as struc
 
     from esmfold2_atomworks.data.spec import LigandIdentityError
@@ -427,10 +427,11 @@ def test_an_aromatic_ring_is_matched_only_as_aromatic(ccd):
 
     flagged = [struc.BondType.AROMATIC_SINGLE, struc.BondType.AROMATIC_DOUBLE] * 3
     kekule = [struc.BondType.SINGLE, struc.BondType.DOUBLE] * 3
+    for kinds in (flagged, kekule):
+        mapping = smiles_atom_names(_benzene(kinds), "c1ccccc1")
+        assert sorted(mapping) == [f"X{i}" for i in range(6)]
+        assert len(set(mapping.values())) == 6
 
-    mapping = smiles_atom_names(_benzene(flagged), "c1ccccc1")
-    assert sorted(mapping) == [f"X{i}" for i in range(6)]
-    assert len(set(mapping.values())) == 6
-
+    # A ring of single bonds only is not benzene.
     with pytest.raises(LigandIdentityError, match="not that of the SMILES"):
-        smiles_atom_names(_benzene(kekule), "c1ccccc1")
+        smiles_atom_names(_benzene([struc.BondType.SINGLE] * 6), "c1ccccc1")

@@ -250,6 +250,12 @@ class AdapterReport:
     #: Chains whose kind was inferred from ``is_polymer`` for want of a
     #: ``chain_type`` -- populated only when that was explicitly allowed.
     inferred_chain_kinds: list[str] = field(default_factory=list)
+    #: Per CCD ligand chain in a covalent bond, the source atoms the model input
+    #: leaves out (``"NAG1/O1"``). ESMFold2 drops every atom the CCD flags as
+    #: leaving once a chain is bonded; where the source's own link kept one, the
+    #: model is given a different molecule. A record, never a refusal: the source
+    #: is what AtomWorks made of the link, and the tokenizer is not ours to change.
+    link_atoms_left_out: dict[str, list[str]] = field(default_factory=dict)
 
     def accepted_degradations(self) -> dict[str, list[str]]:
         """What each degradation accepted by name actually hit.
@@ -1059,6 +1065,7 @@ def _attach_covalent_bonds(
     bonded chains as bonded (see :mod:`esmfold2_atomworks.data.bonds`).
     """
     from esmfold2_atomworks.data.bonds import (
+        _atom_names_by_residue,
         covalent_bond_candidates,
         resolve_covalent_bonds,
     )
@@ -1124,11 +1131,17 @@ def _attach_covalent_bonds(
         features, chain_infos = prepare_esmfold2_input(
             clean_esmfold2_input(probe), seed=0
         )
+        residue_index_of = _residue_index_map(records, chain_info, report)
         bonds, skipped = resolve_covalent_bonds(
-            placeable,
-            features,
-            chain_infos,
-            _residue_index_map(records, chain_info, report),
+            placeable, features, chain_infos, residue_index_of
+        )
+        report.link_atoms_left_out = _atoms_left_out(
+            spi,
+            atoms,
+            chain_key,
+            residue_index_of,
+            _atom_names_by_residue(features, chain_infos),
+            {c for pair in pairs for c in pair},
         )
     skipped = unrepresented + skipped
     report.covalent_bonds = list(candidates)
@@ -1145,6 +1158,48 @@ def _attach_covalent_bonds(
     if not bonds:
         return spi
     return replace(spi, covalent_bonds=bonds)
+
+
+def _atoms_left_out(
+    spi: Any,
+    atoms: AtomArray,
+    chain_key: str,
+    residue_index_of: dict[tuple[str, int, str], int],
+    ordering: dict[tuple[str, int], list[str]],
+    bonded: set[str],
+) -> dict[str, list[str]]:
+    """Per bonded CCD ligand chain, the source's heavy atoms that the model's atoms
+    for that residue do not include."""
+    chains = np.asarray(atoms.get_annotation(chain_key)).astype(str)
+    res_id = np.asarray(atoms.res_id).astype(int)
+    res_name = np.asarray(atoms.res_name).astype(str)
+    atom_name = np.asarray(atoms.atom_name).astype(str)
+    element = np.asarray(atoms.element).astype(str)
+    ins_code = (
+        np.asarray(atoms.get_annotation("ins_code")).astype(str)
+        if "ins_code" in atoms.get_annotation_categories()
+        else np.full(len(atoms), "", dtype="U1")
+    )
+    ligands = {
+        str(entry.id)
+        for entry in spi.sequences
+        if type(entry).__name__ == "LigandInput" and entry.ccd is not None
+    } & bonded
+
+    left: dict[str, list[str]] = {}
+    for index in range(len(atoms)):
+        chain = chains[index]
+        if chain not in ligands or element[index].upper() in ("H", "D"):
+            continue
+        model_residue = residue_index_of.get((chain, res_id[index], ins_code[index]))
+        names = (
+            ordering.get((chain, model_residue)) if model_residue is not None else None
+        )
+        if names is not None and atom_name[index] not in names:
+            left.setdefault(chain, []).append(
+                f"{res_name[index]}{res_id[index]}/{atom_name[index]}"
+            )
+    return left
 
 
 def _smiles_name_maps(

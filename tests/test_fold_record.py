@@ -516,3 +516,32 @@ def test_the_backbone_precision_recorded_is_the_one_applied(
     model.net = SimpleNamespace(config=SimpleNamespace(type=config_type))
     model.esmc_source = esmc_source
     assert model._applied_esmc_precision(requested) == applied
+
+
+def test_fold_atom_array_records_the_source_atoms_a_link_leaves_out(monkeypatch):
+    import biotite.structure as struc
+
+    import esmfold2_atomworks.data.atomworks_to_esm as adapter
+    import esmfold2_atomworks.data.molecular_complex as reverse
+    from esmfold2_atomworks.data import topology
+
+    def convert(atoms, *, chain_info=None, report=None, **kwargs):
+        report.link_atoms_left_out["B"] = ["NAG1/O1"]
+        return _spi()
+
+    monkeypatch.setattr(adapter, "atom_array_to_structure_prediction_input", convert)
+    monkeypatch.setattr(reverse, "result_to_atom_array", lambda result, **_: "atoms")
+    monkeypatch.setattr(topology, "ccd_name_collisions", lambda atoms, spi: [])
+
+    record: dict = {}
+    _model().fold_atom_array(struc.AtomArray(0), record=record, bonds=False)
+    assert record["esmfold2.link_atoms_left_out"] == {"B": ["NAG1/O1"]}
+
+    quiet: dict = {}
+    monkeypatch.setattr(
+        adapter,
+        "atom_array_to_structure_prediction_input",
+        lambda atoms, *, chain_info=None, report=None, **kw: _spi(),
+    )
+    _model().fold_atom_array(struc.AtomArray(0), record=quiet, bonds=False)
+    assert "esmfold2.link_atoms_left_out" not in quiet

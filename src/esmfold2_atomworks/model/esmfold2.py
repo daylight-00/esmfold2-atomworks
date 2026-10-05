@@ -1170,6 +1170,10 @@ class AtomWorksESMFold2:
             )
             record["atomworks.version"] = atomworks_version()
             record["esmfold2.bonds"] = bool(bonds)
+            if adapter_kwargs["report"].link_atoms_left_out:
+                record["esmfold2.link_atoms_left_out"] = dict(
+                    adapter_kwargs["report"].link_atoms_left_out
+                )
 
         chain_key = (adapter_kwargs or {}).get("chain_key", "chain_id")
         collided: set[str] = set()

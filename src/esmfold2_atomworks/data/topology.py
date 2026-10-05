@@ -38,7 +38,11 @@ from esmfold2_atomworks.data.spec import LigandIdentityError, TopologyError
 if TYPE_CHECKING:
     from biotite.structure import AtomArray, BondList
 
-__all__ = ["build_bond_list", "ccd_name_collisions", "smiles_atom_names"]
+__all__ = [
+    "build_bond_list",
+    "ccd_name_collisions",
+    "smiles_atom_names",
+]
 
 _POLYMER_INPUTS = {
     "ProteinInput": ("C", "N"),
@@ -446,6 +450,63 @@ def _graph(elements: list[str], bonds: list[tuple[int, int, int]]) -> Any:
     return graph
 
 
+def _sanitizes(molecule: Any) -> bool:
+    """Sanitize *molecule* in place; whether RDKit accepted it."""
+    from rdkit import Chem
+
+    try:
+        Chem.SanitizeMol(molecule)
+    except Exception:  # noqa: BLE001 - RDKit raises several kinds
+        return False
+    return True
+
+
+def _source_molecule(atoms: AtomArray) -> tuple[Any, list[int]] | None:
+    """The heavy atoms of *atoms* as a sanitized RDKit molecule, and their indices.
+
+    Elements, formal charges (the ``charge`` annotation, when there is one) and
+    the bonds as kekule orders, with the hydrogens valence implies; RDKit
+    perceives the aromaticity. ``None`` when the chemistry cannot be read: no bond
+    list, a bond of no stated order, an aromatic bond without a kekule form, or a
+    molecule RDKit rejects.
+    """
+    from biotite.structure import BondType
+    from rdkit import Chem
+
+    if atoms.bonds is None:
+        return None
+    orders = {
+        int(BondType.SINGLE): Chem.BondType.SINGLE,
+        int(BondType.DOUBLE): Chem.BondType.DOUBLE,
+        int(BondType.TRIPLE): Chem.BondType.TRIPLE,
+        int(BondType.AROMATIC_SINGLE): Chem.BondType.SINGLE,
+        int(BondType.AROMATIC_DOUBLE): Chem.BondType.DOUBLE,
+        int(BondType.AROMATIC_TRIPLE): Chem.BondType.TRIPLE,
+    }
+    element = np.char.upper(np.asarray(atoms.element).astype(str))
+    heavy = np.flatnonzero(~np.isin(element, ["H", "D"])).tolist()
+    where = {atom: position for position, atom in enumerate(heavy)}
+    charge = (
+        np.nan_to_num(np.asarray(atoms.charge, dtype=float))
+        if "charge" in atoms.get_annotation_categories()
+        else np.zeros(len(atoms))
+    )
+
+    molecule = Chem.RWMol()
+    for atom in heavy:
+        rdkit_atom = Chem.Atom(str(element[atom]).capitalize())
+        rdkit_atom.SetFormalCharge(round(float(charge[atom])))
+        molecule.AddAtom(rdkit_atom)
+    for first, second, kind in atoms.bonds.as_array():
+        first, second, kind = int(first), int(second), int(kind)
+        if first in where and second in where:
+            if kind not in orders:
+                return None
+            molecule.AddBond(where[first], where[second], orders[kind])
+    candidate = molecule.GetMol()
+    return (candidate, heavy) if _sanitizes(candidate) else None
+
+
 def smiles_atom_names(atoms: AtomArray, smiles: str) -> dict[str, str]:
     """ESMFold2's name for each heavy atom of *atoms*, a ligand drawn from *smiles*.
 
@@ -454,8 +515,9 @@ def smiles_atom_names(atoms: AtomArray, smiles: str) -> dict[str, str]:
     bond declared on the source's ``O5`` would land on whatever ESMFold2 calls
     ``O5``. The correspondence is read from the bonds instead. The heavy-atom
     graph of *atoms* has to be the SMILES's, element for element and bond order
-    for bond order (aromatic bonds as one kind), and the first such match is the
-    mapping. Atoms the match cannot tell apart are equivalent, so which of them
+    for bond order (aromatic bonds as one kind, perceived from kekule orders, formal
+    charges and hydrogens when the source gives enough for RDKit to), and the first
+    such match is the mapping. Atoms the match cannot tell apart are equivalent, so which of them
     is taken does not change the molecule. A bond whose order the source does
     not state cannot be matched. This is a match of heavy-atom connectivity and
     bond orders, not a check of the molecule's identity: formal charges and
@@ -478,11 +540,19 @@ def smiles_atom_names(atoms: AtomArray, smiles: str) -> dict[str, str]:
             "the source ligand has no bond list, so its atoms cannot be matched to "
             f"the SMILES {smiles!r}"
         )
-    inside = [
-        (where[int(a)], where[int(b)], int(kind))
-        for a, b, kind in atoms.bonds.as_array()
-        if int(a) in where and int(b) in where
-    ]
+    perceived = _source_molecule(atoms)
+    if perceived is not None:
+        # Aromaticity perceived the way the SMILES' was, so a kekule ring matches.
+        inside = [
+            (b.GetBeginAtomIdx(), b.GetEndAtomIdx(), _biotite_bond_type(b))
+            for b in perceived[0].GetBonds()
+        ]
+    else:
+        inside = [
+            (where[int(a)], where[int(b)], int(kind))
+            for a, b, kind in atoms.bonds.as_array()
+            if int(a) in where and int(b) in where
+        ]
     source = _graph([element[i].upper() for i in heavy], inside)
     target = _graph(list(template_elements), list(template_bonds))
     if source.GetNumAtoms() != target.GetNumAtoms() or len(inside) != len(

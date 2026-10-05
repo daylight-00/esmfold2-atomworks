@@ -161,9 +161,9 @@ Four decisions worth knowing:
   orders, not a check of the molecule's identity: formal charges and
   stereochemistry are not compared. A ligand with no bond list, a bond whose order
   the source does not state, or a graph that is not the SMILES's cannot be matched,
-  and its bonds are unplaceable (next point). A kekulé source ring against an
-  aromatic SMILES ring is such a case; the source needs its aromatic flags, or the
-  ligand a CCD code.
+  and its bonds are unplaceable (next point). Aromaticity is perceived from the
+  source's kekulé orders, formal charges and listed hydrogens, so a ring need not
+  be flagged aromatic.
 - **An unplaceable bond raises.** Dropping it folds a connected system as though
   it were disconnected, and the direct `fold_atom_array` path returns no report,
   so nothing would tell the caller. `allow_unresolved_covalent_bonds=True` opts

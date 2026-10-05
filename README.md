@@ -123,9 +123,7 @@ Python 3.14, torch 2.14, atomworks as a package, and esm and foundry as source
 trees at the revisions in `reproducibility/UPSTREAM.lock`.
 [`reproducibility/`](reproducibility/README.md) defines it
 (`uv sync --project reproducibility`, then `source reproducibility/env.sh`). It is
-not needed for ordinary use. The recorded long-schedule measurement behind the
-output-parity tables was made in its previous revision, with AtomWorks 2.2.1
-([docs/02](docs/02_PARITY.md)).
+not needed for ordinary use.
 
 ## License
 

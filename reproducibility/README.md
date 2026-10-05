@@ -112,11 +112,8 @@ The GPU suite gates the short schedule on every run; this record holds what is
 too slow to gate -- the checkpoint's own schedule, the scatter, the wall time --
 so that the numbers can be regenerated rather than taken on trust.
 
-**It is a historical record.** It was made at commit `8f2bac6` with AtomWorks
-2.2.1 (`fcf7af8c`, a source tree) in the previous revision of this environment,
-and says so in its own `upstream_lock` field. The AtomWorks 3 environment above has
-passed feature parity and the gated GPU suite (the short schedule); the full
-measurement has not been regenerated, and replaces this file when it is.
+It was made in this environment, at commit `662802b` with AtomWorks 3.0.0 as a package,
+and says so in its own `upstream_lock` field.
 
 ## Not part of it
 

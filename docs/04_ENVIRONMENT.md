@@ -44,9 +44,7 @@ untested, not refused: `doctor` reports how an installed upstream differs from
 The reference environment is Python 3.14 and torch 2.14, with esm and foundry as
 source trees at the revisions in `reproducibility/UPSTREAM.lock` and atomworks as
 a package. It is defined, and its choices explained, under
-[`reproducibility/`](../reproducibility/README.md). The recorded long-schedule
-output-parity measurement was made in its previous revision, with AtomWorks 2.2.1
-as a source tree ([02](02_PARITY.md)).
+[`reproducibility/`](../reproducibility/README.md).
 
 ## The ESMFold2 module
 

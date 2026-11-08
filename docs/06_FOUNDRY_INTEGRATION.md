@@ -8,6 +8,11 @@ workspace without Foundry is complete for everything else. It is the package's
 `foundry` extra — `pip install -e ".[foundry]"`, which brings rc-foundry and so
 needs Python 3.12 — and a plain install leaves it out.
 
+The extra takes rc-foundry below 1.0. Foundry 1.0 removed the shared `foundry`
+package: each of its models keeps its own copy of the trainer under
+`<model>/_core/`, and there is no `FabricTrainer` left to subclass from outside.
+This page describes Foundry before 1.0.
+
 `tests/test_foundry_integration.py` checks the contracts the integration relies
 on, in two kinds. The *runtime* contracts are checked against the Foundry that is
 imported: the trainer subclasses `FabricTrainer` with no abstract method left and

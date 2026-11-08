@@ -76,6 +76,23 @@ def test_doctor_passes_a_workspace_without_foundry(monkeypatch, tmp_path, capsys
     assert "FAIL" not in capsys.readouterr().out
 
 
+def test_doctor_names_an_rc_foundry_without_the_foundry_package(monkeypatch, capsys):
+    from esmfold2_atomworks import doctor
+
+    importable = doctor._importable
+    monkeypatch.setattr(
+        doctor, "_importable", lambda module: module != "foundry" and importable(module)
+    )
+    monkeypatch.setattr(
+        doctor,
+        "_installed_version",
+        lambda module: "1.0.0" if module == "foundry" else None,
+    )
+
+    assert doctor.check_imports()
+    assert "rc-foundry 1.0.0 has no `foundry` package" in capsys.readouterr().out
+
+
 def test_a_native_model_class_is_importable():
     """ESMFold2's native module must be importable."""
     from esmfold2_atomworks.doctor import _find_model_module

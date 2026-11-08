@@ -10,7 +10,9 @@ constrain the interpreter:
 
 - atomworks 3.0 pins `biotite==1.6.0` and needs CPython 3.11 or later; the
   `ml` extra, which the pipelines and AtomWorks' MSA loader use, brings `numba`.
-- rc-foundry supports Python 3.12 only, and so does the `foundry` extra.
+- rc-foundry supports Python 3.12 only, and so does the `foundry` extra. The
+  extra is held below 1.0: rc-foundry 1.0, on GitHub and not on PyPI, removed the
+  `foundry` package whose `FabricTrainer` the trainer subclasses.
 
 `.python-version` therefore selects 3.12 for `uv sync`.
 
@@ -21,7 +23,7 @@ constrain the interpreter:
 | CPython | 3.12 | 3.14.6 |
 | esm | 3.4.2 (PyPI) | source tree at the `UPSTREAM.lock` revision: `main`, not on PyPI |
 | atomworks | 3.0.4 (PyPI) | 3.0.4, installed as a package |
-| rc-foundry (`foundry` extra) | 0.2.0 | source tree at the `UPSTREAM.lock` revision |
+| rc-foundry (`foundry` extra) | 0.2.0 | source tree at the `UPSTREAM.lock` revision: the last before 1.0, not on PyPI |
 | torch | 2.11, CPU | 2.14.0, CUDA 13.2 |
 | biotite | 1.6.0 | 1.6 |
 

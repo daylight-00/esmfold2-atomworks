@@ -110,6 +110,13 @@ def check_imports() -> bool:
     for module in paths.OPTIONAL_TREES:
         if _importable(module):
             _check(module, True, "optional")
+        elif (installed := _installed_version(module)) is not None:
+            # rc-foundry 1.0 dropped the shared `foundry` package the trainer subclasses.
+            _optional(
+                module,
+                f"rc-foundry {installed} has no `foundry` package; "
+                "the Foundry integration needs rc-foundry < 1",
+            )
         else:
             _optional(module, _ONLY_FOR_FOUNDRY)
 

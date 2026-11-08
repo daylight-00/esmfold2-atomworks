@@ -42,8 +42,13 @@ class GradientsUnavailableError(RuntimeError):
 
 
 def _fabric_trainer_base() -> Any:
-    from foundry.trainers.fabric import FabricTrainer
-
+    try:
+        from foundry.trainers.fabric import FabricTrainer
+    except ModuleNotFoundError as error:
+        raise ImportError(
+            "ESMFold2Trainer subclasses foundry.trainers.fabric.FabricTrainer, which "
+            "rc-foundry < 1 provides; rc-foundry 1.0 removed the foundry package"
+        ) from error
     return FabricTrainer
 
 

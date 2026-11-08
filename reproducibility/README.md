@@ -39,8 +39,8 @@ environment.
 ## Why esm and foundry are source trees, and atomworks is not
 
 The package declares `esm` and `atomworks` as ordinary dependencies, and a
-resolver honours their own pins. This environment is newer than esm's: esm 3.4
-pins `torch>=2.11,<2.12`, and this one runs torch 2.14. rc-foundry supports
+resolver honours their own pins. This environment is newer than esm's: the esm
+3.4.2 release pins `torch>=2.11,<2.12`, and this one runs torch 2.14. rc-foundry supports
 Python 3.12 only, and this one is 3.14. Installing them as packages would pull the
 environment back, so they are consumed as source, and `pyproject.toml` here lists
 the union of their runtime imports — plus the package's own — instead of the
@@ -79,7 +79,7 @@ compares against it:
 upstream revisions
   [ok  ] esm        90d6497a546b: matches lock (3.4.2)
   [ok  ] atomworks  package 3.0.4: matches locked version (3.0.4)
-  [ok  ] foundry    b02eed6a6bdf: matches lock (0.1.0)
+  [ok  ] foundry    e9b7f0f763a7: matches lock (0.2.1.dev28)
 ```
 
 Drift is **reported, never enforced**: the adapter is deliberately

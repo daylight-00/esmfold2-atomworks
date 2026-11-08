@@ -29,5 +29,6 @@ note = installed as a package (atomworks[ml]==3.0.4 in uv.lock); commit is what 
 
 [foundry]
 repo = https://github.com/RosettaCommons/foundry
-commit = b02eed6a6bdf8f44d14a80cc36e3da13c9f2291c
-version = 0.1.0
+commit = e9b7f0f763a792583631a6f1d83906964cda4ae7
+version = 0.2.1.dev28
+note = v0.2.0 + 28 commits, the last production commit before Foundry 1.0 (fbb4dc3); not on PyPI

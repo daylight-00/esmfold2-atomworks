@@ -20,8 +20,9 @@ dependencies = [
 
 [project.optional-dependencies]
 # Training through Foundry: training/ and configs/. rc-foundry supports
-# Python 3.12 only, so this extra does too.
-foundry = ["rc-foundry>=0.1"]
+# Python 3.12 only, so this extra does too. rc-foundry 1.0 removed the `foundry`
+# package whose FabricTrainer the trainer subclasses.
+foundry = ["rc-foundry>=0.1,<1"]
 
 [project.urls]
 Repository = "https://github.com/daylight-00/esmfold2-atomworks"

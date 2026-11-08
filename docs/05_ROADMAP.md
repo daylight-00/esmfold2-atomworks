@@ -61,10 +61,7 @@ the package refuses rather than guesses meanwhile.
 - **Insertion-coded positions in PDB files** (AtomWorks). Parsed from a PDB
   file, `res_id` is the author numbering and `chain_info` lists a repeated
   number once per insertion code with no code beside it, so covalent bonds and
-  labels on such a chain are refused or skipped. AtomWorks' parser also drops
-  the coordinates of all but one residue sharing a number, restoring them as
-  unresolved, so such a chain's labels would be wrong even if placed. mmCIF
-  input is unaffected
+  labels on such a chain are refused or skipped. mmCIF input is unaffected
   ([02](02_PARITY.md), "Chains whose insertion codes cannot be placed").
 
 ## Missing for training

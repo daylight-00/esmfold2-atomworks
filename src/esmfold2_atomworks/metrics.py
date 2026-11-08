@@ -211,8 +211,9 @@ def plddt_per_token(result: Any) -> np.ndarray | None:
 def plddt_per_residue(result: Any) -> np.ndarray | None:
     """pLDDT in collapsed **residue** space, or None.
 
-    One value per output residue, each the mean of that residue's tokens, and a
-    non-polymer chain collapsed into one residue (``esm/models/esmfold2/output.py``).
+    One value per output residue, each the mean of that residue's tokens; a
+    ligand is one residue per CCD component, a SMILES ligand one for the chain
+    (``esm/models/esmfold2/output.py``).
     This is ``result.complex.plddt``: the axis of the residues of the
     ``AtomArray`` that :func:`~esmfold2_atomworks.data.molecular_complex.result_to_atom_array`
     returns, in their order.

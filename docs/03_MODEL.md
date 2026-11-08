@@ -236,7 +236,8 @@ refused: parse the model you want and pass its `AtomArray` and `chain_info`.
 
 - **pLDDT is on 0–1**, not 0–100. Scale at display time.
 - `result.plddt` is in model-token space; `result.complex.plddt` is in collapsed
-  residue space. A ligand chain collapses to **one** output residue, so the two
+  residue space. A ligand collapses to **one** output residue per CCD component
+  (a SMILES ligand: one for the chain), so the two
   have different lengths whenever a ligand or modified residue is present — a
   112-residue protein with a 19-atom ligand gives 131 tokens and 113 residues.
   Do not index one with the other. `metrics.plddt_per_token(result)` and

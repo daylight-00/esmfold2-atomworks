@@ -105,7 +105,7 @@ rather than known-good.
 | modified residue | exact feature parity (4 × MSE, positions asserted) |
 | D-amino acids as a non-polymer chain | survey only (`7ubd`): self-consistent, not compared against a frozen input |
 | `POLYPEPTIDE_D`, `CYCLIC_PSEUDO_PEPTIDE`, `BRANCHED` and `MACROLIDE` chains | mapped (docs/01), not exercised: no fixture carries one |
-| multi-component non-polymer chain | survey only (`7ubd`, eight components); returned as one residue (docs/01, "What `G` does not return") |
+| multi-component non-polymer chain | survey only (`7ubd`, eight components); returned one residue per component, under its CCD code |
 | covalent bond | survey only for deposited bonds (`1qfe`, `7ubd`); carried and placed; changes `token_bonds` and nothing else. Backbone adjacency judged by residue order, so an insertion-coded peptide bond is not declared; an unplaceable bond raises |
 | MSA, single chain | exact feature parity against a hand-written input |
 | MSA, paired heteromer | pairing verified by row content, not just shape |
@@ -286,9 +286,8 @@ from run to run, with the input, and with the schedule in no fixed direction,
 so they characterize its size rather than bound it. `fold` applies
 `lm_dropout=0.3` by default (the checkpoints' own rate is 0.25), and the dropout
 stays active at inference. Its mask is drawn from the seeded RNG like everything
-else, but whether it contributes to this scatter is not established: passing
-`lm_dropout=0` is no control, because upstream leaves the checkpoint's own rate
-in place for it ([05](05_ROADMAP.md), "Limited by an upstream"). What removed
+else; whether it contributes to this scatter has not been measured
+(`lm_dropout=0` switches it off for such a run). What removed
 the scatter here is turning torch's deterministic algorithms on under that
 workspace, which is why the parity check runs with both, and why a scatter
 budget -- only as tight as the scatter happens to be on the input at hand -- is

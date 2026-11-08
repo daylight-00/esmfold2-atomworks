@@ -199,7 +199,8 @@ def apply_ligand_labels(structure: AtomArray, ligands: Mapping[str, Any]) -> Ato
     """Give each declared ligand chain its label (:func:`ligand_labels`), as a copy.
 
     *ligands* maps output chain labels to specs. A multi-component declaration
-    has no label and is left as the model wrote it.
+    has no label and is left as the model wrote it, one residue per component
+    under its CCD code.
 
     Raises:
         ValueError: a declared chain missing from the output or holding

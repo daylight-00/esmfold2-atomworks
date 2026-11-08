@@ -460,7 +460,7 @@ class AtomWorksESMFold2:
             from esm.models.esmfold2.model import EsmFold2Model
         except ImportError as error:
             raise ImportError(
-                "No ESMFold2 model class found. Install esm >= 3.4.1.post1, which "
+                "No ESMFold2 model class found. Install esm >= 3.4.2, which"
                 "ships the model. See docs/04_ENVIRONMENT.md."
             ) from error
 
@@ -836,7 +836,9 @@ class AtomWorksESMFold2:
             "lm_mask_pct": chosen("lm_mask_pct", lambda: config.lm_mask_pct)
             if lm_source == "model"
             else None,
-            "lm_dropout": args.get("lm_dropout") or self._configured_lm_dropout(),
+            "lm_dropout": self._configured_lm_dropout()
+            if args.get("lm_dropout") is None
+            else float(args["lm_dropout"]),
         }
         return {
             f"esmfold2.effective.{name}": value

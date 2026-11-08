@@ -125,7 +125,7 @@ def _find_model_module() -> tuple[bool, str]:
             return True, "esm >= 3.4"
     except (ImportError, ValueError):
         pass
-    return False, "install esm >= 3.4.1.post1, which ships the model"
+    return False, "install esm >= 3.4.2, which ships the model"
 
 
 def check_upstream_revisions() -> bool:

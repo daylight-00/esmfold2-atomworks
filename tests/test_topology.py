@@ -212,6 +212,28 @@ def test_a_ccd_ligand_does_not_collide_with_its_own_component(ccd):
     assert ccd_name_collisions(atoms) == []
 
 
+def test_a_ligand_of_several_components_comes_back_one_residue_each(ccd):
+    from esm.models.esmfold2.types import LigandInput
+
+    from esmfold2_atomworks.data.molecular_complex import apply_ligand_labels
+    from esmfold2_atomworks.data.spec import LigandSpec
+    from esmfold2_atomworks.data.topology import build_bond_list, ccd_name_collisions
+
+    spi = _spi(LigandInput(id="B", ccd=["NAG", "BMA"]))
+    atoms = _folded(spi)
+    atoms.bonds = build_bond_list(atoms, spi)
+    atoms = apply_ligand_labels(
+        atoms, {"B": LigandSpec(chain_id="B", ccd=("NAG", "BMA"))}
+    )
+
+    starts = struc.get_residue_starts(atoms)
+    assert list(atoms.res_name[starts]) == ["NAG", "BMA"]
+    residue = struc.get_residue_positions(atoms, np.arange(atoms.array_length()))
+    pairs = atoms.bonds.as_array()[:, :2]
+    assert len(pairs) and (residue[pairs[:, 0]] == residue[pairs[:, 1]]).all()
+    assert ccd_name_collisions(atoms, spi) == []
+
+
 def test_a_smiles_ligand_collides_whatever_its_atoms_look_like(ccd):
     from esm.models.esmfold2.types import LigandInput
 

@@ -46,7 +46,7 @@ six edits to the root `pyproject.toml` plus one to the registry:
 ```toml
 [project.optional-dependencies]
 # esm >= 3.4 ships the ESMFold2 module itself. See docs/04_ENVIRONMENT.md.
-esmfold2 = ["esm>=3.4.1.post1"]
+esmfold2 = ["esm>=3.4.2"]
 all = [..., "rc-foundry[esmfold2]"]        # optional: mpnn skips both of these
 
 [project.scripts]

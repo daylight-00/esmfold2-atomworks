@@ -24,8 +24,9 @@ upstream, and what remains; it is not a research plan.
 - **Declared chain kinds**, verified against `chain_type`, `is_polymer` and the CCD
   (`chain_kinds=`); a chain that holds more than one molecule is refused
   ([01](01_ADAPTER.md)).
-- **The return leg's names and kinds**: each declared ligand chain keeps its name, and
-  each chain's source `chain_type` is carried to the output.
+- **The return leg's names and kinds**: each declared ligand chain keeps its name, a
+  ligand declared as several CCD components comes back one residue per component
+  under its code, and each chain's source `chain_type` is carried to the output.
 - **Folding with supplied LM hidden states** (`compute_lm_hidden_states`,
   `fold(lm_hidden_states=)`); a fold with no LM prior is refused
   ([03](03_MODEL.md)).
@@ -53,11 +54,6 @@ useful output is the failure list, not the pass rate.
 Each of these is a gap in what an upstream records, so the fix belongs there;
 the package refuses rather than guesses meanwhile.
 
-- **Residue boundaries of a multi-component ligand** (esm). ESMFold2's output
-  builder returns each non-polymer chain as one residue, although its
-  tokenizer keeps the component index of every atom. Once it returns one
-  residue per component, each declared component comes back under its own code
-  with no change here.
 - **Bonds in the output** (esm). `MolecularComplex` has no bond field;
   `fold_atom_array` rebuilds the structure's bond list from the chemistry the
   model was given ([01](01_ADAPTER.md), "The bond list of the returned
@@ -70,12 +66,6 @@ the package refuses rather than guesses meanwhile.
   unresolved, so such a chain's labels would be wrong even if placed. mmCIF
   input is unaffected
   ([02](02_PARITY.md), "Chains whose insertion codes cannot be placed").
-- **`lm_dropout=0`** (esm). `fold` documents `0` as switching the LM dropout
-  off, but upstream treats `0` like `None` and leaves the checkpoint's rate,
-  `0.25` in the released ESMFold2 and ESMFold2-Fast configs.
-  `esmfold2.effective.lm_dropout` states the rate that applies, so a fold's
-  record shows it; switching the dropout off means setting it on the loaded
-  model's config.
 
 ## Missing for training
 

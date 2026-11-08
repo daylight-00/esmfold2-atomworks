@@ -325,7 +325,8 @@ the name AtomWorks gives a ligand built from a SMILES, `L:{k}` (`ligand_labels`:
 *k* counts the distinct SMILES from 0, so one molecule keeps one name), which is
 not a CCD code and so reads back as written. A declaration of several CCD components
 has no single name — they are several residues — so `residue_name` is refused
-there and the chain is left as the model wrote it (see below).
+there and the chain is left as the model wrote it: one residue per component,
+under its CCD code.
 
 `ligand_residue_name` — on `result_to_atom_array`, and on `fold_atom_array`,
 which passes it through — is the blanket form: **every** hetero residue gets
@@ -354,20 +355,10 @@ source's `res_id` and insertion codes do not map back one to one.
 
 The model's output is the predicted geometry and atom-level labels —
 coordinates, atom names, elements, residue names, chains, polymer/non-polymer —
-and not the molecule's topology. Two things a source structure can carry do not
-come back from it:
-
-- **Bonds.** `MolecularComplex` records none, so `result_to_atom_array` returns
-  an `AtomArray` with no `BondList`, and nothing the model reports would support
-  one. `fold_atom_array` adds one rebuilt from what the model was given
-  ([below](#the-bond-list-of-the-returned-structure)).
-- **Components of a multi-component ligand.** A non-polymer chain declared as
-  several CCD components — a glycan, or `7ubd`'s cyclic D-peptide as one
-  eight-component ligand — is tokenized component by component, but ESMFold2's
-  output builder returns each non-polymer chain as one residue named by its
-  first component. The atoms are all there; the residue boundaries between
-  them are not. That is upstream behaviour, recorded here so a round trip is not
-  read as preserving them.
+and not the molecule's topology. `MolecularComplex` records no bonds, so
+`result_to_atom_array` returns an `AtomArray` with no `BondList`, and nothing
+the model reports would support one. `fold_atom_array` adds one rebuilt from
+what the model was given ([below](#the-bond-list-of-the-returned-structure)).
 
 ### The bond list of the returned structure
 

@@ -9,10 +9,10 @@ package, `pip install -e .` in the repository root is enough; see
 |---|---|
 | interpreter | CPython 3.14.6, linux x86_64 |
 | torch | 2.14.0, CUDA 13.2 |
-| atomworks | the package, `atomworks[ml]==3.0.0`, pinned in [`uv.lock`](uv.lock) |
-| esm, foundry | source trees at the revisions in [`UPSTREAM.lock`](UPSTREAM.lock), on `PYTHONPATH` |
+| atomworks | the package, `atomworks[ml]==3.0.4`, pinned in [`uv.lock`](uv.lock) |
+| esm, foundry | source trees at the revisions in [`UPSTREAM.lock`](UPSTREAM.lock), on `PYTHONPATH`; the esm revision is `main` after the 3.4.2 release and is not on PyPI |
 | model artifacts | the checkpoint, its ESMC backbone and the CCD pickle, by revision and digest, in [`ARTIFACTS.lock`](ARTIFACTS.lock) |
-| everything else | [`pyproject.toml`](pyproject.toml) pins what the trees and the package import; [`uv.lock`](uv.lock) pins the rest — 180 packages, each at the version that environment had |
+| everything else | [`pyproject.toml`](pyproject.toml) pins what the trees and the package import; [`uv.lock`](uv.lock) pins the rest — 183 packages, each at the version that environment had |
 
 ## Rebuilding it
 
@@ -77,8 +77,8 @@ compares against it:
 
 ```
 upstream revisions
-  [ok  ] esm        43b4548b8676: matches lock (3.4.1.post1)
-  [ok  ] atomworks  package 3.0.0: matches locked version (3.0.0)
+  [ok  ] esm        90d6497a546b: matches lock (3.4.2)
+  [ok  ] atomworks  package 3.0.4: matches locked version (3.0.4)
   [ok  ] foundry    b02eed6a6bdf: matches lock (0.1.0)
 ```
 
@@ -112,8 +112,9 @@ The GPU suite gates the short schedule on every run; this record holds what is
 too slow to gate -- the checkpoint's own schedule, the scatter, the wall time --
 so that the numbers can be regenerated rather than taken on trust.
 
-It was made in this environment, at commit `662802b` with AtomWorks 3.0.0 as a package,
-and says so in its own `upstream_lock` field.
+It was made at commit `662802b`, with esm `43b4548` and AtomWorks 3.0.0 as a
+package -- earlier revisions than the ones above -- and says so in its own
+`upstream_lock` field.
 
 ## Not part of it
 

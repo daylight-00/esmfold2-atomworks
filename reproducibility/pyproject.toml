@@ -5,8 +5,10 @@
 #
 # esm and foundry are not listed. Here they are source trees at the revisions
 # recorded in UPSTREAM.lock, put on PYTHONPATH by env.sh, because their package
-# metadata would pull this environment back: esm 3.4 pins torch>=2.11,<2.12.
-# (Foundry's own pins conflict with nothing here, but it depends on atomworks.)
+# metadata would pull this environment back: the esm 3.4.2 release pins
+# torch>=2.11,<2.12 and transformers<5, and the esm revision recorded here is not
+# released. (Foundry's own pins conflict with nothing here, but it depends on
+# atomworks.)
 # atomworks is a package, pinned below with its `ml` extra (numba). What else is
 # listed is the union of the trees' runtime imports plus this package's own,
 # pinned to the versions the results were produced with. When a tree grows a new
@@ -26,7 +28,7 @@ dependencies = [
     "scikit-learn==1.9.0",
     "rdkit==2026.3.6",
     "biotite==1.6.0",
-    "atomworks[ml]==3.0.0",
+    "atomworks[ml]==3.0.4",
     "biopython==1.88",
     "tqdm==4.70.0",
     "typer==0.27.2",
@@ -51,8 +53,8 @@ common = [
 ]
 # --- imports required by the esm source tree (esm >= 3.4 ships the model) ---
 esm = [
-    "transformers==4.57.6",
-    "huggingface_hub==0.36.2",
+    "transformers==5.22.2",
+    "huggingface_hub==2.4.0",
     "safetensors==0.8.0",
     "accelerate==1.14.0",
     "cloudpathlib==0.25.0",
@@ -134,6 +136,7 @@ constraint-dependencies = [
     "regex==2026.9.3",
     "sentry-sdk==2.68.1",
     "threadpoolctl==3.6.0",
+    "tokenizers==0.23.3",
     "tornado==6.5.8",
     "urllib3==2.8.0",
     "wcwidth==0.8.3",

@@ -11,7 +11,8 @@ upstream, and what remains; it is not a research plan.
   reference inputs ([02_PARITY.md](02_PARITY.md)).
 - **Output parity on a GPU**, exact under deterministic kernels, with the
   non-deterministic scatter characterized separately.
-- **esm 3.4.1.post1**, verified on CPU and GPU.
+- **esm 3.4.2** in an ordinary install and esm `main` at the `UPSTREAM.lock`
+  revision in the reference environment, verified on CPU, `main` also on GPU.
 - **Inference**: engine, CLI, configs, AtomWorks round trip — atoms, names,
   chains and bonds ([01](01_ADAPTER.md), "The bond list of the returned
   structure").

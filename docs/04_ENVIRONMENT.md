@@ -19,16 +19,16 @@ constrain the interpreter:
 | | ordinary install | reference environment |
 |---|---|---|
 | CPython | 3.12 | 3.14.6 |
-| esm | 3.4.1.post1 | source tree at the `UPSTREAM.lock` revision |
-| atomworks | 3.0.0 (PyPI) | 3.0.0, installed as a package |
+| esm | 3.4.2 (PyPI) | source tree at the `UPSTREAM.lock` revision: `main`, not on PyPI |
+| atomworks | 3.0.4 (PyPI) | 3.0.4, installed as a package |
 | rc-foundry (`foundry` extra) | 0.2.0 | source tree at the `UPSTREAM.lock` revision |
 | torch | 2.11, CPU | 2.14.0, CUDA 13.2 |
 | biotite | 1.6.0 | 1.6 |
 
 The suite targets AtomWorks 3.0 and passes in both columns, the Foundry contract
 tests included. The ordinary-install column is a Python 3.12 environment from
-`pip install -e ".[foundry]"`, which resolves rc-foundry 0.2.0 and atomworks 3.0.0
-together. The reference environment takes atomworks as a package as well; only esm
+`pip install -e ".[foundry]"`, which resolves esm 3.4.2, rc-foundry 0.2.0 and
+atomworks 3.0.4 together. The reference environment takes atomworks as a package as well; only esm
 and foundry are source trees there.
 
 Four structures (lysozyme, haemoglobin, a zinc site, selenomethionine) are in
@@ -78,8 +78,10 @@ location a caller passes. `doctor` reports which source applies, and
 unknown when something loaded the dictionary before the model, since esm keeps
 no record of where it came from.
 
-`transformers` ≥ 5 ships its own ESMFold2 and cannot share an environment with
-esm 3.4 (esm requires `transformers<5`).
+`transformers` ≥ 5.16 ships its own ESMFold2. The esm 3.4.2 release requires
+`transformers<5`, so an ordinary install gets 4.x; esm `main`, the reference
+environment's, requires `transformers>=5.16` and gets 5.22. This package imports
+neither directly.
 
 ### Two checkpoint layouts, and where the ESMC backbone comes from
 

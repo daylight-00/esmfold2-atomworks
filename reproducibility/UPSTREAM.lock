@@ -17,15 +17,15 @@
 
 [esm]
 repo = https://github.com/Biohub/esm
-commit = 43b4548b86762edfa747b07d5f440aad3c33acee
-version = 3.4.1.post1
-note = ESMFold2 module ships inside the esm package (>= 3.4)
+commit = 90d6497a546bb55929c2d3ca2e313d4613ec1922
+version = 3.4.2
+note = main after the v3.4.2 tag (8f0834c), not on PyPI; its pyproject still says 3.4.2 and requires transformers>=5.16
 
 [atomworks]
 repo = https://github.com/RosettaCommons/atomworks
-commit = 379b4bbe45b12fbcd5606b80ca32590463c7acff
-version = 3.0.0
-note = installed as a package (atomworks[ml]==3.0.0 in uv.lock); commit is what the v3.0.0 tag points at
+commit = 1a9fa25fec3709b73493edfaba31d131dabddbbc
+version = 3.0.4
+note = installed as a package (atomworks[ml]==3.0.4 in uv.lock); commit is what the v3.0.4 tag points at
 
 [foundry]
 repo = https://github.com/RosettaCommons/foundry

@@ -51,6 +51,10 @@ NON_POLYMER = "non-polymer"
 #: ``esm.mean_plddt`` is the mean of ``result.plddt``, which is **token** space:
 #: an atomized ligand weighs in once per atom, not once as a residue. See
 #: :func:`plddt_per_token`.
+#:
+#: ``esm.iptm`` is emitted only for two chains or more. With one there is no
+#: chain pair to score, and upstream's value is ``0 / eps``, a zero by
+#: construction.
 SCALAR_METRIC_SOURCES: Mapping[str, str] = MappingProxyType(
     {
         "esm.ptm": "ptm",
@@ -87,6 +91,9 @@ def fold_metrics(result: Any) -> dict[str, float]:
         value = _scalar(getattr(result, attribute, None))
         if value is not None:
             metrics[key] = value
+    chains = getattr(getattr(result, "complex", None), "chain_id", None)
+    if chains is not None and np.unique(np.asarray(chains)).size < 2:
+        metrics.pop("esm.iptm", None)
 
     pae = getattr(result, "pae", None)
     mean_pae = _scalar(pae)

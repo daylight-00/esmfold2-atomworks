@@ -247,6 +247,8 @@ refused: parse the model you want and pass its `AtomArray` and `chain_info`.
   mean: an atomized ligand counts once per atom, not once as a residue.
   `metrics.SCALAR_METRIC_SOURCES` is the read-only table of the scalar metrics
   and the fields they are read from.
+- `esm.iptm` is absent for a single chain. Upstream computes ipTM over chain
+  pairs and returns `0.0` when there are none, which is not a measurement.
 - `pair_chains_iptm` is **asymmetric**. There is no single "the" pair ipTM;
   `metrics.py` emits the min and mean over off-diagonal entries and names them
   for what they are.

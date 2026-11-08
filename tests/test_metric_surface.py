@@ -20,16 +20,17 @@ pytestmark = pytest.mark.offline
 
 
 class _Complex:
-    def __init__(self, plddt):
+    def __init__(self, plddt, chains=2):
         self.plddt = np.asarray(plddt, dtype=float)
+        self.chain_id = np.arange(self.plddt.size) * chains // self.plddt.size
 
 
 class _Result:
     """Token space and residue space, at the lengths a ligand gives them."""
 
-    def __init__(self, n_tokens=131, n_residues=113):
+    def __init__(self, n_tokens=131, n_residues=113, chains=2):
         self.plddt = np.linspace(0.1, 0.9, n_tokens)
-        self.complex = _Complex(np.linspace(0.3, 0.6, n_residues))
+        self.complex = _Complex(np.linspace(0.3, 0.6, n_residues), chains)
         self.ptm = np.array(0.75)
         self.iptm = np.array(0.61)
 
@@ -54,6 +55,13 @@ def test_every_scalar_in_the_table_is_emitted_when_present():
     metrics = fold_metrics(_Result())
 
     assert set(SCALAR_METRIC_SOURCES) <= set(metrics)
+
+
+def test_iptm_is_absent_for_a_single_chain():
+    """Upstream scores no chain pair there and returns 0 / eps."""
+    assert "esm.iptm" not in fold_metrics(_Result(chains=1))
+    assert fold_metrics(_Result(chains=1))["esm.ptm"] == 0.75
+    assert fold_metrics(_Result(chains=2))["esm.iptm"] == pytest.approx(0.61)
 
 
 def test_mean_plddt_is_a_token_space_mean():

@@ -27,21 +27,21 @@
       },
       "schedule": "short",
       "seconds_per_fold": [
-        11.22,
+        4.52,
         0.4,
-        0.41
+        0.4
       ]
     },
     {
       "cross": {
         "atom_name_mismatches": 0.0,
-        "coord_max_abs": 0.3654499053955078,
-        "coord_rmsd": 0.12887907028198242,
-        "distogram_max_abs": 3.236297607421875,
+        "coord_max_abs": 0.3373889923095703,
+        "coord_rmsd": 0.11203018575906754,
+        "distogram_max_abs": 3.342803955078125,
         "iptm": 0.0,
-        "pae_max_abs": 9.810145378112793,
-        "plddt_max_abs": 0.046782851219177246,
-        "ptm": 7.196515798568726e-05
+        "pae_max_abs": 12.335281372070312,
+        "plddt_max_abs": 0.037569060921669006,
+        "ptm": 0.0004250630736351013
       },
       "deterministic": false,
       "fixture": "lysozyme",
@@ -49,19 +49,19 @@
       "num_sampling_steps": 8,
       "repeat": {
         "atom_name_mismatches": 0.0,
-        "coord_max_abs": 0.5272402763366699,
-        "coord_rmsd": 0.18174731731414795,
-        "distogram_max_abs": 3.885955810546875,
+        "coord_max_abs": 0.5553522109985352,
+        "coord_rmsd": 0.12973782420158386,
+        "distogram_max_abs": 2.77923583984375,
         "iptm": 0.0,
-        "pae_max_abs": 7.047863006591797,
-        "plddt_max_abs": 0.04875205457210541,
-        "ptm": 0.00032952427864074707
+        "pae_max_abs": 10.033313751220703,
+        "plddt_max_abs": 0.059058114886283875,
+        "ptm": 0.0005062669515609741
       },
       "schedule": "short",
       "seconds_per_fold": [
-        0.37,
-        0.37,
-        0.37
+        0.35,
+        0.36,
+        0.36
       ]
     },
     {
@@ -91,21 +91,21 @@
       },
       "schedule": "checkpoint",
       "seconds_per_fold": [
-        3.64,
-        3.67,
-        3.65
+        3.56,
+        3.54,
+        3.57
       ]
     },
     {
       "cross": {
         "atom_name_mismatches": 0.0,
-        "coord_max_abs": 0.11386299133300781,
-        "coord_rmsd": 0.06618915498256683,
-        "distogram_max_abs": 2.9875640869140625,
+        "coord_max_abs": 0.5779962539672852,
+        "coord_rmsd": 0.08813126385211945,
+        "distogram_max_abs": 6.9998779296875,
         "iptm": 0.0,
-        "pae_max_abs": 0.05882596969604492,
-        "plddt_max_abs": 0.0020778775215148926,
-        "ptm": 2.9861927032470703e-05
+        "pae_max_abs": 0.03517317771911621,
+        "plddt_max_abs": 0.0012789368629455566,
+        "ptm": 2.3365020751953125e-05
       },
       "deterministic": false,
       "fixture": "lysozyme",
@@ -113,19 +113,19 @@
       "num_sampling_steps": 100,
       "repeat": {
         "atom_name_mismatches": 0.0,
-        "coord_max_abs": 0.3094015121459961,
-        "coord_rmsd": 0.06204350292682648,
-        "distogram_max_abs": 3.2978668212890625,
+        "coord_max_abs": 0.15791726112365723,
+        "coord_rmsd": 0.0778752788901329,
+        "distogram_max_abs": 3.0086669921875,
         "iptm": 0.0,
-        "pae_max_abs": 0.06042814254760742,
-        "plddt_max_abs": 0.001488804817199707,
-        "ptm": 9.775161743164062e-06
+        "pae_max_abs": 0.0458221435546875,
+        "plddt_max_abs": 0.001329660415649414,
+        "ptm": 3.5762786865234375e-07
       },
       "schedule": "checkpoint",
       "seconds_per_fold": [
-        3.48,
-        3.5,
-        3.5
+        3.36,
+        3.39,
+        3.39
       ]
     },
     {
@@ -155,21 +155,21 @@
       },
       "schedule": "short",
       "seconds_per_fold": [
+        24.46,
         24.27,
-        24.52,
-        24.74
+        24.38
       ]
     },
     {
       "cross": {
         "atom_name_mismatches": 0.0,
-        "coord_max_abs": 0.39008522033691406,
-        "coord_rmsd": 0.06495270878076553,
-        "distogram_max_abs": 5.992452621459961,
-        "iptm": 5.196034908294678e-05,
-        "pae_max_abs": 5.149845123291016,
-        "plddt_max_abs": 0.04862329363822937,
-        "ptm": 0.00029033422470092773
+        "coord_max_abs": 0.49001121520996094,
+        "coord_rmsd": 0.06665593385696411,
+        "distogram_max_abs": 5.5113525390625,
+        "iptm": 0.0001221299171447754,
+        "pae_max_abs": 7.193820953369141,
+        "plddt_max_abs": 0.05431243032217026,
+        "ptm": 0.00042051076889038086
       },
       "deterministic": false,
       "fixture": "hemoglobin",
@@ -177,19 +177,19 @@
       "num_sampling_steps": 8,
       "repeat": {
         "atom_name_mismatches": 0.0,
-        "coord_max_abs": 0.2872762680053711,
-        "coord_rmsd": 0.057362332940101624,
-        "distogram_max_abs": 5.7175445556640625,
-        "iptm": 7.939338684082031e-05,
-        "pae_max_abs": 18.459999084472656,
-        "plddt_max_abs": 0.034854188561439514,
-        "ptm": 0.0008923709392547607
+        "coord_max_abs": 0.2760047912597656,
+        "coord_rmsd": 0.0630665048956871,
+        "distogram_max_abs": 6.49169921875,
+        "iptm": 0.00017617642879486084,
+        "pae_max_abs": 5.240438461303711,
+        "plddt_max_abs": 0.05517344921827316,
+        "ptm": 0.001193314790725708
       },
       "schedule": "short",
       "seconds_per_fold": [
-        22.87,
-        22.98,
-        23.04
+        22.14,
+        22.26,
+        22.33
       ]
     },
     {
@@ -219,21 +219,21 @@
       },
       "schedule": "checkpoint",
       "seconds_per_fold": [
-        249.3,
-        248.6,
-        248.53
+        243.95,
+        243.21,
+        243.29
       ]
     },
     {
       "cross": {
         "atom_name_mismatches": 0.0,
-        "coord_max_abs": 0.1343832015991211,
-        "coord_rmsd": 0.012711195275187492,
-        "distogram_max_abs": 11.541061401367188,
-        "iptm": 6.443262100219727e-05,
-        "pae_max_abs": 0.754824161529541,
-        "plddt_max_abs": 0.017180025577545166,
-        "ptm": 4.51207160949707e-05
+        "coord_max_abs": 0.9257564544677734,
+        "coord_rmsd": 0.042038846760988235,
+        "distogram_max_abs": 12.714085578918457,
+        "iptm": 0.0001696944236755371,
+        "pae_max_abs": 3.5803260803222656,
+        "plddt_max_abs": 0.05751293897628784,
+        "ptm": 0.00014293193817138672
       },
       "deterministic": false,
       "fixture": "hemoglobin",
@@ -241,19 +241,19 @@
       "num_sampling_steps": 100,
       "repeat": {
         "atom_name_mismatches": 0.0,
-        "coord_max_abs": 0.5785093307495117,
-        "coord_rmsd": 0.07836359739303589,
-        "distogram_max_abs": 12.408954620361328,
-        "iptm": 0.00021153688430786133,
-        "pae_max_abs": 1.6133537292480469,
-        "plddt_max_abs": 0.056376516819000244,
-        "ptm": 0.00016891956329345703
+        "coord_max_abs": 0.19527435302734375,
+        "coord_rmsd": 0.09828228503465652,
+        "distogram_max_abs": 12.191784858703613,
+        "iptm": 0.00012350082397460938,
+        "pae_max_abs": 0.5514636039733887,
+        "plddt_max_abs": 0.01843094825744629,
+        "ptm": 9.948015213012695e-05
       },
       "schedule": "checkpoint",
       "seconds_per_fold": [
-        228.64,
-        228.66,
-        229.1
+        221.42,
+        221.55,
+        221.12
       ]
     },
     {
@@ -283,21 +283,21 @@
       },
       "schedule": "short",
       "seconds_per_fold": [
-        0.32,
         0.3,
-        0.31
+        0.29,
+        0.29
       ]
     },
     {
       "cross": {
         "atom_name_mismatches": 0.0,
-        "coord_max_abs": 0.3641996383666992,
-        "coord_rmsd": 0.14526833593845367,
-        "distogram_max_abs": 4.0322265625,
+        "coord_max_abs": 0.6882724761962891,
+        "coord_rmsd": 0.20853924751281738,
+        "distogram_max_abs": 5.312152862548828,
         "iptm": 0.0,
-        "pae_max_abs": 6.352485656738281,
-        "plddt_max_abs": 0.02932344377040863,
-        "ptm": 6.481260061264038e-05
+        "pae_max_abs": 5.047704696655273,
+        "plddt_max_abs": 0.03401981294155121,
+        "ptm": 0.0006350800395011902
       },
       "deterministic": false,
       "fixture": "modified",
@@ -305,19 +305,19 @@
       "num_sampling_steps": 8,
       "repeat": {
         "atom_name_mismatches": 0.0,
-        "coord_max_abs": 0.6186394691467285,
-        "coord_rmsd": 0.26245221495628357,
-        "distogram_max_abs": 3.4302978515625,
+        "coord_max_abs": 0.39487409591674805,
+        "coord_rmsd": 0.13876016438007355,
+        "distogram_max_abs": 5.9808807373046875,
         "iptm": 0.0,
-        "pae_max_abs": 7.577447891235352,
-        "plddt_max_abs": 0.029378563165664673,
-        "ptm": 0.00024853646755218506
+        "pae_max_abs": 4.569957733154297,
+        "plddt_max_abs": 0.028407052159309387,
+        "ptm": 0.0005735456943511963
       },
       "schedule": "short",
       "seconds_per_fold": [
-        0.26,
-        0.26,
-        0.26
+        0.25,
+        0.25,
+        0.25
       ]
     },
     {
@@ -347,21 +347,21 @@
       },
       "schedule": "short",
       "seconds_per_fold": [
-        5.11,
-        5.07,
-        5.08
+        4.92,
+        4.88,
+        4.88
       ]
     },
     {
       "cross": {
         "atom_name_mismatches": 0.0,
-        "coord_max_abs": 0.4124336242675781,
-        "coord_rmsd": 0.14049814641475677,
-        "distogram_max_abs": 4.260711669921875,
-        "iptm": 0.007960990071296692,
-        "pae_max_abs": 10.824315071105957,
-        "plddt_max_abs": 0.06831219792366028,
-        "ptm": 1.4960765838623047e-05
+        "coord_max_abs": 0.5686964988708496,
+        "coord_rmsd": 0.10996637493371964,
+        "distogram_max_abs": 5.3218231201171875,
+        "iptm": 0.0012651681900024414,
+        "pae_max_abs": 13.662649154663086,
+        "plddt_max_abs": 0.03803616762161255,
+        "ptm": 0.00042632222175598145
       },
       "deterministic": false,
       "fixture": "zinc",
@@ -369,19 +369,19 @@
       "num_sampling_steps": 8,
       "repeat": {
         "atom_name_mismatches": 0.0,
-        "coord_max_abs": 0.3252124786376953,
-        "coord_rmsd": 0.05945710092782974,
-        "distogram_max_abs": 4.2855072021484375,
-        "iptm": 0.003001168370246887,
-        "pae_max_abs": 6.426130294799805,
-        "plddt_max_abs": 0.069743812084198,
-        "ptm": 6.96331262588501e-05
+        "coord_max_abs": 0.4988574981689453,
+        "coord_rmsd": 0.06468874216079712,
+        "distogram_max_abs": 3.79608154296875,
+        "iptm": 0.00033855438232421875,
+        "pae_max_abs": 6.348133087158203,
+        "plddt_max_abs": 0.03723984956741333,
+        "ptm": 0.000464513897895813
       },
       "schedule": "short",
       "seconds_per_fold": [
-        4.71,
-        4.71,
-        4.7
+        4.51,
+        4.51,
+        4.5
       ]
     },
     {
@@ -411,21 +411,21 @@
       },
       "schedule": "short",
       "seconds_per_fold": [
-        24.17,
-        24.15,
-        24.19
+        23.6,
+        23.63,
+        23.65
       ]
     },
     {
       "cross": {
         "atom_name_mismatches": 0.0,
-        "coord_max_abs": 2.8448734283447266,
-        "coord_rmsd": 0.29708123207092285,
-        "distogram_max_abs": 14.488525390625,
-        "iptm": 0.0016261935234069824,
-        "pae_max_abs": 6.859687805175781,
-        "plddt_max_abs": 0.03852322697639465,
-        "ptm": 0.000129014253616333
+        "coord_max_abs": 2.7874622344970703,
+        "coord_rmsd": 0.20945970714092255,
+        "distogram_max_abs": 8.83172607421875,
+        "iptm": 9.669363498687744e-05,
+        "pae_max_abs": 7.7762603759765625,
+        "plddt_max_abs": 0.05022828280925751,
+        "ptm": 0.00047315657138824463
       },
       "deterministic": false,
       "fixture": "flavoprotein",
@@ -433,19 +433,19 @@
       "num_sampling_steps": 8,
       "repeat": {
         "atom_name_mismatches": 0.0,
-        "coord_max_abs": 2.464090347290039,
-        "coord_rmsd": 0.25493934750556946,
-        "distogram_max_abs": 11.514602661132812,
-        "iptm": 0.0022890716791152954,
-        "pae_max_abs": 6.136772155761719,
-        "plddt_max_abs": 0.03645005822181702,
-        "ptm": 0.00017721951007843018
+        "coord_max_abs": 1.4199542999267578,
+        "coord_rmsd": 0.2788969576358795,
+        "distogram_max_abs": 8.7652587890625,
+        "iptm": 0.0008350610733032227,
+        "pae_max_abs": 7.236692428588867,
+        "plddt_max_abs": 0.032129883766174316,
+        "ptm": 0.0008983016014099121
       },
       "schedule": "short",
       "seconds_per_fold": [
-        22.07,
-        22.08,
-        22.1
+        21.36,
+        21.36,
+        21.38
       ]
     }
   ],
@@ -460,7 +460,7 @@
   "cublas_workspace_config": ":4096:8",
   "cuda": "13.2",
   "device": "NVIDIA RTX 6000 Ada Generation",
-  "esmfold2_atomworks_commit": "3c4b5c94926260e81ef7180f27514f2eec55405a",
+  "esmfold2_atomworks_commit": "86bb1a8faac691a0dc2423b6e4b448db97d49405",
   "esmfold2_atomworks_dirty": [],
   "provenance": {
     "esmfold2.ccd": {

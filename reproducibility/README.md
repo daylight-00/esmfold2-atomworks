@@ -112,7 +112,7 @@ The GPU suite gates the short schedule on every run; this record holds what is
 too slow to gate -- the checkpoint's own schedule, the scatter, the wall time --
 so that the numbers can be regenerated rather than taken on trust.
 
-It was made in this environment, at commit `3c4b5c9` with the revisions above,
+It was made in this environment, at commit `86bb1a8` with the revisions above,
 and says so in its own `upstream_lock` field.
 
 ## Not part of it

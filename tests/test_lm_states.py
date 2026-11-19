@@ -78,6 +78,17 @@ def test_lm_mask_pct_beside_supplied_states_is_refused():
 
 
 @pytest.mark.offline
+def test_supplied_states_on_a_row_sharded_model_are_refused():
+    """Sharded, upstream's fold folds rank 0's features everywhere; the replica
+    would fold each rank's own, so it refuses."""
+    model = _wrapper(esmc=None)
+    model.net.shards_pair_rows = lambda: True
+    with pytest.raises(NotImplementedError, match="shards its pair rows"):
+        model.fold(_SPI, lm_hidden_states=object())
+    assert model.builder.calls == 0
+
+
+@pytest.mark.offline
 def test_a_record_holding_an_earlier_calls_entries_is_refused():
     model = _wrapper(esmc=object())
     record = {"caller.run": "r1", "esmfold2.lm_source": "model"}

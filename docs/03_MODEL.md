@@ -85,7 +85,10 @@ ESMC pass. `ESMFold2InputBuilder.fold()` does not take it, so
 (`lm_hidden_states=`), through a replica of upstream's `fold` body that adds
 only that argument. The replica reads upstream's defaults off its signature
 and pins its parameter list (`REPLICATED_FOLD_PARAMETERS`): a parameter
-upstream adds makes it raise rather than be dropped.
+upstream adds makes it raise rather than be dropped. A step upstream adds to
+the body is not caught that way; the one esm 3.5 added -- folding rank 0's
+features on every rank when the pair rows are sharded across GPUs -- the
+replica does not take, and it refuses a sharded model instead.
 `compute_lm_hidden_states(features)` returns the states the resident backbone
 would compute, through the native module's own method, which also restores an
 offloaded backbone and applies the FP8 path; the module-level
@@ -133,12 +136,15 @@ Two halves, kept apart because they change at different rates.
   `.revision` do the same for a separately attached ESMC backbone.
 - The numerics applied at construction, as applied rather than as requested:
   `esmfold2.esmc_precision` (bf16 or fp8 changes the LM states; the experimental
-  loader always uses bf16, whatever was asked), `esmfold2.chunk_size` and
-  `esmfold2.kernel_backend` (both change the order of reductions). Both setters
-  are called with the value given, `None` included -- `chunk_size=None` disables
-  chunking, `kernel_backend=None` selects upstream's reference path -- and a
-  module without the setter is recorded as not having applied it. A change made
-  later directly on `.net` is not tracked.
+  loader always uses bf16, whatever was asked), `esmfold2.chunk_size`,
+  `esmfold2.kernel_backend` and `esmfold2.memory_mode` (all three change the
+  order of reductions: on a 640-residue fold under deterministic kernels, whose
+  reference-path repeat was bit-identical, `"big"` moved coordinates by up to
+  0.06 Å). The setters are called with the value given, `None` included --
+  `chunk_size=None` disables chunking, `kernel_backend=None` selects upstream's
+  reference path, `memory_mode=None` its default memory path (`"big"` needs esm
+  3.5) -- and a module without the setter is recorded as not having applied it.
+  A change made later directly on `.net` is not tracked.
 - `esmfold2.device` and `esmfold2.device_name`, read off the module's parameters
   rather than the process's current device; `esmfold2.torch` and
   `esmfold2.torch_cuda`.

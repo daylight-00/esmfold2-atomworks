@@ -483,10 +483,12 @@ def test_the_sampler_knobs_are_config_fields_passed_only_when_set():
 def test_provenance_records_the_numerics_chosen_at_construction(tmp_path):
     model = _loaded(tmp_path / "w")
     model.esmc_precision, model.chunk_size, model.kernel_backend = "fp8", 64, None
+    model.memory_mode = "big"
     record = model.provenance()
     assert record["esmfold2.esmc_precision"] == "fp8"
     assert record["esmfold2.chunk_size"] == "64"
     assert record["esmfold2.kernel_backend"] == "None"
+    assert record["esmfold2.memory_mode"] == "big"
 
 
 def test_a_setter_is_called_with_none_too_and_its_absence_is_recorded():

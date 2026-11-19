@@ -439,6 +439,7 @@ class AtomWorksESMFold2:
         ccd_cache: Any | None = None,
         chunk_size: int | None = 64,
         kernel_backend: str | None = None,
+        memory_mode: str | None = None,
     ) -> None:
         import torch
         from esm.models.esmfold2.processor import ESMFold2InputBuilder
@@ -482,14 +483,17 @@ class AtomWorksESMFold2:
         else:
             self.esmc_source = "none"
 
-        # Both are applied as given, None included: set_chunk_size(None)
-        # disables chunking, and set_kernel_backend(None) selects upstream's
-        # reference path (its default). torch.compile and the Triton kernels do
-        # not stack; upstream requires clearing the backend before compiling.
-        # What provenance() records is what was applied, never merely asked for.
+        # All three are applied as given, None included: set_chunk_size(None)
+        # disables chunking, set_kernel_backend(None) selects upstream's
+        # reference path and set_memory_mode(None) its default memory path.
+        # torch.compile and the Triton kernels do not stack; upstream requires
+        # clearing the backend before compiling. "big" (esm >= 3.5) bands the
+        # pair rows, which also changes the order of reductions. What
+        # provenance() records is what was applied, never merely asked for.
         # Changes made later directly on .net are not tracked.
         self.chunk_size = _apply(self.net, "set_chunk_size", chunk_size)
         self.kernel_backend = _apply(self.net, "set_kernel_backend", kernel_backend)
+        self.memory_mode = _apply(self.net, "set_memory_mode", memory_mode)
         self.esmc_precision = self._applied_esmc_precision(esmc_precision)
 
         # Stateless, and its __init__ loads the ~50k-entry CCD dictionary
@@ -918,6 +922,14 @@ class AtomWorksESMFold2:
         away from :data:`REPLICATED_FOLD_PARAMETERS` raises, because the
         replica would silently drop what it does not know.
         """
+        shards = getattr(self.net, "shards_pair_rows", None)
+        if shards is not None and shards():
+            raise NotImplementedError(
+                "the model shards its pair rows across ranks; upstream's fold "
+                "then folds rank 0's features on every rank, which this replica "
+                "does not do"
+            )
+
         from contextlib import nullcontext
 
         import torch
@@ -1169,11 +1181,12 @@ class AtomWorksESMFold2:
             "esmfold2.torch_cuda": str(torch.version.cuda),
             "esmfold2.config_type": str(getattr(self.config, "type", "release")),
             # Numerics the wrapper chose at construction: the backbone's
-            # precision (bf16 or fp8) changes the LM states; the chunk size and
-            # kernel backend change the order of reductions.
+            # precision (bf16 or fp8) changes the LM states; the chunk size,
+            # kernel backend and memory mode change the order of reductions.
             "esmfold2.esmc_precision": str(getattr(self, "esmc_precision", "")),
             "esmfold2.chunk_size": str(getattr(self, "chunk_size", "")),
             "esmfold2.kernel_backend": str(getattr(self, "kernel_backend", "")),
+            "esmfold2.memory_mode": str(getattr(self, "memory_mode", "")),
             # "bundled", "none", or where a separate backbone was loaded from.
             "esmfold2.esmc": self.esmc_source,
             # The CCD pickle ligand and modified-residue conformers come from.

@@ -10,3 +10,4 @@ load_esmc: true
 esmc_precision: bf16   # fp8 needs H100 + TransformerEngine >= 2
 chunk_size: 64
 kernel_backend: null   # null | fused | fast; does not stack with torch.compile
+memory_mode: null      # null | big (esm >= 3.5): lower peak memory, other reduction order

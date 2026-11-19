@@ -8,8 +8,11 @@ Foundry integration. What a resolver picks follows the upstreams' own pins; the
 versions the suite has run against are in the table below. Two of those pins
 constrain the interpreter:
 
-- atomworks 3.0 pins `biotite==1.6.0` and needs CPython 3.11 or later; the
-  `ml` extra, which the pipelines and AtomWorks' MSA loader use, brings `numba`.
+- atomworks 3.0 pins `biotite==1.6.0` and needs CPython 3.11 or later; 3.1 pins
+  `biotite==2.0.0` and needs 3.12. Every esm release requires `biotite<2`, so a
+  resolver pairs esm with atomworks 3.0, and atomworks 3.1 runs with esm only as
+  a source tree, as in the reference environment. The `ml` extra, which the
+  pipelines and AtomWorks' MSA loader use, brings `numba`.
 - rc-foundry supports Python 3.12 only, and so does the `foundry` extra. The
   extra is held below 1.0: rc-foundry 1.0, on GitHub and not on PyPI, removed the
   `foundry` package whose `FabricTrainer` the trainer subclasses.
@@ -21,16 +24,16 @@ constrain the interpreter:
 | | ordinary install | reference environment |
 |---|---|---|
 | CPython | 3.12 | 3.14.6 |
-| esm | 3.4.2 (PyPI) | source tree at the `UPSTREAM.lock` revision: `main`, not on PyPI |
-| atomworks | 3.0.4 (PyPI) | 3.0.4, installed as a package |
+| esm | 3.5.0 (PyPI) | source tree at the `UPSTREAM.lock` revision: the 3.5.0 release |
+| atomworks | 3.0.4 (PyPI) | 3.1.0, installed as a package |
 | rc-foundry (`foundry` extra) | 0.2.0 | source tree at the `UPSTREAM.lock` revision: the last before 1.0, not on PyPI |
-| torch | 2.11, CPU | 2.14.0, CUDA 13.2 |
-| biotite | 1.6.0 | 1.6 |
+| torch | 2.15, CPU | 2.14.0, CUDA 13.2 |
+| biotite | 1.6.0 | 2.0.0 |
 
-The suite targets AtomWorks 3.0 and passes in both columns, the Foundry contract
-tests included. The ordinary-install column is a Python 3.12 environment from
-`pip install -e ".[foundry]"`, which resolves esm 3.4.2, rc-foundry 0.2.0 and
-atomworks 3.0.4 together. The reference environment takes atomworks as a package as well; only esm
+The suite passes in both columns, against AtomWorks 3.0 in one and 3.1 in the
+other, the Foundry contract tests included. The ordinary-install column is a
+Python 3.12 environment from `pip install -e ".[foundry]"`, which resolves esm
+3.5.0, rc-foundry 0.2.0 and atomworks 3.0.4 together. The reference environment takes atomworks as a package as well; only esm
 and foundry are source trees there.
 
 Four structures (lysozyme, haemoglobin, a zinc site, selenomethionine) are in
@@ -80,10 +83,10 @@ location a caller passes. `doctor` reports which source applies, and
 unknown when something loaded the dictionary before the model, since esm keeps
 no record of where it came from.
 
-`transformers` ≥ 5.16 ships its own ESMFold2. The esm 3.4.2 release requires
-`transformers<5`, so an ordinary install gets 4.x; esm `main`, the reference
-environment's, requires `transformers>=5.16` and gets 5.22. This package imports
-neither directly.
+`transformers` ≥ 5.16 ships its own ESMFold2. esm 3.4.2 requires
+`transformers<5`; from 3.4.3 on esm requires `transformers>=5.16`, which an
+ordinary install now resolves to 5.23 and the reference environment holds at
+5.22. This package imports neither directly.
 
 ### Two checkpoint layouts, and where the ESMC backbone comes from
 

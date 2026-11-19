@@ -9,4 +9,4 @@ device: null
 load_esmc: true
 esmc_precision: bf16   # fp8 needs H100 + TransformerEngine >= 2
 chunk_size: 64
-kernel_backend: null   # null | fused | cuequivariance; does not stack with torch.compile
+kernel_backend: null   # null | fused | fast; does not stack with torch.compile

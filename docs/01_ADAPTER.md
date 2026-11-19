@@ -55,8 +55,12 @@ Such a structure carries no `chain_type`, so it is refused until the caller says
 what its chains are. `chain_kinds` is how:
 
 ```python
-atom_array_to_structure_prediction_input(atoms, chain_kinds={"A": "protein", "B": "ligand"})
-model.fold_atom_array(atoms, adapter_kwargs={"chain_kinds": {"A": "protein", "B": "ligand"}})
+atom_array_to_structure_prediction_input(
+    atoms, chain_kinds={"A": "protein", "B": "ligand"}
+)
+model.fold_atom_array(
+    atoms, adapter_kwargs={"chain_kinds": {"A": "protein", "B": "ligand"}}
+)
 ```
 
 It is a declaration, not an override, and it is verified rather than trusted:

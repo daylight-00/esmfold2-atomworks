@@ -31,7 +31,8 @@ constrain the interpreter:
 | biotite | 1.6.0 | 2.0.0 |
 
 The suite passes in both columns, against AtomWorks 3.0 in one and 3.1 in the
-other, the Foundry contract tests included. The ordinary-install column is a
+other, the Foundry contract tests included -- except, in an ordinary install,
+the two that read a Foundry checkout's own files. The ordinary-install column is a
 Python 3.12 environment from `pip install -e ".[foundry]"`, which resolves esm
 3.5.0, rc-foundry 0.2.0 and atomworks 3.0.4 together. The reference environment takes atomworks as a package as well; only esm
 and foundry are source trees there.
@@ -40,8 +41,11 @@ Four structures (lysozyme, haemoglobin, a zinc site, selenomethionine) are in
 `tests/data/structures`. What still comes from an AtomWorks checkout beside this
 repository, and skips without one, is the corpus survey, the AF3-derived
 `flavoprotein` and `unl` structures and AtomWorks' `1wym` MSA case. Other skips
-are the Foundry tests without the `foundry` extra, the Hydra config tests without
-`omegaconf`, and the checks of the source-tree environment in an ordinary install.
+are the Foundry tests without the `foundry` extra, the two Foundry repository
+contracts beside an installed rc-foundry (they read `pyproject.toml` and
+`models/` of a checkout, which would describe another Foundry than the one
+imported), the Hydra config tests without `omegaconf`, and the checks of the
+source-tree environment in an ordinary install.
 The GPU tests run only in the reference environment. A version outside this table is
 untested, not refused: `doctor` reports how an installed upstream differs from
 `UPSTREAM.lock`.

@@ -9,7 +9,7 @@ it needs Foundry.
 
 ```python
 class AtomWorksESMFold2:
-    self.net = EsmFold2Model.from_pretrained(...)   # unmodified
+    self.net = EsmFold2Model.from_pretrained(...)  # unmodified
 ```
 
 The architecture stays exactly as published, so the weights keep meaning what
@@ -41,7 +41,7 @@ a loss computed from them has nothing to differentiate.
 The experimental model can produce gradients, but gates them on an **input**:
 
 ```python
-torch.set_grad_enabled(res_type_soft is not None)   # experimental.py
+torch.set_grad_enabled(res_type_soft is not None)  # experimental.py
 ```
 
 Loading the experimental checkpoint is therefore **necessary and not

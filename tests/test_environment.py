@@ -102,8 +102,10 @@ def test_a_native_model_class_is_importable():
 
 
 def test_biotite_version_keeps_the_import_atomworks_needs():
-    """1.7 moved connect_via_residue_names out of biotite.structure.bonds."""
-    from biotite.structure.bonds import connect_via_residue_names  # noqa: F401
+    """AtomWorks imports connect_via_residue_names from where its pinned biotite
+    keeps it: biotite.structure.bonds before 1.7 (AtomWorks 3.0), biotite.structure
+    after (3.1). A mismatched pair fails at this import."""
+    import atomworks.io.template  # noqa: F401
 
 
 def test_doctor_passes_an_ordinary_install(monkeypatch, tmp_path, capsys):

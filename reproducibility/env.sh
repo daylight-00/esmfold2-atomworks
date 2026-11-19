@@ -5,8 +5,9 @@
 #
 # esm and foundry are consumed as SOURCE trees at the revisions in UPSTREAM.lock,
 # not as packages, because their package metadata would pull this environment
-# back: esm pins torch<2.12 (Foundry depends on atomworks and has pins of its
-# own). atomworks is a package, installed by `uv sync` (atomworks[ml]==3.0.0);
+# back: every esm release requires biotite<2, which atomworks 3.1 cannot share
+# (Foundry depends on atomworks and has pins of its own). atomworks is a
+# package, installed by `uv sync` (the version is in uv.lock);
 # its checkout beside this repository is only where the tests that need
 # AtomWorks' test structures find them. esm is required; foundry is needed only by
 # the optional Foundry integration. See reproducibility/README.md.

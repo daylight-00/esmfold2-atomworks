@@ -17,15 +17,15 @@
 
 [esm]
 repo = https://github.com/Biohub/esm
-commit = 90d6497a546bb55929c2d3ca2e313d4613ec1922
-version = 3.4.2
-note = main after the v3.4.2 tag (8f0834c), not on PyPI; its pyproject still says 3.4.2 and requires transformers>=5.16
+commit = 42fc6babbfe499aeb42beaba232376d4e811bd71
+version = 3.5.0
+note = the v3.5.0 tag, on PyPI; a source tree here because every esm release requires biotite<2, which atomworks 3.1 (biotite==2.0.0) cannot share
 
 [atomworks]
 repo = https://github.com/RosettaCommons/atomworks
-commit = 1a9fa25fec3709b73493edfaba31d131dabddbbc
-version = 3.0.4
-note = installed as a package (atomworks[ml]==3.0.4 in uv.lock); commit is what the v3.0.4 tag points at
+commit = d922a471381dd0f8bccaf78c384a6b56b6f8e391
+version = 3.1.0
+note = installed as a package (atomworks[ml]==3.1.0 in uv.lock, with biotite 2.0.0); commit is what the v3.1.0 tag points at
 
 [foundry]
 repo = https://github.com/RosettaCommons/foundry

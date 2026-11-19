@@ -5,10 +5,9 @@
 #
 # esm and foundry are not listed. Here they are source trees at the revisions
 # recorded in UPSTREAM.lock, put on PYTHONPATH by env.sh, because their package
-# metadata would pull this environment back: the esm 3.4.2 release pins
-# torch>=2.11,<2.12 and transformers<5, and the esm revision recorded here is not
-# released. (Foundry's own pins conflict with nothing here, but it depends on
-# atomworks.)
+# metadata would pull this environment back: every esm release requires
+# biotite<2, and atomworks 3.1 pins biotite==2.0.0. (Foundry's own pins conflict
+# with nothing here, but it depends on atomworks.)
 # atomworks is a package, pinned below with its `ml` extra (numba). What else is
 # listed is the union of the trees' runtime imports plus this package's own,
 # pinned to the versions the results were produced with. When a tree grows a new
@@ -27,8 +26,8 @@ dependencies = [
     "pyarrow==25.0.1",
     "scikit-learn==1.9.0",
     "rdkit==2026.3.6",
-    "biotite==1.6.0",
-    "atomworks[ml]==3.0.4",
+    "biotite==2.0.0",
+    "atomworks[ml]==3.1.0",
     "biopython==1.88",
     "tqdm==4.70.0",
     "typer==0.27.2",
@@ -73,7 +72,6 @@ esm = [
 #     were produced with ---
 atomworks = [
     "jaxtyping==0.3.11",
-    "toolz==1.1.0",
     "py3Dmol==2.5.5",
     "pymol-remote==1.1.0",
 ]
@@ -96,6 +94,7 @@ foundry = [
     "cytoolz==1.1.0",
     "einx==0.4.3",
     "dm-tree==0.1.10",
+    "toolz==1.1.0",
 ]
 [tool.uv]
 # A record, not a package: `uv sync --project reproducibility` builds the

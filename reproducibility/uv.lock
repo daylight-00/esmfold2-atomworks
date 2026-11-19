@@ -167,42 +167,32 @@ wheels = [
 
 [[package]]
 name = "atomworks"
-version = "3.0.4"
+version = "3.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "biotite" },
-    { name = "cython" },
-    { name = "cytoolz" },
     { name = "idna" },
     { name = "jaxtyping" },
     { name = "numpy" },
-    { name = "pandas" },
     { name = "pillow" },
-    { name = "py3dmol" },
-    { name = "pyarrow" },
-    { name = "pygments" },
-    { name = "pymol-remote" },
-    { name = "python-dotenv" },
     { name = "rdkit" },
     { name = "requests" },
     { name = "scipy" },
-    { name = "tqdm" },
-    { name = "typer" },
     { name = "urllib3" },
     { name = "zstandard" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9c/a2/c4243f421df1dfbf1472d7c7486ec5b252091902401615e74434311d698a/atomworks-3.0.4.tar.gz", hash = "sha256:84ab61c76b2fc2d3e2be11d558c5ac11b39431817793b032bee2d1be5aae7d60", size = 679903, upload-time = "2026-10-19T22:40:42.366Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/86/7b/529fad800b6945a673703addc7246a9b42b7a33b6f1eb2b2c883028bc0ff/atomworks-3.1.0.tar.gz", hash = "sha256:4891a99d8f932cc32c07392e04a629dceb5d0e26c9c01dddc465c0f3491aff47", size = 652389, upload-time = "2026-11-10T21:55:54.801Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/dd/32/b79629a896463d14a8513dc2ba50b47968e3f02cdbf6e5d2ec1f6756a87c/atomworks-3.0.4-py3-none-any.whl", hash = "sha256:7333368062076833f408e99daf5fb2da430a8d5d1569c16e72d050746a72a69b", size = 789584, upload-time = "2026-10-19T22:40:40.138Z" },
+    { url = "https://files.pythonhosted.org/packages/46/6a/1ced9ffea8fa09dd9c60d65a485fddc34f9ea3803075fb82a80708f7c1b2/atomworks-3.1.0-py3-none-any.whl", hash = "sha256:91495aab360d0eaafa1029e0eaebdfb310b17e4bb0fa9854ccc6eff003d8a8c3", size = 759202, upload-time = "2026-11-10T21:55:52.921Z" },
 ]
 
 [package.optional-dependencies]
 ml = [
-    { name = "beartype" },
     { name = "einops" },
     { name = "filelock" },
     { name = "numba" },
-    { name = "requests" },
+    { name = "pandas" },
+    { name = "pyarrow" },
     { name = "torch" },
 ]
 
@@ -239,7 +229,7 @@ wheels = [
 
 [[package]]
 name = "biotite"
-version = "1.6.0"
+version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "biotraj" },
@@ -249,9 +239,9 @@ dependencies = [
     { name = "packaging" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/59/7b/99153f7bceef01034b5f19a6b123219533132d446ffcf141dfef3e386d33/biotite-1.6.0.tar.gz", hash = "sha256:4c172f6e57521220fa0fc4899142211f6f21ba83d8f6f135d4edc68981f70e7e", size = 38514388, upload-time = "2026-01-23T12:47:38.331Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b4/92/d38007f947646f694caaa9a4176938920dee9ec601764ae3be1e8b604849/biotite-2.0.0.tar.gz", hash = "sha256:0adfb641b1b8879190c5f1e413ec2423cf6fcd7f0739ab62a8ddbca970aa753c", size = 40843411, upload-time = "2026-10-18T07:53:39.869Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/62/b7/fb3b2fa155a3a5cf00f8e970e82a7554070c59a127b326375aa36d5452db/biotite-1.6.0-cp314-cp314-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:ef558c9bb1715753acf5819593fd9f3f80bc2feaa02a7d9f0d7d8d15a284d182", size = 56926154, upload-time = "2026-01-23T12:47:32.824Z" },
+    { url = "https://files.pythonhosted.org/packages/3b/4c/4612522b75d4eb77c7f355074fed68af13b6219bca232bb6b0e2a4f15fba/biotite-2.0.0-cp314-cp314-manylinux_2_28_x86_64.whl", hash = "sha256:36f8d3fb0f85691abe81e29a1f0af2c72d5bf29908b01c333d81fe4cecfc1a73", size = 41998491, upload-time = "2026-10-18T07:53:22.463Z" },
 ]
 
 [[package]]
@@ -639,7 +629,6 @@ atomworks = [
     { name = "jaxtyping" },
     { name = "py3dmol" },
     { name = "pymol-remote" },
-    { name = "toolz" },
 ]
 common = [
     { name = "brotli" },
@@ -689,14 +678,15 @@ foundry = [
     { name = "python-dotenv" },
     { name = "rich" },
     { name = "rootutils" },
+    { name = "toolz" },
     { name = "wandb" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "atomworks", extras = ["ml"], specifier = "==3.0.4" },
+    { name = "atomworks", extras = ["ml"], specifier = "==3.1.0" },
     { name = "biopython", specifier = "==1.88" },
-    { name = "biotite", specifier = "==1.6.0" },
+    { name = "biotite", specifier = "==2.0.0" },
     { name = "numpy", specifier = "==2.5.2" },
     { name = "pandas", specifier = "==3.0.5" },
     { name = "pip", specifier = "==26.2.1" },
@@ -714,7 +704,6 @@ atomworks = [
     { name = "jaxtyping", specifier = "==0.3.11" },
     { name = "py3dmol", specifier = "==2.5.5" },
     { name = "pymol-remote", specifier = "==1.1.0" },
-    { name = "toolz", specifier = "==1.1.0" },
 ]
 common = [
     { name = "brotli", specifier = "==1.2.0" },
@@ -764,6 +753,7 @@ foundry = [
     { name = "python-dotenv", specifier = "==1.2.3" },
     { name = "rich", specifier = "==15.0.0" },
     { name = "rootutils", specifier = "==1.0.7" },
+    { name = "toolz", specifier = "==1.1.0" },
     { name = "wandb", specifier = "==0.29.0" },
 ]
 

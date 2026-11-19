@@ -9,8 +9,8 @@ package, `pip install -e .` in the repository root is enough; see
 |---|---|
 | interpreter | CPython 3.14.6, linux x86_64 |
 | torch | 2.14.0, CUDA 13.2 |
-| atomworks | the package, `atomworks[ml]==3.0.4`, pinned in [`uv.lock`](uv.lock) |
-| esm, foundry | source trees at the revisions in [`UPSTREAM.lock`](UPSTREAM.lock), on `PYTHONPATH`; the esm revision is `main` after the 3.4.2 release and is not on PyPI |
+| atomworks | the package, `atomworks[ml]==3.1.0` with `biotite==2.0.0`, pinned in [`uv.lock`](uv.lock) |
+| esm, foundry | source trees at the revisions in [`UPSTREAM.lock`](UPSTREAM.lock), on `PYTHONPATH`; the esm revision is the 3.5.0 release |
 | model artifacts | the checkpoint, its ESMC backbone and the CCD pickle, by revision and digest, in [`ARTIFACTS.lock`](ARTIFACTS.lock) |
 | everything else | [`pyproject.toml`](pyproject.toml) pins what the trees and the package import; [`uv.lock`](uv.lock) pins the rest — 183 packages, each at the version that environment had |
 
@@ -39,20 +39,21 @@ environment.
 ## Why esm and foundry are source trees, and atomworks is not
 
 The package declares `esm` and `atomworks` as ordinary dependencies, and a
-resolver honours their own pins. This environment is newer than esm's: the esm
-3.4.2 release pins `torch>=2.11,<2.12`, and this one runs torch 2.14. rc-foundry supports
-Python 3.12 only, and this one is 3.14. Installing them as packages would pull the
+resolver honours their own pins. This environment is newer than esm's: every
+esm release requires `biotite<2`, and AtomWorks 3.1 pins 2.0.0. rc-foundry
+supports Python 3.12 only, and this one is 3.14. Installing them as packages would pull the
 environment back, so they are consumed as source, and `pyproject.toml` here lists
 the union of their runtime imports — plus the package's own — instead of the
 upstreams themselves. When a tree grows a new import, add it to the matching
 group; do not add the tree.
 
-AtomWorks 3.0 asks for nothing that pulls the environment back — it pins
-`biotite==1.6.0`, which has cp314 wheels — so it is installed, and its own
+AtomWorks 3.1 asks for nothing that pulls the environment back — it pins
+`biotite==2.0.0`, which has cp314 wheels — so it is installed, and its own
 requirements are in the lock. Two consequences:
 
-- **`biotite` is held by atomworks to 1.6.0.** Do not move it: AtomWorks patches
-  biotite internals, and it refuses another version at import.
+- **`biotite` is held by atomworks to 2.0.0.** Do not move it: AtomWorks patches
+  biotite internals, and it refuses another version at import. Moving from
+  AtomWorks 3.0.4 to 3.1.0 changed only these two packages in the lock.
 - **atomworks 3.0 raised a few floors**: `urllib3>=2.8` (the lock moved it from
   2.7.0), `pyarrow>=23.0.1`, and its `ml` extra brings `numba` and `llvmlite`,
   which the pipelines' MSA loader needs. `hydride`, which 2.2.1 required, is no
@@ -77,8 +78,8 @@ compares against it:
 
 ```
 upstream revisions
-  [ok  ] esm        90d6497a546b: matches lock (3.4.2)
-  [ok  ] atomworks  package 3.0.4: matches locked version (3.0.4)
+  [ok  ] esm        42fc6babbfe4: matches lock (3.5.0)
+  [ok  ] atomworks  package 3.1.0: matches locked version (3.1.0)
   [ok  ] foundry    e9b7f0f763a7: matches lock (0.2.1.dev28)
 ```
 
